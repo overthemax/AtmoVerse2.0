@@ -1,0 +1,142 @@
+{
+  "mattina": [
+    {
+      "text": "Non importa quanto cammino tu abbia già fatto, importa sempre quanto cammino devi ancora fare.",
+      "author": "Proverbio giapponese"
+    },
+    {
+      "text": "La vita è ciò che ti accade mentre sei occupato a fare altri progetti.",
+      "author": "John Lennon"
+    },
+    {
+      "text": "Inizia ogni giorno con un sorriso e finiscilo con un sorriso ancora più grande.",
+      "author": "Anonimo"
+    },
+    {
+      "text": "Il modo migliore per iniziare la giornata è svegliarsi con l'idea che qualcosa di meraviglioso sta per accadere.",
+      "author": "Anonimo"
+    }
+  ],
+  "pomeriggio": [
+    {
+      "text": "Nel mezzo delle difficoltà nascono le opportunità.",
+      "author": "Albert Einstein"
+    },
+    {
+      "text": "Non aspettare. Non sarà mai il momento giusto.",
+      "author": "Napoleon Hill"
+    },
+    {
+      "text": "Ogni difficoltà è un'opportunità per crescere.",
+      "author": "Anonimo"
+    },
+    {
+      "text": "La vita è come andare in bicicletta: per mantenere l'equilibrio devi muoverti.",
+      "author": "Albert Einstein"
+    }
+  ],
+  "sera": [
+    {
+      "text": "Le stelle sono buchi nel cielo da cui filtra la luce dell'infinito.",
+      "author": "Confucio"
+    },
+    {
+      "text": "La notte è più scura poco prima dell'alba.",
+      "author": "Proverbio"
+    },
+    {
+      "text": "Ogni tramonto è un'opportunità per resettare.",
+      "author": "Richie Norton"
+    },
+    {
+      "text": "La sera è il momento in cui gli uomini trovano il tempo per pensare.",
+      "author": "Anonimo"
+    }
+  ],
+  "pioggia": [
+    {
+      "text": "Alcuni sentono la pioggia. Altri si bagnano soltanto.",
+      "author": "Roger Miller"
+    },
+    {
+      "text": "La pioggia è grazia; la pioggia è la cosa, mondialmente, che ci accomuna.",
+      "author": "John Updike"
+    },
+    {
+      "text": "Lascia che la pioggia ti bagni, lascia che il vento ti scompigli i capelli.",
+      "author": "Anonimo"
+    }
+  ],
+  "sole": [
+    {
+      "text": "Tieni sempre il viso rivolto verso il sole e le ombre cadranno dietro di te.",
+      "author": "Walt Whitman"
+    },
+    {
+      "text": "Il sole non è solo luce, è vita.",
+      "author": "Anonimo"
+    },
+    {
+      "text": "Anche il sole ha i suoi limiti, tramonta tutti i giorni.",
+      "author": "Proverbio"
+    }
+  ],
+  "neve": [
+    {
+      "text": "La neve è come il tempo per l'anima: copre in silenzio tutto ciò che è stato.",
+      "author": "Anonimo"
+    },
+    {
+      "text": "Quando nevica, la natura ascolta.",
+      "author": "Antoinette van Kleeff"
+    }
+  ],
+  "nuvole": [
+    {
+      "text": "Le nuvole passano, il cielo resta.",
+      "author": "Proverbio africano"
+    },
+    {
+      "text": "Anche le nuvole più scure hanno i bordi argentati.",
+      "author": "Anonimo"
+    }
+  ],
+  "vento": [
+    {
+      "text": "Il vento sussurra ciò che le parole non possono esprimere.",
+      "author": "Anonimo"
+    },
+    {
+      "text": "Non puoi cambiare la direzione del vento, ma puoi regolare le vele.",
+      "author": "Proverbio"
+    }
+  ],
+  "motivazione": [
+    {
+      "text": "Il successo non è definitivo, il fallimento non è fatale: ciò che conta è il coraggio di andare avanti.",
+      "author": "Winston Churchill"
+    },
+    {
+      "text": "Non contare i giorni, fai in modo che i giorni contino.",
+      "author": "Muhammad Ali"
+    },
+    {
+      "text": "La differenza tra chi ce la fa e chi no è la perseveranza.",
+      "author": "Anonimo"
+    }
+  ],
+  "natura": [
+    {
+      "text": "La natura è il più grande artista. Osservala e troverai la perfezione.",
+      "author": "Anonimo"
+    },
+    {
+      "text": "La terra ha musica per coloro che ascoltano.",
+      "author": "William Shakespeare"
+    },
+    {
+      "text": "Nella natura si nascondono meravigliose lezioni di equilibrio.",
+      "author": "Anonimo"
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="1200" height="900" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
+  <!-- Riga 1: Sole e variazioni -->
+  <!-- ICON_SOL_SEMICOPERTO - Posizione: 150, 100 -->
+  <g transform="translate(150, 100)">
+    <circle cx="50" cy="50" r="30" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="50" y1="10" x2="50" y2="0" stroke="black" stroke-width="2"/>
+    <line x1="50" y1="90" x2="50" y2="100" stroke="black" stroke-width="2"/>
+    <line x1="10" y1="50" x2="0" y2="50" stroke="black" stroke-width="2"/>
+    <line x1="90" y1="50" x2="100" y2="50" stroke="black" stroke-width="2"/>
+    <path d="M80 30 C 100 0, 70 -20, 40 20" fill="none" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_SOLE - Posizione: 350, 100 -->
+  <g transform="translate(350, 100)">
+    <circle cx="50" cy="50" r="35" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="50" y1="5" x2="50" y2="-10" stroke="black" stroke-width="2"/>
+    <line x1="50" y1="95" x2="50" y2="110" stroke="black" stroke-width="2"/>
+    <line x1="5" y1="50" x2="-10" y2="50" stroke="black" stroke-width="2"/>
+    <line x1="95" y1="50" x2="110" y2="50" stroke="black" stroke-width="2"/>
+    <line x1="20" y1="20" x2="10" y2="10" stroke="black" stroke-width="2"/>
+    <line x1="80" y1="20" x2="90" y2="10" stroke="black" stroke-width="2"/>
+    <line x1="20" y1="80" x2="10" y2="90" stroke="black" stroke-width="2"/>
+    <line x1="80" y1="80" x2="90" y2="90" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_SOLE_NUVOLOSO - Posizione: 550, 100 -->
+  <g transform="translate(550, 100)">
+    <circle cx="40" cy="40" r="25" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="10" x2="40" y2="0" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="70" x2="40" y2="80" stroke="black" stroke-width="2"/>
+    <line x1="10" y1="40" x2="0" y2="40" stroke="black" stroke-width="2"/>
+    <line x1="70" y1="40" x2="80" y2="40" stroke="black" stroke-width="2"/>
+    <path d="M60 60 Q 70 60, 80 70 Q 100 70, 100 90 Q 100 110, 80 110 Q 60 110, 60 90 Q 40 90, 40 80 Q 50 70, 60 60 Z" fill="none" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_SOLE_TEMPESTA - Posizione: 750, 100 -->
+  <g transform="translate(750, 100)">
+    <circle cx="40" cy="30" r="25" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="0" x2="40" y2="5" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="55" x2="40" y2="60" stroke="black" stroke-width="2"/>
+    <line x1="15" y1="30" x2="10" y2="30" stroke="black" stroke-width="2"/>
+    <line x1="65" y1="30" x2="70" y2="30" stroke="black" stroke-width="2"/>
+    <path d="M50 50 Q 70 50, 80 60 Q 100 60, 100 80 Q 100 100, 80 100 Q 60 100, 60 80" fill="none" stroke="black" stroke-width="2"/>
+    <path d="M70 90 L 60 100 L 65 100 L 55 110" fill="none" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- Riga 2: Nuvole con pioggia e temporali -->
+  <!-- ICON_NUVOLA_PIOGGIA1 - Posizione: 150, 350 -->
+  <g transform="translate(150, 350)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="80" x2="30" y2="100" stroke="black" stroke-width="2"/>
+    <line x1="60" y1="80" x2="50" y2="100" stroke="black" stroke-width="2"/>
+    <line x1="80" y1="80" x2="70" y2="100" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_NUVOLA_PIOGGIA2 - Posizione: 350, 350 -->
+  <g transform="translate(350, 350)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="80" x2="35" y2="90" stroke="black" stroke-width="2"/>
+    <line x1="60" y1="80" x2="55" y2="90" stroke="black" stroke-width="2"/>
+    <line x1="80" y1="80" x2="75" y2="90" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_NUVOLA_TEMPORALE1 - Posizione: 550, 350 -->
+  <g transform="translate(550, 350)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <path d="M50 80 L 40 95 L 55 95 L 45 110" fill="none" stroke="black" stroke-width="2"/>
+    <path d="M70 80 L 60 95 L 75 95 L 65 110" fill="none" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_NUVOLA_TEMPORALE2 - Posizione: 750, 350 -->
+  <g transform="translate(750, 350)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <path d="M50 80 L 45 90 L 55 90 L 50 100" fill="none" stroke="black" stroke-width="2"/>
+    <path d="M70 80 L 65 90 L 75 90 L 70 100" fill="none" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- Riga 3: Neve e Mix -->
+  <!-- ICON_NEVE_PIOGGIA1 - Posizione: 150, 600 -->
+  <g transform="translate(150, 600)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="80" x2="30" y2="100" stroke="black" stroke-width="2"/>
+    <circle cx="60" cy="95" r="5" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="60" y1="90" x2="60" y2="100" stroke="black" stroke-width="1"/>
+    <line x1="55" y1="95" x2="65" y2="95" stroke="black" stroke-width="1"/>
+    <line x1="80" y1="80" x2="70" y2="100" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_NEVE_PIOGGIA2 - Posizione: 350, 600 -->
+  <g transform="translate(350, 600)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <line x1="40" y1="80" x2="35" y2="90" stroke="black" stroke-width="2"/>
+    <circle cx="60" cy="90" r="4" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="60" y1="86" x2="60" y2="94" stroke="black" stroke-width="1"/>
+    <line x1="56" y1="90" x2="64" y2="90" stroke="black" stroke-width="1"/>
+    <line x1="80" y1="80" x2="75" y2="90" stroke="black" stroke-width="2"/>
+  </g>
+  
+  <!-- ICON_NEVE1 - Posizione: 550, 600 -->
+  <g transform="translate(550, 600)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <circle cx="40" cy="95" r="5" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="40" y1="90" x2="40" y2="100" stroke="black" stroke-width="1"/>
+    <line x1="35" y1="95" x2="45" y2="95" stroke="black" stroke-width="1"/>
+    <circle cx="60" cy="95" r="5" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="60" y1="90" x2="60" y2="100" stroke="black" stroke-width="1"/>
+    <line x1="55" y1="95" x2="65" y2="95" stroke="black" stroke-width="1"/>
+    <circle cx="80" cy="95" r="5" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="80" y1="90" x2="80" y2="100" stroke="black" stroke-width="1"/>
+    <line x1="75" y1="95" x2="85" y2="95" stroke="black" stroke-width="1"/>
+  </g>
+  
+  <!-- ICON_NEVE2 - Posizione: 750, 600 -->
+  <g transform="translate(750, 600)">
+    <path d="M30 30 Q 50 10, 70 30 Q 90 30, 100 50 Q 100 70, 80 80 Q 60 80, 40 70 Q 20 70, 20 50 Q 20 30, 30 30 Z" fill="none" stroke="black" stroke-width="2"/>
+    <circle cx="40" cy="90" r="3" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="40" y1="87" x2="40" y2="93" stroke="black" stroke-width="1"/>
+    <line x1="37" y1="90" x2="43" y2="90" stroke="black" stroke-width="1"/>
+    <circle cx="60" cy="90" r="3" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="60" y1="87" x2="60" y2="93" stroke="black" stroke-width="1"/>
+    <line x1="57" y1="90" x2="63" y2="90" stroke="black" stroke-width="1"/>
+    <circle cx="80" cy="90" r="3" fill="none" stroke="black" stroke-width="1"/>
+    <line x1="80" y1="87" x2="80" y2="93" stroke="black" stroke-width="1"/>
+    <line x1="77" y1="90" x2="83" y2="90" stroke="black" stroke-width="1"/>
+  </g>
+</svg>

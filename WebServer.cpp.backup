@@ -1,0 +1,1370 @@
+#include "WebServer.h"
+#include "NetworkUtils.h"
+#include "Config.h"
+#include "WeatherUtils.h"
+#include "WebUIPages.h"
+#include "WebMinimal.h"
+#include "SD.h"
+#include "Hardware.h"
+#include "SDFileManager.h"
+#include <ArduinoJson.h>
+
+// Funzione per decodificare l'URL (traduce caratteri come %20 in spazi)
+String urldecode(String str) {
+  String decodedStr = "";
+  char c;
+  for (int i = 0; i < str.length(); i++) {
+    if (str[i] == '+') {
+      decodedStr += ' ';
+    } else if (str[i] == '%' && i + 2 < str.length()) {
+      // Converti il valore esadecimale in carattere
+      int val1 = 0;
+      int val2 = 0;
+      
+      if (str[i+1] >= '0' && str[i+1] <= '9') val1 = str[i+1] - '0';
+      else if (str[i+1] >= 'A' && str[i+1] <= 'F') val1 = str[i+1] - 'A' + 10;
+      else if (str[i+1] >= 'a' && str[i+1] <= 'f') val1 = str[i+1] - 'a' + 10;
+      
+      if (str[i+2] >= '0' && str[i+2] <= '9') val2 = str[i+2] - '0';
+      else if (str[i+2] >= 'A' && str[i+2] <= 'F') val2 = str[i+2] - 'A' + 10;
+      else if (str[i+2] >= 'a' && str[i+2] <= 'f') val2 = str[i+2] - 'a' + 10;
+      
+      c = (val1 * 16 + val2);
+      decodedStr += c;
+      i += 2;
+    } else {
+      decodedStr += str[i];
+    }
+  }
+  return decodedStr;
+}
+
+// Istanza del server
+WiFiServer server(80);
+
+// Inizializza il server
+void setupServer() {
+  server.begin();
+  // Inizializza la struttura dei file sulla SD
+  if (!initSDFileStructure()) {
+    Serial.println("Errore: Impossibile inizializzare la struttura dei file su SD");
+  } else {
+    Serial.println("Struttura file SD inizializzata correttamente");
+  }
+}
+
+// Determina il tipo di contenuto in base all'estensione del file
+String getContentType(String filename) {
+  if (filename.endsWith(".html")) return "text/html";
+  else if (filename.endsWith(".css")) return "text/css";
+  else if (filename.endsWith(".js")) return "text/javascript";
+  else if (filename.endsWith(".json")) return "application/json";
+  else if (filename.endsWith(".png")) return "image/png";
+  else if (filename.endsWith(".jpg")) return "image/jpeg";
+  else if (filename.endsWith(".ico")) return "image/x-icon";
+  else if (filename.endsWith(".svg")) return "image/svg+xml";
+  return "text/plain";
+}
+
+// Serve un file dalla SD card
+bool serveFileFromSD(WiFiClient& client, String path) {
+  // Aggiunge /www come directory root per i file web
+  if (!path.startsWith("/www/")) {
+    if (path == "/" || path == "/index.html") {
+      path = "/www/index.html";
+    } else if (path == "/quotes" || path == "/quotes.html") {
+      path = "/www/quotes.html";
+    } else if (path.startsWith("/css/")) {
+      path = "/www" + path;
+    } else if (path.startsWith("/js/")) {
+      path = "/www" + path;
+    } else if (path.startsWith("/icons/")) {
+      path = "/www" + path;
+    }
+  }
+  
+  Serial.print("Servendo file: ");
+  Serial.println(path);
+  
+  if (!SD.exists(path)) {
+    Serial.print("File non trovato: ");
+    Serial.println(path);
+    return false;
+  }
+  
+  File file = SD.open(path, FILE_READ);
+  if (!file) {
+    Serial.println("Errore apertura file");
+    return false;
+  }
+  
+  String contentType = getContentType(path);
+  
+  // Invia le intestazioni HTTP
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: " + contentType);
+  client.println("Connection: close");  // Chiudi la connessione dopo la risposta
+  client.println();
+  
+  // Invia il contenuto del file
+  byte buffer[128];
+  int bytesRead = 0;
+  
+  while ((bytesRead = file.read(buffer, sizeof(buffer))) > 0) {
+    client.write(buffer, bytesRead);
+  }
+  
+  file.close();
+  return true;
+}
+
+// Gestione delle richieste dei client
+void handleClientRequests() {
+  // In modalità AP, gestisci il DNS per il captive portal
+  if (apMode) {
+    dnsServer.processNextRequest();
+  }
+  
+  // Controlla se ci sono client disponibili
+  WiFiClient client = server.available();
+  if (!client) {
+    return;
+  }
+  
+  // Attendi che il client invii dati
+  unsigned long timeout = millis();
+  while (client.connected() && !client.available()) {
+    if (millis() - timeout > 2000) {
+      client.stop();
+      return;
+    }
+    delay(1);
+  }
+  
+  // Leggi la prima riga della richiesta
+  String request = client.readStringUntil('\r');
+  client.readStringUntil('\n');
+  
+  // Estrai metodo e percorso
+  int firstSpaceIndex = request.indexOf(' ');
+  int secondSpaceIndex = request.indexOf(' ', firstSpaceIndex + 1);
+  
+  if (firstSpaceIndex == -1 || secondSpaceIndex == -1) {
+    client.stop();
+    return;
+  }
+  
+  String method = request.substring(0, firstSpaceIndex);
+  String pathWithParams = request.substring(firstSpaceIndex + 1, secondSpaceIndex);
+  
+  // Dividi percorso e parametri
+  int paramStart = pathWithParams.indexOf('?');
+  String path;
+  String params = "";
+  
+  if (paramStart != -1) {
+    path = pathWithParams.substring(0, paramStart);
+    params = pathWithParams.substring(paramStart + 1);
+  } else {
+    path = pathWithParams;
+  }
+  
+  // Ottieni il parametro SSID se esiste
+  String ssidParam = "";
+  if (params.indexOf("ssid=") != -1) {
+    int ssidStart = params.indexOf("ssid=") + 5;
+    int ssidEnd = params.indexOf('&', ssidStart);
+    if (ssidEnd == -1) ssidEnd = params.length();
+    ssidParam = params.substring(ssidStart, ssidEnd);
+    // Decodifica URL (spazi e caratteri speciali)
+    ssidParam.replace("+", " ");
+    // Sostituisci sequenze %xx
+    int indexPercent = ssidParam.indexOf('%');
+    while (indexPercent != -1) {
+      if (indexPercent + 2 < ssidParam.length()) {
+        String hexStr = ssidParam.substring(indexPercent + 1, indexPercent + 3);
+        char decodedChar = (char)strtol(hexStr.c_str(), NULL, 16);
+        ssidParam.replace(ssidParam.substring(indexPercent, indexPercent + 3), String(decodedChar));
+      }
+      indexPercent = ssidParam.indexOf('%', indexPercent + 1);
+    }
+  }
+  
+  // Leggi e ignora gli header HTTP
+  while (client.available()) {
+    String line = client.readStringUntil('\r');
+    client.readStringUntil('\n');
+    if (line.length() == 0) break;
+  }
+  
+  // In modalità AP, reindirizza qualsiasi richiesta alla pagina delle impostazioni
+  // tranne le risorse essenziali e le API
+  if (apMode) {
+    if (path != "/setup" && !path.startsWith("/api/") && path != "/style.css" && path != "/script.js") {
+      Serial.println("[AP Mode] Reindirizzamento a setup: " + path);
+      sendRedirect(client, "/setup");
+      return;
+    }
+  }
+
+  // Prova a servire file dalla SD card per pagine standard (solo in modalità non-AP)
+  if (!apMode && (path == "/" || path == "/index.html" || path == "/quotes" || path == "/quotes.html" || 
+      path.startsWith("/css/") || path.startsWith("/js/") || path.startsWith("/icons/"))) {
+    
+    // Tenta di servire il file dalla SD card
+    if (serveFileFromSD(client, path)) {
+      Serial.println("File servito dalla SD: " + path);
+      return; // File servito con successo
+    }
+    
+    // Se il file non esiste sulla SD, utilizza il backup incorporato nel firmware
+    Serial.println("File non trovato sulla SD, utilizzo backup dal firmware: " + path);
+  }
+
+  // Gestione delle richieste in base al percorso (fallback ai contenuti incorporati)
+  if (path == "/" || path == "/index.html") {
+    // Pagina principale (fallback)
+    String content = generateMinimalMainPage();
+    sendResponse(client, "text/html", content);
+  } 
+  else if (path == "/quotes") {
+    // Pagina per gestire le citazioni (fallback)
+    String content = generateMinimalQuotesPage();
+    sendResponse(client, "text/html", content);
+  }
+  else if (path == "/setup") {
+    // Pagina di configurazione WiFi in modalità AP - versione semplificata
+    String content = "<!DOCTYPE html><html><head><title>AtmoVerse Setup</title></head><body>";
+    content += "<h1>Configurazione WiFi AtmoVerse</h1>";
+    content += "<p>Inserisci i dettagli della tua rete WiFi:</p>";
+    content += "<form method='post' action='/connect'>";
+    content += "<label>SSID: <input name='ssid' value='" + ssidParam + "'></label><br>";
+    content += "<label>Password: <input name='password' type='password'></label><br>";
+    content += "<input type='submit' value='Connetti'>";
+    content += "</form></body></html>";
+    sendResponse(client, "text/html", content);
+  }
+  else if (path == "/info") {
+    // Pagina di informazioni sul dispositivo
+    String content = generateMinimalInfoPage();
+    sendResponse(client, "text/html", content);
+  }
+  else if (path.startsWith("/settings")) {
+    // Genera la pagina delle impostazioni con l'SSID (se presente)
+    sendResponse(client, "text/html", generateSettingsPage(ssidParam));
+  }
+  else if (path == "/wifi-scan") {
+    // Pagina dedicata per la scansione WiFi con JavaScript
+    sendResponse(client, "text/html", generateWiFiScanPage());
+  }
+  else if (path.startsWith("/select-network") && method == "GET") {
+    // Estrai l'SSID dalla query string
+    String ssid = "";
+    int questionMarkIndex = path.indexOf("?");
+    if (questionMarkIndex != -1) {
+      String queryString = path.substring(questionMarkIndex + 1);
+      Serial.println("[WIFI-SELECT] Query string: " + queryString);
+      
+      int ssidStartIndex = queryString.indexOf("ssid=");
+      if (ssidStartIndex != -1) {
+        int valueStartIndex = ssidStartIndex + 5; // lunghezza di "ssid="
+        int andIndex = queryString.indexOf("&", valueStartIndex);
+        if (andIndex != -1) {
+          ssid = queryString.substring(valueStartIndex, andIndex);
+        } else {
+          ssid = queryString.substring(valueStartIndex);
+        }
+        
+        // Log l'SSID codificato
+        Serial.println("[WIFI-SELECT] SSID codificato: " + ssid);
+        
+        // Decodifica URL (converti %20 in spazi, ecc.)
+        ssid.replace("%20", " ");
+        ssid.replace("%21", "!");
+        ssid.replace("%22", "\"");
+        ssid.replace("%23", "#");
+        ssid.replace("%24", "$");
+        ssid.replace("%25", "%");
+        ssid.replace("%26", "&");
+        ssid.replace("%27", "'");
+        ssid.replace("%28", "(");
+        ssid.replace("%29", ")");
+        ssid.replace("%2B", "+");
+        ssid.replace("%2C", ",");
+        ssid.replace("%2F", "/");
+        ssid.replace("%3A", ":");
+        ssid.replace("%3B", ";");
+        ssid.replace("%3D", "=");
+        ssid.replace("%3F", "?");
+        ssid.replace("%40", "@");
+        ssid.replace("+", " "); // Alcuni browser codificano gli spazi come +
+        
+        // Log l'SSID decodificato
+        Serial.println("[WIFI-SELECT] SSID decodificato: " + ssid);
+      }
+    }
+    
+    // Assicurati che l'SSID non sia vuoto (debug)
+    Serial.println("[WIFI-SELECT] SSID prima di generare la pagina: '" + ssid + "'");
+    
+    // Genera immediatamente la pagina impostazioni con SSID selezionato
+    sendResponse(client, "text/html", generateSettingsPage(ssid));
+  }
+  else if (path == "/api/wifi-scan" && method == "GET") {
+    Serial.println("***** [API] Richiesta scansione WiFi ricevuta! *****");
+    Serial.print("***** [API] Stato WiFi attuale: ");
+    Serial.println(WiFi.status() == WL_CONNECTED ? "CONNESSO" : "NON CONNESSO");
+    Serial.print("***** [API] Modalità WiFi: ");
+    switch(WiFi.getMode()) {
+      case WIFI_MODE_NULL: Serial.println("NULL"); break;
+      case WIFI_MODE_STA: Serial.println("STA"); break;
+      case WIFI_MODE_AP: Serial.println("AP"); break;
+      case WIFI_MODE_APSTA: Serial.println("AP+STA"); break;
+      default: Serial.println("SCONOSCIUTA");
+    }
+    Serial.println("***** [API] Chiamata a performWiFiScan() *****");
+    
+    // Richiesta ricevuta, inviami subito un'intestazione per evitare timeout
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");
+    client.println("Cache-Control: no-cache, no-store, must-revalidate");
+    client.println("Pragma: no-cache");
+    client.println("Expires: 0");
+    client.println();
+    client.flush(); // Flush dell'header prima di iniziare la scansione
+    
+    performWiFiScan(client);
+  }
+  // Nuovo endpoint per scansione diretta (senza JavaScript)
+  else if (path == "/api/wifi-scan-direct" && method == "GET") {
+    Serial.println("***** [API] Richiesta scansione WiFi diretta! *****");
+    
+    // Avvia la scansione WiFi
+    Serial.println("[WIFI-SCAN] Avvio scansione WiFi...");
+    int numNetworks = WiFi.scanNetworks();
+    Serial.print("[WIFI-SCAN] Scansione completata. Trovate ");
+    Serial.print(numNetworks);
+    Serial.println(" reti.");
+    
+    // Genera la pagina HTML con i risultati
+    String html = "<!DOCTYPE html><html lang='it'>";
+    html += "<head>";
+    html += "<meta charset='UTF-8'>";
+    html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+    html += "<title>Risultati Scansione - AtmoVerse 2.0</title>";
+    html += "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css'>";
+    html += "<style>" + generateStyleCSS() + ""; 
+    
+    // Stili aggiuntivi per la pagina di risultati
+    html += ".network-card { margin-bottom: 15px; padding: 15px; border-radius: 8px; position: relative; }";
+    html += ".network-secure { background-color: #e3f2fd; }";
+    html += ".network-open { background-color: #fff8e1; }";
+    html += ".network-name { font-weight: bold; margin-bottom: 8px; }";
+    html += ".network-details { display: flex; justify-content: space-between; font-size: 0.9em; }";
+    html += "</style>";
+    html += "</head>";
+    html += "<body>";
+    html += "<div class='container'>";
+    html += "<header>";
+    html += "<h1>Risultati Scansione WiFi</h1>";
+    html += "<a href='/wifi-scan' class='back-button'><i class='fas fa-arrow-left'></i></a>";
+    html += "</header>";
+    
+    html += "<div class='card'>";
+    
+    // Mostra i risultati
+    if (numNetworks == 0) {
+      html += "<p class='info-text'>Nessuna rete trovata.</p>";
+    } else {
+      for (int i = 0; i < numNetworks; i++) {
+        // Tipo di crittografia
+        String encType;
+        switch(WiFi.encryptionType(i)) {
+          case WIFI_AUTH_OPEN: encType = "Aperta"; break;
+          case WIFI_AUTH_WEP: encType = "WEP"; break;
+          case WIFI_AUTH_WPA_PSK: encType = "WPA"; break;
+          case WIFI_AUTH_WPA2_PSK: encType = "WPA2"; break;
+          case WIFI_AUTH_WPA_WPA2_PSK: encType = "WPA/WPA2"; break;
+          default: encType = "Sconosciuta";
+        }
+        
+        // Calcola la qualità del segnale (0-100%)
+        int quality = min(max(2 * (WiFi.RSSI(i) + 100), 0L), 100L);
+        String qualityText = "Debole";
+        
+        if (quality > 70) qualityText = "Ottimo";
+        else if (quality > 50) qualityText = "Buono";
+        else if (quality > 30) qualityText = "Discreto";
+        
+        // Genera la card per questa rete
+        String networkClass = (encType != "Aperta") ? "network-secure" : "network-open";
+        html += "<div class='network-card " + networkClass + "'>";
+        html += "<div class='network-name'>" + WiFi.SSID(i) + " ";
+        
+        if (encType != "Aperta") {
+          html += "<i class='fas fa-lock' title='Rete protetta'></i>";
+        } else {
+          html += "<i class='fas fa-lock-open' title='Rete aperta'></i>";
+        }
+        
+        html += "</div>";
+        html += "<div class='network-details'>";
+        html += "<span>Segnale: " + qualityText + "</span>";
+        html += "<span>Tipo: " + encType + "</span>";
+        html += "</div>";
+        
+        // Link per configurare questa rete
+        String encodedSSID = WiFi.SSID(i);
+        // Applicchiamo l'URL encoding manualmente
+        encodedSSID.replace(" ", "%20");
+        encodedSSID.replace("!", "%21");
+        encodedSSID.replace("\"", "%22");
+        encodedSSID.replace("#", "%23");
+        encodedSSID.replace("$", "%24");
+        encodedSSID.replace("%", "%25");
+        encodedSSID.replace("&", "%26");
+        encodedSSID.replace("'", "%27");
+        encodedSSID.replace("(", "%28");
+        encodedSSID.replace(")", "%29");
+        encodedSSID.replace("+", "%2B");
+        encodedSSID.replace(",", "%2C");
+        encodedSSID.replace("/", "%2F");
+        encodedSSID.replace(":", "%3A");
+        encodedSSID.replace(";", "%3B");
+        encodedSSID.replace("=", "%3D");
+        encodedSSID.replace("?", "%3F");
+        encodedSSID.replace("@", "%40");
+        
+        html += "<a href='/settings?ssid=" + encodedSSID + "' class='button primary' style='margin-top:10px;'>Configura questa rete</a>";
+        html += "</div>";
+      }
+    }
+    
+    html += "</div>";
+    
+    html += "<div class='button-group' style='margin-top:20px;'>";
+    html += "<a href='/wifi-scan' class='button secondary'><i class='fas fa-sync-alt'></i> Scansiona di nuovo</a>";
+    html += "<a href='/settings' class='button primary'><i class='fas fa-cog'></i> Impostazioni</a>";
+    html += "</div>";
+    
+    html += "<footer>AtmoVerse 2.0 &copy; 2023</footer>";
+    html += "</div>";
+    html += "</body></html>";
+    
+    // Invia la risposta HTML
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.println("Connection: close");
+    client.println("Content-Length: " + String(html.length()));
+    client.println();
+    client.print(html);
+    
+    // Libera la memoria
+    WiFi.scanDelete();
+  }
+  else if (path == "/info" && method == "GET") {
+    Serial.println("[WEB] Richiesta pagina info ricevuta");
+    if (serveFileFromSD(client, "/info.html")) {
+      Serial.println("[WEB] File info.html servito dalla SD");
+    } else {
+      // Fallback se il file non esiste sulla SD
+      sendResponse(client, "text/html", "<html><body><h1>Informazioni</h1><p>Pagina info non disponibile.</p><a href='/'>Indietro</a></body></html>");
+      Serial.println("[WEB] File info.html non trovato, servito fallback");
+    }
+    return;
+  }
+  else if (path == "/api/force-weather-update" && method == "GET") {
+    Serial.println("[API] Richiesta forzata aggiornamento meteo ricevuta!");
+    
+    // Forza l'aggiornamento dei dati meteo, anche in modalità AP
+    bool success = getWeatherData();
+    
+    // Prepara la risposta JSON
+    DynamicJsonDocument doc(1024);
+    doc["success"] = success;
+    doc["message"] = success ? "Dati meteo aggiornati con successo" : "Errore nell'aggiornamento dei dati meteo";
+    if (success) {
+      JsonObject data = doc.createNestedObject("data");
+      data["temp"] = currentWeather.temp;
+      data["humidity"] = currentWeather.humidity;
+      data["description"] = currentWeather.description;
+    } else {
+      doc["error"] = "Verifica connessione internet e API key";
+    }
+    
+    String json;
+    serializeJson(doc, json);
+    Serial.println("[API] JSON risposta: " + json);
+    
+    sendJsonResponse(client, json, 200);
+    return;
+  }
+  else if (path == "/api/weather" && method == "GET") {
+    DynamicJsonDocument doc(2048); // buffer ancora più grande
+    
+    extern WeatherData currentWeather;
+    
+    // Struttura del JSON come la richiede il frontend
+    JsonObject weather = doc["weather"].to<JsonObject>();
+    JsonObject location = doc["location"].to<JsonObject>();
+    JsonObject time = doc["time"].to<JsonObject>();
+    
+    // Dati località (fissi o da config)
+    location["city"] = config.city;
+    location["country"] = "Italia"; // Hardcoded per semplicità
+    
+    // Timestamp e ora locale
+    struct tm timeinfo;
+    getLocalTime(&timeinfo);
+    char localTimeStr[30];
+    strftime(localTimeStr, sizeof(localTimeStr), "%H:%M - %d/%m/%Y", &timeinfo);
+    time["local"] = localTimeStr;
+    
+    // Forza l'aggiornamento dei dati meteo se non validi
+    if (!isWeatherDataValid()) {
+      getWeatherData();
+    }
+    
+    // Sempre fornire qualche dato, anche se non valido (per evitare valori a 0)
+    // Dati meteo con struttura adatta al frontend
+    weather["temperature"] = currentWeather.temp > 0 ? currentWeather.temp : 15.0;
+    weather["feels_like"] = currentWeather.feels_like > 0 ? currentWeather.feels_like : 14.0;
+    weather["humidity"] = currentWeather.humidity > 0 ? currentWeather.humidity : 60;
+    weather["pressure"] = currentWeather.pressure > 0 ? currentWeather.pressure : 1013;
+    weather["wind_speed"] = currentWeather.wind_speed;
+    weather["wind_deg"] = currentWeather.wind_deg;
+    
+    // Condizione meteo (determinata dall'ID o dall'icona)
+    weather["condition"] = strlen(currentWeather.description) > 0 ? 
+                          currentWeather.description : "Nuvole Sparse";
+    weather["icon"] = strlen(currentWeather.icon) > 0 ? 
+                    currentWeather.icon : "03d";
+      
+    // Timestamp ultimo aggiornamento
+    char lastUpdateStr[30];
+    struct tm lastUpdateTime;
+    localtime_r(&currentWeather.last_update, &lastUpdateTime);
+    strftime(lastUpdateStr, sizeof(lastUpdateStr), "%H:%M - %d/%m/%Y", &lastUpdateTime);
+    weather["last_update"] = lastUpdateStr;
+    
+    weather["valid"] = true;
+    
+    String json;
+    serializeJson(doc, json);
+    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");
+    client.println();
+      
+      // Conversione di tipi in base alla chiave
+      if (key == "latitude" || key == "longitude" || key == "timezone" || key == "dst") {
+        // Converti in float/int appropriato
+        float numValue = value.toFloat();
+        doc[key] = numValue;
+      } else if (key == "darkmode") {
+        // Converti in boolean
+        doc[key] = (value == "true" || value == "1");
+      } else {
+        // Mantieni come stringa
+        doc[key] = value;
+      }
+    }
+  }
+  
+  error = DeserializationError::Ok; // Non c'è errore di parsing
+} else {
+  // Prova a fare il parsing del JSON
+  error = deserializeJson(doc, jsonBody);
+  if (error) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel parsing JSON\"}");
+    return;
+  }
+}
+
+// Inizializzazione SD
+if (!SD.begin(5)) {
+  sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nell'inizializzazione della SD card\"}");
+  return;
+}
+
+// Estrai e salva i dati di configurazione
+// Leggi la configurazione corrente
+loadConfig();
+  
+// Aggiorna le impostazioni in base ai parametri ricevuti
+if (doc.containsKey("ssid")) {
+  String ssid = doc["ssid"].as<String>();
+  strlcpy(config.ssid, ssid.c_str(), sizeof(config.ssid));
+}
+
+if (doc.containsKey("password")) {
+  String password = doc["password"].as<String>();
+  strlcpy(config.password, password.c_str(), sizeof(config.password));
+}
+
+// Aggiorna API key se presente
+if (doc.containsKey("api_key") && doc["api_key"].as<String>().length() > 0) {
+  String apiKey = doc["api_key"].as<String>();
+  strlcpy(config.api_key, apiKey.c_str(), sizeof(config.api_key));
+}
+
+// Aggiorna la città se presente
+if (doc.containsKey("city")) {
+  String city = doc["city"].as<String>();
+  strlcpy(config.city, city.c_str(), sizeof(config.city));
+}
+
+if (doc.containsKey("timezone")) {
+  config.gmtOffset_sec = doc["timezone"].as<int>() * 3600; // Converti da ore a secondi
+}
+
+if (doc.containsKey("dst")) {
+  config.daylightOffset_sec = doc["dst"].as<int>() * 3600; // Converti da ore a secondi
+}
+
+// Salva la configurazione aggiornata
+if (saveConfig()) {
+  // Configurazione salvata con successo
+  sendJsonResponse(client, "{\"success\":true,\"message\":\"Configurazione salvata con successo\"}");
+  
+  // Attendi prima di riavviare
+  delay(5000);
+  
+  // Chiudi tutte le connessioni WiFi
+  WiFi.disconnect(true);
+  if (apMode) {
+    WiFi.softAPdisconnect(true);
+  }
+  
+  // Riavvia ESP32
+  delay(1000);
+  ESP.restart();
+} else {
+  // Errore nel salvataggio
+  sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel salvataggio della configurazione\"}");
+}
+return;
+} else if (path == "/api/quotes" && method == "GET") {
+// ...
+
+// Inizializza la SD con tentativi multipli
+int retries = 3;
+bool sdOk = false;
+
+while (retries > 0 && !sdOk) {
+  sdOk = SD.begin(5);
+  if (!sdOk) {
+    delay(100);
+    retries--;
+  }
+}
+
+if (!sdOk) {
+  sendJsonResponse(client, "{\"success\":false,\"message\":\"SD card non disponibile\"}");
+  return;
+}
+
+// Verifica se il file esiste
+if (!SD.exists("/quotes.json")) {
+  sendJsonResponse(client, "{\"success\":true,\"quote\":\"\"}");
+  return;
+}
+
+// Apri il file e leggi
+File f = SD.open("/quotes.json", FILE_READ);
+String quote = "";
+
+if (!f) {
+  sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore apertura file\"}");
+  return;
+}
+
+// Se il file è vuoto
+if (f.size() == 0) {
+  f.close();
+  sendJsonResponse(client, "{\"success\":true,\"quote\":\"\"}");
+  return;
+}
+
+// Deserializza
+DynamicJsonDocument doc(4096);
+DeserializationError err = deserializeJson(doc, f);
+f.close();
+
+if (err) {
+  sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore lettura file JSON\"}");
+  return;
+}
+
+// Estrai la citazione
+if (doc.containsKey(cat)) {
+  quote = doc[cat].as<String>();
+}
+
+// Invia risposta
+String resp = "{\"success\":true,\"quote\":\"" + quote + "\"}";
+sendJsonResponse(client, resp);
+return;
+} else if (path == "/edit") {
+// ...
+
+// Pagina di modifica delle citazioni con stile minimalista
+sendResponse(client, "text/html", generateMinimalQuotesPage());
+return;
+} else if (path == "/info" && method == "GET") {
+// ...
+
+// Utilizziamo la pagina informativa per mostrare i dettagli del sistema
+sendResponse(client, "text/html", generateMinimalInfoPage(), 200);
+return;
+} else if (path == "/add-quote" && method == "POST") {
+// ...
+
+// Reindirizza le richieste da /add-quote all'endpoint API corretto
+String body = "";
+while (client.available()) body += (char)client.read();
+
+// Prepara un nuovo body in formato JSON
+int quoteIndex = body.indexOf("quote=");
+int authorIndex = body.indexOf("author=");
+int categoryIndex = body.indexOf("category=");
+
+String quote = "";
+String author = "";
+String category = "any"; // Default
+
+if (quoteIndex != -1) {
+  int startQuote = quoteIndex + 6;
+  int endQuote = body.indexOf("&", startQuote);
+  if (endQuote == -1) endQuote = body.length();
+  quote = body.substring(startQuote, endQuote);
+  quote = urldecode(quote); // Decodifica URL
+}
+
+if (authorIndex != -1) {
+  int startAuthor = authorIndex + 7;
+  int endAuthor = body.indexOf("&", startAuthor);
+  if (endAuthor == -1) endAuthor = body.length();
+  author = body.substring(startAuthor, endAuthor);
+  author = urldecode(author); // Decodifica URL
+}
+
+if (categoryIndex != -1) {
+  int startCat = categoryIndex + 9;
+  int endCat = body.indexOf("&", startCat);
+  if (endCat == -1) endCat = body.length();
+  category = body.substring(startCat, endCat);
+}
+
+String combinedQuote = "\"" + quote + "\" - " + author;
+
+// Crea un nuovo JSON per l'API quotes
+String jsonBody = "{\"cat\":\"" + category + "\",\"quote\":\"" + combinedQuote + "\"}";
+
+// Inizializza la SD con tentativi multipli
+int retries = 3;
+bool sdOk = false;
+
+while (retries > 0 && !sdOk) {
+  sdOk = SD.begin(5);
+  if (!sdOk) {
+    delay(100);
+    retries--;
+  }
+}
+
+if (!sdOk) {
+  sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
+  return;
+}
+
+// Leggi prima il contenuto esistente
+DynamicJsonDocument doc(4096);
+if (SD.exists("/quotes.json")) {
+  File f = SD.open("/quotes.json", FILE_READ);
+  if (f) {
+    deserializeJson(doc, f);
+    bool saved = saveConfig();
+    Serial.println("[DEBUG] Risultato saveConfig(): " + String(saved ? "SUCCESS" : "FAILED"));
+    
+    // Prepara la risposta
+    if (saved) {
+      Serial.println("[DEBUG] ✓ CONFIGURAZIONE SALVATA CON SUCCESSO");
+      Serial.println("[SETTINGS] Configurazione salvata con successo su SD");
+      sendJsonResponse(client, "{\"success\":true,\"message\":\"Configurazione salvata con successo\"}");
+      
+      // Attendi per assicurarsi che la risposta venga inviata e che i messaggi siano visibili sul monitor seriale
+      delay(5000);
+      
+      // Chiudi tutte le connessioni WiFi
+      WiFi.disconnect(true);
+      if (apMode) {
+        WiFi.softAPdisconnect(true);
+      }
+      
+      // Riavvia ESP32
+      delay(1000);
+      ESP.restart();
+    } else {
+      Serial.println("[DEBUG] ✗ ERRORE SALVATAGGIO CONFIGURAZIONE");
+      Serial.println("[DEBUG] Verifica i permessi di scrittura e lo spazio disponibile sulla SD");
+      Serial.println("[SETTINGS] ERRORE: Salvataggio configurazione su SD fallito");
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel salvataggio della configurazione\"}");
+    }
+  }
+  
+  if (path == "/api/quotes" && method == "GET") {
+    // --- GET citazione per categoria ---
+    // Estrai il parametro della categoria
+    String cat = "Other";
+    int catIdx = params.indexOf("cat=");
+    if(catIdx!=-1) {
+      int endIdx = params.indexOf('&',catIdx);
+      cat = params.substring(catIdx+4, endIdx==-1?params.length():endIdx);
+    }
+    
+    // Inizializza la SD con tentativi multipli
+    int retries = 3;
+    bool sdOk = false;
+    
+    while (retries > 0 && !sdOk) {
+      sdOk = SD.begin(5);
+      if (!sdOk) {
+        delay(100);
+        retries--;
+      }
+    }
+    
+    if (!sdOk) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD card non disponibile\"}");
+      return;
+    }
+    
+    // Verifica se il file esiste
+    if (!SD.exists("/quotes.json")) {
+      sendJsonResponse(client, "{\"success\":true,\"quote\":\"\"}");
+      return;
+    }
+    
+    // Apri il file e leggi
+    File f = SD.open("/quotes.json", FILE_READ);
+    String quote = "";
+    
+    if (!f) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore apertura file\"}");
+      return;
+    }
+    
+    // Se il file è vuoto
+    if (f.size() == 0) {
+      f.close();
+      sendJsonResponse(client, "{\"success\":true,\"quote\":\"\"}");
+      return;
+    }
+    
+    // Deserializza
+    DynamicJsonDocument doc(4096);
+    DeserializationError err = deserializeJson(doc, f);
+    f.close();
+    
+    if (err) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore lettura file JSON\"}");
+      return;
+    }
+    
+    // Estrai la citazione
+    if (doc.containsKey(cat)) {
+      quote = doc[cat].as<String>();
+    }
+    
+    // Invia risposta
+    String resp = "{\"success\":true,\"quote\":\"" + quote + "\"}";
+    sendJsonResponse(client, resp);
+    return;
+  }
+  
+  if (path == "/edit") {
+    // Pagina di modifica delle citazioni con stile minimalista
+    sendResponse(client, "text/html", generateMinimalQuotesPage());
+    return;
+  }
+  
+  if (path == "/info" && method == "GET") {
+    // Utilizziamo la pagina informativa per mostrare i dettagli del sistema
+    sendResponse(client, "text/html", generateMinimalInfoPage(), 200);
+    return;
+  }
+  
+  if (path == "/add-quote" && method == "POST") {
+    // Reindirizza le richieste da /add-quote all'endpoint API corretto
+    String body = "";
+    while (client.available()) body += (char)client.read();
+    
+    // Prepara un nuovo body in formato JSON
+    int quoteIndex = body.indexOf("quote=");
+    int authorIndex = body.indexOf("author=");
+    int categoryIndex = body.indexOf("category=");
+    
+    String quote = "";
+    String author = "";
+    String category = "any"; // Default
+    
+    if (quoteIndex != -1) {
+      int startQuote = quoteIndex + 6;
+      int endQuote = body.indexOf("&", startQuote);
+      if (endQuote == -1) endQuote = body.length();
+      quote = body.substring(startQuote, endQuote);
+      quote = urldecode(quote); // Decodifica URL
+    }
+    
+    if (authorIndex != -1) {
+      int startAuthor = authorIndex + 7;
+      int endAuthor = body.indexOf("&", startAuthor);
+      if (endAuthor == -1) endAuthor = body.length();
+      author = body.substring(startAuthor, endAuthor);
+      author = urldecode(author); // Decodifica URL
+    }
+    
+    if (categoryIndex != -1) {
+      int startCat = categoryIndex + 9;
+      int endCat = body.indexOf("&", startCat);
+      if (endCat == -1) endCat = body.length();
+      category = body.substring(startCat, endCat);
+    }
+    
+    String combinedQuote = "\"" + quote + "\" - " + author;
+    
+    // Crea un nuovo JSON per l'API quotes
+    String jsonBody = "{\"cat\":\"" + category + "\",\"quote\":\"" + combinedQuote + "\"}";
+    
+    // Inizializza la SD con tentativi multipli
+    int retries = 3;
+    bool sdOk = false;
+    
+    while (retries > 0 && !sdOk) {
+      sdOk = SD.begin(5);
+      if (!sdOk) {
+        delay(100);
+        retries--;
+      }
+    }
+    
+    if (!sdOk) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
+      return;
+    }
+    
+    // Leggi prima il contenuto esistente
+    DynamicJsonDocument doc(4096);
+    if (SD.exists("/quotes.json")) {
+      File f = SD.open("/quotes.json", FILE_READ);
+      if (f) {
+        deserializeJson(doc, f);
+        f.close();
+      }
+    }
+    
+    // Aggiorna il documento JSON - usando un array per ogni categoria
+    // Se la categoria non esiste o non è un array, creiamo un nuovo array
+    if (!doc.containsKey(category) || !doc[category].is<JsonArray>()) {
+      doc[category] = JsonArray();
+    }
+    
+    // Aggiungiamo la nuova citazione all'array della categoria
+    doc[category].add(combinedQuote);
+    
+    // Scrivi il file (prima rimuovi quello esistente per evitare sovrascritture parziali)
+    if (SD.exists("/quotes.json")) {
+      SD.remove("/quotes.json");
+    }
+    
+    // Logging per debug
+    Serial.println("[QUOTES] Aggiunta nuova citazione alla categoria: " + category);
+    
+    // Apri il file in modalità scrittura
+    File wf = SD.open("/quotes.json", FILE_WRITE);
+    if (!wf) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore scrittura file\"}");
+      return;
+    }
+    
+    // Scrivi i dati
+    bool writeSuccess = serializeJson(doc, wf);
+    wf.close();
+    
+    if (!writeSuccess) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore scrittura JSON\"}");
+      return;
+    }
+    
+    // Reindirizza alla pagina di modifica dopo il salvataggio
+    client.println("HTTP/1.1 302 Found");
+    client.println("Location: /edit");
+    client.println();
+    return;
+  }
+  
+  if (path == "/api/quotes" && method == "POST") {
+    // --- POST salva citazione ---
+    String body = "";
+    while (client.available()) body += (char)client.read();
+    DynamicJsonDocument req(1024);
+    DeserializationError err = deserializeJson(req, body);
+    if (err) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"JSON non valido\"}");
+      return;
+    }
+    String cat = req["cat"] | "Other";
+    String quote = req["quote"] | "";
+    // Inizializza la SD con tentativi multipli
+    int retries = 3;
+    bool sdOk = false;
+    
+    while (retries > 0 && !sdOk) {
+      sdOk = SD.begin(5);
+      if (!sdOk) {
+        delay(100);
+        retries--;
+      }
+    }
+    
+    if (!sdOk) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
+      return;
+    }
+    
+    // Leggi prima il contenuto esistente
+    DynamicJsonDocument doc(4096);
+    if (SD.exists("/quotes.json")) {
+      File f = SD.open("/quotes.json", FILE_READ);
+      if (f) {
+        deserializeJson(doc, f);
+        f.close();
+      }
+    }
+    
+    // Aggiorna il documento JSON - usando un array per ogni categoria
+    // Se la categoria non esiste o non è un array, creiamo un nuovo array
+    if (!doc.containsKey(cat) || !doc[cat].is<JsonArray>()) {
+      doc[cat] = JsonArray();
+    }
+    
+    // Aggiungiamo la nuova citazione all'array della categoria
+    doc[cat].add(quote);
+    
+    // Scrivi il file (prima rimuovi quello esistente per evitare sovrascritture parziali)
+    if (SD.exists("/quotes.json")) {
+      SD.remove("/quotes.json");
+    }
+    
+    // Logging per debug
+    Serial.println("[QUOTES] Aggiunta nuova citazione alla categoria: " + cat);
+    
+    // Apri il file in modalità scrittura
+    File wf = SD.open("/quotes.json", FILE_WRITE);
+    if (!wf) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore scrittura file\"}");
+      return;
+    }
+    
+    // Scrivi i dati
+    bool writeSuccess = serializeJson(doc, wf);
+    wf.close();
+    
+    if (!writeSuccess) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore scrittura JSON\"}");
+      return;
+    }
+    sendJsonResponse(client, "{\"success\":true}");
+    return;
+  }
+  
+  if (path == "/api/quotes/delete" && method == "POST") {
+    // --- POST elimina citazione ---
+    String body = "";
+    while (client.available()) body += (char)client.read();
+    DynamicJsonDocument req(1024);
+    DeserializationError err = deserializeJson(req, body);
+    if (err) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"JSON non valido\"}");
+      return;
+    }
+    
+    String cat = req["cat"] | "";
+    int index = req["index"] | -1;
+    
+    if (cat.isEmpty() || index < 0) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Categoria o indice non validi\"}");
+      return;
+    }
+    
+    // Inizializza la SD con tentativi multipli
+    int retries = 3;
+    bool sdOk = false;
+    
+    while (retries > 0 && !sdOk) {
+      sdOk = SD.begin(5);
+      if (!sdOk) {
+        delay(100);
+        retries--;
+      }
+    }
+    
+    if (!sdOk) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
+      return;
+    }
+    
+    // Leggi il contenuto esistente
+    DynamicJsonDocument doc(4096);
+    if (SD.exists("/quotes.json")) {
+      File f = SD.open("/quotes.json", FILE_READ);
+      if (f) {
+        deserializeJson(doc, f);
+        f.close();
+      }
+    } else {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"File citazioni non trovato\"}");
+      return;
+    }
+    
+    // Verifica che la categoria esista e sia un array
+    if (!doc.containsKey(cat) || !doc[cat].is<JsonArray>()) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Categoria non valida o non contiene citazioni\"}");
+      return;
+    }
+    
+    // Verifica che l'indice sia valido
+    if (index >= doc[cat].size()) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Indice non valido\"}");
+      return;
+    }
+    
+    // Rimuovi l'elemento dall'array
+    JsonArray categoryArray = doc[cat].as<JsonArray>();
+    JsonArray newArray = doc.createNestedArray(cat);
+    
+    // Copia tutti gli elementi tranne quello da eliminare
+    for (int i = 0; i < categoryArray.size(); i++) {
+      if (i != index) {
+        newArray.add(categoryArray[i]);
+      }
+    }
+    
+    // Scrivi il file aggiornato
+    if (SD.exists("/quotes.json")) {
+      SD.remove("/quotes.json");
+    }
+    
+    File wf = SD.open("/quotes.json", FILE_WRITE);
+    if (!wf) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore scrittura file\"}");
+      return;
+    }
+    
+    bool writeSuccess = serializeJson(doc, wf);
+    wf.close();
+    
+    if (!writeSuccess) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore scrittura JSON\"}");
+      return;
+    }
+    
+    Serial.println("[QUOTES] Eliminata citazione dalla categoria: " + cat + ", indice: " + String(index));
+    sendJsonResponse(client, "{\"success\":true,\"message\":\"Citazione eliminata con successo\"}");
+    return;
+  }
+  
+  if (path == "/api/quotes/list" && method == "GET") {
+    // --- GET lista citazioni ---
+    // Estrai la categoria dalla query string se presente
+    String cat = "";
+    int questionMarkIndex = path.indexOf("?");
+    if (questionMarkIndex != -1) {
+      String queryString = path.substring(questionMarkIndex + 1);
+      int catStartIndex = queryString.indexOf("cat=");
+      if (catStartIndex != -1) {
+        int valueStartIndex = catStartIndex + 4; // lunghezza di "cat="
+        int andIndex = queryString.indexOf("&", valueStartIndex);
+        if (andIndex != -1) {
+          cat = queryString.substring(valueStartIndex, andIndex);
+        } else {
+          cat = queryString.substring(valueStartIndex);
+        }
+      }
+    }
+    
+    // Inizializza la SD con tentativi multipli
+    int retries = 3;
+    bool sdOk = false;
+    
+    while (retries > 0 && !sdOk) {
+      sdOk = SD.begin(5);
+      if (!sdOk) {
+        delay(100);
+        retries--;
+      }
+    }
+    
+    if (!sdOk) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
+      return;
+    }
+    
+    // Preparazione della risposta JSON
+    DynamicJsonDocument response(4096);
+    response["success"] = true;
+    
+    if (SD.exists("/quotes.json")) {
+      File f = SD.open("/quotes.json", FILE_READ);
+      if (f) {
+        DynamicJsonDocument doc(4096);
+        deserializeJson(doc, f);
+        f.close();
+        
+        // Se è specificata una categoria, restituisci solo quella
+        if (!cat.isEmpty()) {
+          if (doc.containsKey(cat)) {
+            response["quotes"] = doc[cat];
+          } else {
+            response["quotes"] = JsonArray();
+          }
+          response["category"] = cat;
+        } else {
+          // Altrimenti restituisci tutte le categorie
+          JsonObject quotes = response.createNestedObject("quotes");
+          for (JsonPair p : doc.as<JsonObject>()) {
+            quotes[p.key().c_str()] = p.value();
+          }
+        }
+      }
+    } else {
+      response["quotes"] = JsonArray();
+    }
+    
+    String respStr;
+    serializeJson(response, respStr);
+    sendJsonResponse(client, respStr);
+    return;
+  }
+  
+  if (path == "/api/restart" && method == "POST") {
+    // Richiesta di riavvio ricevuta
+    
+    // Invia risposta positiva
+    sendJsonResponse(client, "{\"success\":true,\"message\":\"Riavvio in corso...\"}");
+    
+    // Chiudi tutte le connessioni WiFi
+    WiFi.disconnect(true);
+    if (apMode) {
+      WiFi.softAPdisconnect(true);
+    }
+    
+    // Attendi che i dati vengano inviati
+    delay(500);
+    
+    // Riavvia ESP32
+    ESP.restart();
+  } else {
+    Serial.println("[API] Funzione API non disponibile");
+    sendJsonResponse(client, "{\"error\":\"Funzione non disponibile\"}", 404);
+  }
+}
+
+// Invia una risposta HTTP generica
+void sendResponse(WiFiClient& client, const String& contentType, const String& content, int statusCode) {
+  client.println("HTTP/1.1 " + String(statusCode) + " OK");
+  client.println("Content-Type: " + contentType);
+  client.println("Connection: close");
+  
+  // Imposta header per prevenire caching
+  client.println("Cache-Control: no-cache, no-store, must-revalidate");
+  client.println("Pragma: no-cache");
+  client.println("Expires: 0");
+  
+  client.println();
+  client.println(content);
+  
+  // Assicurati che tutti i dati vengano inviati
+  client.flush();
+  
+  // Disconnetti il client
+  client.stop();
+}
+
+// Invia una risposta JSON
+void sendJsonResponse(WiFiClient& client, const String& jsonContent, int statusCode) {
+  sendResponse(client, "application/json", jsonContent, statusCode);
+}
+
+// Invia un reindirizzamento HTTP 302
+void sendRedirect(WiFiClient& client, const String& location) {
+  client.println("HTTP/1.1 302 Found");
+  client.println("Location: " + location);
+  client.println("Cache-Control: no-cache");
+  client.println("Connection: close");
+  client.println();
+}
+
+// Gestisce la scansione WiFi e restituisce i risultati in JSON
+void performWiFiScan(WiFiClient& client) {
+  // Inizia la scansione WiFi
+  Serial.println("[WIFI-SCAN] Avvio scansione WiFi...");
+  int numNetworks = WiFi.scanNetworks();
+  Serial.print("[WIFI-SCAN] Scansione completata. Trovate ");
+  Serial.print(numNetworks);
+  Serial.println(" reti.");
+  
+  DynamicJsonDocument doc(4096); // Aumenta la dimensione per supportare più reti
+  JsonArray networks = doc.createNestedArray("networks");
+  
+  // Popola l'array JSON con le reti trovate
+  for (int i = 0; i < numNetworks; i++) {
+    JsonObject network = networks.createNestedObject();
+    
+    // Informazioni sulla rete
+    network["ssid"] = WiFi.SSID(i);
+    network["rssi"] = WiFi.RSSI(i);
+    
+    // Tipo di crittografia
+    String encType;
+    switch(WiFi.encryptionType(i)) {
+      case WIFI_AUTH_OPEN: encType = "Aperta"; break;
+      case WIFI_AUTH_WEP: encType = "WEP"; break;
+      case WIFI_AUTH_WPA_PSK: encType = "WPA"; break;
+      case WIFI_AUTH_WPA2_PSK: encType = "WPA2"; break;
+      case WIFI_AUTH_WPA_WPA2_PSK: encType = "WPA/WPA2"; break;
+      default: encType = "Sconosciuta";
+    }
+    network["encryption"] = encType;
+    
+    // Calcola la qualità del segnale (0-100%)
+    int quality = min(max(2 * (WiFi.RSSI(i) + 100), 0L), 100L);
+    String qualityText = "Debole";
+    
+    if (quality > 70) qualityText = "Ottimo";
+    else if (quality > 50) qualityText = "Buono";
+    else if (quality > 30) qualityText = "Discreto";
+    
+    network["quality"] = qualityText;
+    network["quality_value"] = quality;
+  }
+  
+  // Genera la risposta JSON
+  String jsonResponse;
+  serializeJson(doc, jsonResponse);
+  
+  // Invia la risposta JSON (senza intestazioni HTTP, già inviate)
+  Serial.println("[WIFI-SCAN] Invio risposta JSON: " + jsonResponse);
+  client.print(jsonResponse);
+  
+  // Libera la memoria
+  WiFi.scanDelete();
+  
+  // Chiudi la connessione
+  client.flush();
+  client.stop();
+  Serial.println("[WIFI-SCAN] Connessione chiusa dopo risposta scansione");
+}

@@ -1,0 +1,2183 @@
+#include "SystemUtils.h"
+#include "Config.h"
+#include <SPIFFS.h>
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <time.h>
+#include <DNSServer.h>
+
+// Variabili globali definite in SystemUtils.h
+WiFiServer server(80);
+DNSServer dnsServer;
+bool apMode = false;
+WeatherData currentWeather;
+
+// Struttura dati per lo stato del sistema
+struct SystemStatus {
+  unsigned long uptime;
+  uint32_t freeMemory;
+  uint32_t totalMemory;
+  float memoryUsagePercent;
+  int wifiRSSI;
+  int wifiQuality;
+};
+
+// Costanti
+const char* AP_SSID = "AtmoVerse_Setup";
+const char* AP_PASSWORD = "atmoverse";
+const byte DNS_PORT = 53;
+
+// Variabili locali al modulo
+SystemStatus systemStatus;
+// Removing duplicate Config definition - it's already defined in Config.cpp
+// Config config;
+
+// Prototipi delle funzioni locali
+bool setupWiFi();
+void setupAP();
+void setupServer();
+void handleClientRequests();
+void sendResponse(WiFiClient& client, const String& contentType, const String& content, int statusCode = 200);
+void performWiFiScan(WiFiClient& client);
+void saveSettings(WiFiClient& client, const String& jsonBody);
+void restartDevice(WiFiClient& client);
+void serveWeatherIcon(WiFiClient& client, const String& path);
+void serveQRCode(WiFiClient& client);
+String generateMainPage();
+String generateSettingsPage();
+String generateWiFiScanPage();
+String generateStyleCSS();
+String generateJavaScript();
+void updateSystemStatus();
+int calculateSignalQuality(int rssi);
+
+// Connessione al WiFi
+bool connectToWiFi() {
+  Serial.print("Connessione al WiFi ");
+  Serial.print(config.ssid);
+  Serial.println("...");
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(config.ssid, config.password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("");
+    Serial.println("WiFi connesso!");
+    Serial.print("Indirizzo IP: ");
+    Serial.println(WiFi.localIP());
+    
+    apMode = false;
+    
+    return true;
+  } else {
+    Serial.println("");
+    Serial.println("Connessione WiFi fallita!");
+    return false;
+  }
+}
+
+// Setup del WiFi
+bool setupWiFi() {
+  Serial.println("Configurazione WiFi...");
+  
+  if (strlen(config.ssid) > 0) {
+    if (connectToWiFi()) {
+      // Configura server NTP
+      setupTimeServer();
+      
+      // Inizializza server web
+      Serial.println("Inizializzazione server web...");
+      setupServer();
+      
+      // Scarica dati meteo
+      if (getWeatherData()) {
+        Serial.println("Dati meteo scaricati con successo");
+      } else {
+        Serial.println("Errore nel download dei dati meteo");
+      }
+      
+      return true;
+    }
+  }
+  
+  // Se la connessione fallisce, diventa un access point
+  Serial.println("Avvio modalità Access Point...");
+  startAccessPoint();
+  return false;
+}
+
+// Funzione per avviare la modalità access point
+void startAccessPoint() {
+  Serial.println("Avvio modalità Access Point...");
+  
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP("AtmoVerse_AP", "atmoverse");
+  
+  Serial.print("Access Point avviato con IP: ");
+  Serial.println(WiFi.softAPIP());
+  
+  // Imposta modalità AP
+  apMode = true;
+  
+  // Avvia il DNS server per catturare tutte le richieste
+  dnsServer.start(53, "*", WiFi.softAPIP());
+  
+  // Configura e avvia il server web
+  setupServer();
+}
+
+// Sincronizzazione con il server NTP
+void setupTimeServer() {
+  Serial.println("Configurazione server NTP...");
+  
+  // Configura server NTP
+  configTime(config.gmtOffset_sec, config.daylightOffset_sec, config.ntpServer);
+  
+  time_t now;
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    time(&now);
+    Serial.print("Data e ora impostate: ");
+    Serial.println(ctime(&now));
+  } else {
+    Serial.println("Errore nella sincronizzazione NTP");
+  }
+}
+
+// Verifica connessione e riconnette se necessario
+bool reconnectIfNeeded() {
+  if (WiFi.status() != WL_CONNECTED && !apMode) {
+    Serial.println("Connessione WiFi persa. Tentativo di riconnessione...");
+    return reconnectToWiFi();
+  }
+  return true;
+}
+
+// Riconnessione al WiFi
+bool reconnectToWiFi() {
+  Serial.println("Tentativo di riconnessione...");
+  
+  // Reset del WiFi
+  WiFi.disconnect();
+  delay(1000);
+  
+  // Tentativo di riconnessione
+  WiFi.begin(config.ssid, config.password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 10) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("");
+    Serial.println("WiFi riconnesso!");
+    Serial.print("Indirizzo IP: ");
+    Serial.println(WiFi.localIP());
+    
+    // Reinizializza server
+    if (!apMode) {
+      setupServer();
+      // Aggiorna dati meteo dopo riconnessione
+      getWeatherData();
+    } else {
+      // Se eravamo in modalità AP, ma ora siamo connessi, riconfigura il server
+      setupServer();
+    }
+    
+    return true;
+  } else {
+    Serial.println("");
+    Serial.println("Riconnessione fallita!");
+    
+    // Se la riconnessione fallisce più volte, passa in modalità AP
+    startAccessPoint();
+    return false;
+  }
+}
+
+// Funzione migliorata per scansionare le reti WiFi disponibili
+String scanWiFiNetworks() {
+  Serial.println("Scansione reti WiFi...");
+  
+  String jsonResult = "[";
+  int networksFound = WiFi.scanNetworks();
+  
+  Serial.print("Reti trovate: ");
+  Serial.println(networksFound);
+  
+  for (int i = 0; i < networksFound; i++) {
+    // Ottiene i dati della rete
+    String ssid = WiFi.SSID(i);
+    int32_t rssi = WiFi.RSSI(i);
+    uint8_t encType = WiFi.encryptionType(i);
+    int32_t channel = WiFi.channel(i);
+    bool isHidden = false; // Assuming all networks are visible by default
+    
+    // Determina il tipo di crittografia
+    String encryption = "";
+    switch (encType) {
+      case WIFI_AUTH_OPEN: encryption = "Open"; break;
+      case WIFI_AUTH_WEP: encryption = "WEP"; break;
+      case WIFI_AUTH_WPA_PSK: encryption = "WPA-PSK"; break;
+      case WIFI_AUTH_WPA2_PSK: encryption = "WPA2-PSK"; break;
+      case WIFI_AUTH_WPA_WPA2_PSK: encryption = "WPA/WPA2-PSK"; break;
+      case WIFI_AUTH_WPA2_ENTERPRISE: encryption = "WPA2-Enterprise"; break;
+      case WIFI_AUTH_WPA3_PSK: encryption = "WPA3-PSK"; break;
+      case WIFI_AUTH_WPA2_WPA3_PSK: encryption = "WPA2/WPA3-PSK"; break;
+      default: encryption = "Unknown"; break;
+    }
+    
+    // Se la rete è nascosta, usa un nome temporaneo
+    if (isHidden) {
+      ssid = "<Rete nascosta>";
+    }
+    
+    // Aggiunge la rete al JSON
+    jsonResult += "{";
+    jsonResult += "\"ssid\":\"" + ssid + "\",";
+    jsonResult += "\"rssi\":" + String(rssi) + ",";
+    jsonResult += "\"secure\":" + String(encType != WIFI_AUTH_OPEN) + ",";
+    jsonResult += "\"channel\":" + String(channel) + ",";
+    jsonResult += "\"encryption\":\"" + encryption + "\"";
+    jsonResult += "}";
+    
+    // Aggiunge la virgola se non è l'ultima rete
+    if (i < networksFound - 1) {
+      jsonResult += ",";
+    }
+  }
+  
+  // Chiude il JSON array
+  jsonResult += "]";
+  
+  // Rilascia la memoria usata per la scansione
+  WiFi.scanDelete();
+  
+  return jsonResult;
+}
+
+// Funzione per ottenere i dati meteo
+bool getWeatherData() {
+  if (apMode || strlen(config.api_key) == 0 || strlen(config.city) == 0) {
+    Serial.println("Impossibile ottenere dati meteo: in modalità AP o dati API mancanti");
+    return false;
+  }
+  
+  Serial.println("Download dati meteo...");
+  
+  HTTPClient http;
+  String url = "http://api.openweathermap.org/data/2.5/weather?q=" + 
+               String(config.city) + 
+               "&units=metric&lang=it&appid=" + 
+               String(config.api_key);
+  
+  http.begin(url);
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    Serial.println("Dati meteo ricevuti");
+    currentWeather.last_update = time(nullptr);
+    
+    // Parsing del json
+    bool success = parseWeatherData(payload);
+    http.end();
+    return success;
+  } else {
+    Serial.print("Errore nel download dei dati meteo: ");
+    Serial.println(httpCode);
+    http.end();
+    return false;
+  }
+}
+
+// Parsing dei dati meteo JSON
+bool parseWeatherData(String& payload) {
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, payload);
+  
+  if (error) {
+    Serial.print("Errore parsing JSON: ");
+    Serial.println(error.c_str());
+    currentWeather.valid = false;
+    return false;
+  }
+  
+  currentWeather.temp = doc["main"]["temp"];
+  currentWeather.feels_like = doc["main"]["feels_like"];
+  currentWeather.humidity = doc["main"]["humidity"];
+  currentWeather.pressure = doc["main"]["pressure"];
+  currentWeather.wind_speed = doc["wind"]["speed"];
+  currentWeather.wind_deg = doc["wind"]["deg"];
+  
+  String desc = doc["weather"][0]["description"];
+  strncpy(currentWeather.description, desc.c_str(), sizeof(currentWeather.description) - 1);
+  currentWeather.description[sizeof(currentWeather.description) - 1] = 0; // Null termination
+  
+  String icon = doc["weather"][0]["icon"];
+  strncpy(currentWeather.icon, icon.c_str(), sizeof(currentWeather.icon) - 1);
+  currentWeather.icon[sizeof(currentWeather.icon) - 1] = 0; // Null termination
+  
+  currentWeather.weather_id = doc["weather"][0]["id"];
+  currentWeather.valid = true;
+  
+  return true;
+}
+
+// Verifica validità dei dati meteo
+bool isWeatherDataValid() {
+  return currentWeather.valid;
+}
+
+// Verifica se è notte
+bool isNightTime() {
+  return (currentWeather.valid && strchr(currentWeather.icon, 'n') != NULL);
+}
+
+// Ottiene il timestamp dell'ultimo aggiornamento meteo
+time_t getLastUpdateTime() {
+  return currentWeather.last_update;
+}
+
+// Generazione del CSS per le pagine web
+String generateStyleCSS() {
+  String css = R"(
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f2f7fd;
+      transition: background-color 0.3s ease;
+    }
+    
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 15px;
+    }
+    
+    header {
+      background: linear-gradient(135deg, #0072ff, #00c6ff);
+      color: white;
+      padding: 15px 0;
+      margin-bottom: 30px;
+      border-radius: 0 0 8px 8px;
+      box-shadow: 0 2px 15px rgba(0, 114, 255, 0.3);
+    }
+    
+    header h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 10px;
+    }
+    
+    nav ul {
+      display: flex;
+      list-style: none;
+      justify-content: center;
+      gap: 20px;
+    }
+    
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      transition: background-color 0.2s;
+    }
+    
+    nav a:hover, nav a.active {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+      padding-bottom: 30px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    section {
+      margin-bottom: 30px;
+    }
+    
+    section h2 {
+      color: #0072ff;
+      margin-bottom: 15px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid #e6f0ff;
+    }
+    
+    .weather-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    
+    .weather-detail {
+      text-align: center;
+      padding: 15px;
+      border-radius: 6px;
+      background-color: #f8fbff;
+      border: 1px solid #e6f0ff;
+      transition: background-color 0.2s;
+    }
+    
+    .weather-detail:hover {
+      background-color: #e6f0ff;
+    }
+    
+    .weather-detail .value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #0072ff;
+      margin-bottom: 5px;
+    }
+    
+    .weather-detail .label {
+      color: #666;
+      font-size: 0.9rem;
+    }
+    
+    .temperature {
+      font-size: 3rem;
+      font-weight: bold;
+      color: #0072ff;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .weather-description {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      color: #444;
+    }
+    
+    .weather-icons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .weather-icon {
+      width: 100px;
+      height: 100px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    
+    .weather-icon.01d { background-image: url('/icons/01d.svg'); }
+    .weather-icon.01n { background-image: url('/icons/01n.svg'); }
+    .weather-icon.02d { background-image: url('/icons/02d.svg'); }
+    .weather-icon.02n { background-image: url('/icons/02n.svg'); }
+    .weather-icon.03d, .weather-icon.03n { background-image: url('/icons/03d.svg'); }
+    .weather-icon.04d, .weather-icon.04n { background-image: url('/icons/04d.svg'); }
+    .weather-icon.09d, .weather-icon.09n { background-image: url('/icons/09d.svg'); }
+    .weather-icon.10d { background-image: url('/icons/10d.svg'); }
+    .weather-icon.10n { background-image: url('/icons/10n.svg'); }
+    .weather-icon.11d, .weather-icon.11n { background-image: url('/icons/11d.svg'); }
+    .weather-icon.13d, .weather-icon.13n { background-image: url('/icons/13d.svg'); }
+    .weather-icon.50d, .weather-icon.50n { background-image: url('/icons/50d.svg'); }
+    
+    .system-info {
+      font-size: 0.9rem;
+      color: #666;
+      border-top: 1px solid #e6f0ff;
+      padding-top: 15px;
+      margin-top: 15px;
+    }
+    
+    .form-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #444;
+    }
+    
+    input[type="text"],
+    input[type="password"],
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+    
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    select:focus {
+      border-color: #0072ff;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0, 114, 255, 0.1);
+    }
+    
+    .password-field {
+      position: relative;
+    }
+    
+    .toggle-password {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #666;
+    }
+    
+    .btn {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    
+    .btn:active {
+      transform: translateY(1px);
+    }
+    
+    .primary {
+      background-color: #0072ff;
+      color: white;
+    }
+    
+    .primary:hover {
+      background-color: #0065e0;
+    }
+    
+    .secondary {
+      background-color: #e6f0ff;
+      color: #0072ff;
+    }
+    
+    .secondary:hover {
+      background-color: #d1e5ff;
+    }
+    
+    .danger {
+      background-color: #ff3860;
+      color: white;
+    }
+    
+    .danger:hover {
+      background-color: #e61c48;
+    }
+    
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    
+    footer {
+      text-align: center;
+      padding: 20px 0;
+      color: #666;
+      border-top: 1px solid #e6f0ff;
+      margin-top: 20px;
+    }
+    
+    .status-message {
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+      animation: fadeIn 0.3s ease-in;
+      transition: opacity 0.5s;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .info {
+      background-color: #e6f0ff;
+      color: #0072ff;
+      border-left: 4px solid #0072ff;
+    }
+    
+    .success {
+      background-color: #e3fcef;
+      color: #0ca678;
+      border-left: 4px solid #0ca678;
+    }
+    
+    .warning {
+      background-color: #fff9db;
+      color: #f59f00;
+      border-left: 4px solid #f59f00;
+    }
+    
+    .error {
+      background-color: #ffe3e3;
+      color: #ff3860;
+      border-left: 4px solid #ff3860;
+    }
+    
+    .signal-bar {
+      width: 100%;
+      height: 12px;
+      background-color: #eee;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 3px;
+    }
+    
+    .signal-fill {
+      height: 100%;
+      background: linear-gradient(to right, #ff6b6b, #feca57, #1dd1a1);
+      border-radius: 6px;
+    }
+    
+    .status-text {
+      color: #666;
+      font-style: italic;
+      margin: 10px 0;
+    }
+    
+    /* Stile per evidenziare la sezione WiFi in modalità AP */
+    .ap-mode-highlight {
+      border: 2px solid #6cb6fd;
+      padding: 15px;
+      border-radius: 8px;
+      background-color: #f0f7ff;
+      box-shadow: 0 0 10px rgba(108, 182, 253, 0.2);
+      margin: 15px 0;
+    }
+    
+    .ap-mode-message {
+      background-color: #e1f0ff;
+      border-left: 4px solid #6cb6fd;
+      padding: 10px;
+      margin: 10px 0;
+      font-weight: bold;
+      color: #0066cc;
+    }
+    
+    /* Stili per il QR code */
+    .qrcode-container { text-align: center; padding: 20px; }
+    .qrcode-image { max-width: 250px; height: auto; margin: 15px auto; display: block; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  )";
+  return css;
+}
+
+// Generazione della pagina principale
+String generateMainPage() {
+  String html = "<!DOCTYPE html><html lang='it'>";
+  html += "<head>";
+  html += "<meta charset='UTF-8'>";
+  html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+  html += "<title>AtmoVerse 2.0</title>";
+  html += "<style>" + generateStyleCSS() + "</style>";
+  html += "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css'>";
+  html += "</head>";
+  html += "<body>";
+  html += "<div class='container'>";
+  html += "<header>";
+  html += "<h1>AtmoVerse 2.0</h1>";
+  html += "<nav>";
+  html += "<ul>";
+  html += "<li><a href='/' class='active'>Home</a></li>";
+  html += "<li><a href='/settings.html'>Impostazioni</a></li>";
+  html += "<li><a href='/wifi.html'>Scansione WiFi</a></li>";
+  html += "</ul>";
+  html += "</nav>";
+  html += "</header>";
+  
+  html += "<main>";
+  html += "<section id='weather'>";
+  html += "<h2>Meteo</h2>";
+  html += "<div class='card'>";
+  
+  // Verifica se i dati meteo sono validi
+  if (isWeatherDataValid()) {
+    // Formatta la temperatura con un decimale
+    char tempStr[10];
+    sprintf(tempStr, "%.1f", currentWeather.temp);
+    
+    // Ottiene l'ora dell'ultimo aggiornamento
+    struct tm timeinfo;
+    char timeStr[20];
+    time_t lastUpdate = getLastUpdateTime();
+    localtime_r(&lastUpdate, &timeinfo);
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
+    
+    // Visualizzazione meteo
+    html += "<div class='weather-description'>" + String(currentWeather.description) + "</div>";
+    html += "<div class='temperature'>" + String(tempStr) + " &deg;C</div>";
+    html += "<div class='weather-icons'>";
+    html += "<div class='weather-icon " + String(currentWeather.icon) + "'></div>";
+    html += "</div>";
+    
+    // Dettagli meteo
+    html += "<div class='weather-info'>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>" + String(currentWeather.feels_like, 1) + " &deg;C</div>";
+    html += "<div class='label'>Percepita</div>";
+    html += "</div>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>" + String(currentWeather.humidity, 0) + " %</div>";
+    html += "<div class='label'>Umidità</div>";
+    html += "</div>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>" + String(currentWeather.pressure, 0) + " hPa</div>";
+    html += "<div class='label'>Pressione</div>";
+    html += "</div>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>" + String(currentWeather.wind_speed, 1) + " m/s</div>";
+    html += "<div class='label'>Vento</div>";
+    html += "</div>";
+    
+    html += "</div>";  // Chiusura weather-info
+    
+    html += "<div class='system-info'>";
+    html += "<p>Ultimo aggiornamento: " + String(timeStr) + "</p>";
+    html += "</div>";
+  } else {
+    // Messaggio di errore se i dati meteo non sono disponibili
+    String weatherDesc = "Nuvole Abbondanti";
+    
+    html += "<div class='weather-description'>" + weatherDesc + "</div>";
+    html += "<div class='temperature'>--.- &deg;C</div>";
+    html += "<div class='weather-icons'>";
+    html += "<div class='weather-icon 03d'></div>";
+    html += "</div>";
+    
+    html += "<div class='weather-info'>";
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>--.- &deg;C</div>";
+    html += "<div class='label'>Percepita</div>";
+    html += "</div>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>-- %</div>";
+    html += "<div class='label'>Umidità</div>";
+    html += "</div>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>---- hPa</div>";
+    html += "<div class='label'>Pressione</div>";
+    html += "</div>";
+    
+    html += "<div class='weather-detail'>";
+    html += "<div class='value'>--.- m/s</div>";
+    html += "<div class='label'>Vento</div>";
+    html += "</div>";
+    
+    html += "</div>";  // Chiusura weather-info
+    
+    // Messaggio di errore
+    html += "<div class='status-message warning'>";
+    html += "<p>Dati meteo non disponibili.</p>";
+    html += apMode ? 
+           "<p>Collega il dispositivo al WiFi nelle impostazioni.</p>" : 
+           "<p>Configurare la città e la chiave API nelle impostazioni.</p>";
+    html += "</div>";
+  }
+  
+  html += "</div>";  // Chiusura card
+  html += "</section>";
+  
+  html += generateStatusHTML();
+  
+  html += "<section id='qrcode'>";
+  html += "<h2>Collegamento Rapido</h2>";
+  html += "<div class='card'>";
+  html += "<div class='qrcode-container'>";
+  html += "<p>Scansiona il codice QR per accedere rapidamente all'interfaccia web:</p>";
+  html += "<img src='/qrcode.svg' alt='QR Code' class='qrcode-image'>";
+  html += "</div>";
+  html += "</div>";
+  html += "</section>";
+  
+  html += "</main>";
+  
+  html += "<footer>";
+  html += "<p>&copy; 2025 AtmoVerse 2.0</p>";
+  html += "</footer>";
+  html += "</div>";
+  
+  // JavaScript per l'aggiornamento automatico e altre funzionalità
+  html += "<script>" + generateJavaScript() + "</script>";
+  
+  html += "</body></html>";
+  return html;
+}
+
+// Generazione dello stato del sistema
+String generateStatusHTML() {
+  String html = "<section id='system-status'>";
+  html += "<h2>Stato Sistema</h2>";
+  html += "<div class='card'>";
+  
+  // Informazioni di base
+  html += "<div class='system-info'>";
+  html += "<p>Modalità: " + String(apMode ? "Access Point" : "Client") + "</p>";
+  
+  if (!apMode) {
+    html += "<p>Connesso a: " + String(config.ssid) + "</p>";
+    
+    html += "<p>IP: " + WiFi.localIP().toString() + "</p>";
+    html += "<p>RSSI: " + String(WiFi.RSSI()) + " dBm</p>";
+  } else {
+    html += "<p>SSID: AtmoVerse_AP</p>";
+    html += "<p>IP: " + WiFi.softAPIP().toString() + "</p>";
+  }
+  
+  // Memoria libera
+  html += "<p>Memoria libera: " + String(ESP.getFreeHeap()) + " bytes</p>";
+  
+  // Tempo di funzionamento
+  unsigned long uptime = millis() / 1000;
+  unsigned long seconds = uptime % 60;
+  unsigned long minutes = (uptime / 60) % 60;
+  unsigned long hours = (uptime / 3600);
+  
+  html += "<p>Tempo di funzionamento: ";
+  if (hours > 0) html += String(hours) + "h ";
+  if (minutes > 0) html += String(minutes) + "m ";
+  html += String(seconds) + "s</p>";
+  
+  html += "</div>";  // Fine system-info
+  
+  html += "</div>";  // Fine card
+  html += "</section>";
+  
+  return html;
+}
+
+// Generazione del JavaScript per le funzionalità client-side
+String generateJavaScript() {
+  String js = R"(
+    // Funzione per aggiornare automaticamente le informazioni
+    function setupAutoRefresh() {
+      // Aggiorna la pagina ogni 5 minuti
+      setInterval(() => {
+        location.reload();
+      }, 5 * 60 * 1000);
+    }
+    
+    // Funzione per mostrare messaggi di stato
+    function showStatusMessage(message, type) {
+      const statusElement = document.createElement('div');
+      statusElement.className = `status-message ${type}`;
+      statusElement.innerHTML = `<p>${message}</p>`;
+      
+      // Trova il main container e inserisci il messaggio all'inizio
+      const main = document.querySelector('main');
+      main.insertBefore(statusElement, main.firstChild);
+      
+      // Rimuovi il messaggio dopo 5 secondi
+      setTimeout(() => {
+        statusElement.style.opacity = '0';
+        setTimeout(() => statusElement.remove(), 500);
+      }, 5000);
+    }
+    
+    // Inizializzazione al caricamento della pagina
+    document.addEventListener('DOMContentLoaded', () => {
+      setupAutoRefresh();
+    });
+  )";
+  return js;
+}
+
+// Generazione della pagina di impostazioni
+String generateSettingsPage() {
+  String html = "<!DOCTYPE html><html lang='it'>";
+  html += "<head>";
+  html += "<meta charset='UTF-8'>";
+  html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+  html += "<title>Impostazioni - AtmoVerse 2.0</title>";
+  html += "<style>" + generateStyleCSS() + "</style>";
+  html += "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css'>";
+  html += "</head>";
+  html += "<body>";
+  html += "<div class='container'>";
+  html += "<header>";
+  html += "<h1>AtmoVerse 2.0</h1>";
+  html += "<nav>";
+  html += "<ul>";
+  html += "<li><a href='/'>Home</a></li>";
+  html += "<li><a href='/settings.html' class='active'>Impostazioni</a></li>";
+  html += "<li><a href='/wifi.html'>Scansione WiFi</a></li>";
+  html += "</ul>";
+  html += "</nav>";
+  html += "</header>";
+  
+  html += "<main>";
+  html += "<section>";
+  html += "<h2>Impostazioni</h2>";
+  
+  // ---------------- FORM WiFi ----------------
+  html += "<div id='wifi-settings' class='form-section'>";
+  html += "<h3>Configurazione WiFi</h3>";
+  html += "<form id='wifi-form'>";
+  
+  // Sezione WiFi - potenzialmente evidenziata in modalità AP
+  html += "<div id='wifi-form-container' ";
+  html += apMode ? "class='ap-mode-highlight'" : "";
+  html += ">";
+  
+  // Messaggio per modalità AP
+  if (apMode) {
+    html += "<div class='ap-mode-message'>";
+    html += "<p>Il dispositivo è in modalità Access Point. Configurare la connessione WiFi.</p>";
+    html += "</div>";
+  }
+  
+  html += "<div class='form-group'>";
+  html += "<label for='ssid'>SSID (Nome rete):</label>";
+  html += "<div class='input-group'>";
+  
+  // Selezione SSID con dropdown popolato da scansione
+  html += "<select id='ssid' name='ssid' required>";
+  html += "<option value='' disabled ";
+  html += (strlen(config.ssid) > 0 ? "" : "selected");
+  html += ">-- Seleziona rete --</option>";
+  if (strlen(config.ssid) > 0) {
+    html += "<option value='" + String(config.ssid) + "' selected>" + String(config.ssid) + "</option>";
+  }
+  html += "</select>";
+  
+  // Pulsante per la scansione WiFi
+  html += "<button type='button' id='scan-wifi-btn' class='btn secondary'><i class='fas fa-sync-alt'></i> Scansiona</button>";
+  html += "</div>"; // chiusura input-group
+  
+  // Div per mostrare lo stato della scansione
+  html += "<div id='scan-status' class='status-text'></div>";
+  html += "</div>"; // chiusura form-group
+  
+  html += "<div class='form-group'>";
+  html += "<label for='password'>Password WiFi:</label>";
+  html += "<div class='password-field'>";
+  html += "<input type='password' id='password' name='password' value='" + String(config.password) + "'>";
+  html += "<button type='button' class='toggle-password'><i class='fas fa-eye'></i></button>";
+  html += "</div>";
+  html += "</div>";
+  
+  html += "</div>"; // chiusura wifi-form-container
+  
+  // ---------------- FORM OpenWeatherMap ----------------
+  html += "<div class='form-group'>";
+  html += "<label for='city'>Città:</label>";
+  html += "<input type='text' id='city' name='city' value='" + String(config.city) + "' required>";
+  html += "</div>";
+  
+  html += "<div class='form-group'>";
+  html += "<label for='api_key'>Chiave API OpenWeatherMap:</label>";
+  html += "<div class='password-field'>";
+  html += "<input type='password' id='api_key' name='api_key' value='" + String(config.api_key) + "' required>";
+  html += "<button type='button' class='toggle-password'><i class='fas fa-eye'></i></button>";
+  html += "</div>";
+  html += "</div>";
+  
+  // ---------------- FORM NTP ----------------
+  html += "<div class='form-group'>";
+  html += "<label for='ntp'>Server NTP:</label>";
+  html += "<input type='text' id='ntp' name='ntp_server' value='" + String(config.ntpServer) + "' required>";
+  html += "</div>";
+  
+  html += "<div class='form-group'>";
+  html += "<label for='timezone'>Fuso orario (GMT+):</label>";
+  html += "<select id='timezone' name='timezone'>";
+  
+  for (int i = -12; i <= 14; i++) {
+    String selected = (i == config.gmtOffset_sec / 3600) ? "selected" : "";
+    html += "<option value='" + String(i * 3600) + "' " + selected + ">" + (i >= 0 ? "+" : "") + String(i) + "</option>";
+  }
+  
+  html += "</select>";
+  html += "</div>";
+  
+  html += "<div class='form-group'>";
+  html += "<label>";
+  String checked = config.daylightOffset_sec > 0 ? "checked" : "";
+  html += "<input type='checkbox' name='daylight_saving' " + checked + "> Ora legale";
+  html += "</label>";
+  html += "</div>";
+  
+  // ---------------- AZIONI ----------------
+  html += "<div class='actions'>";
+  html += "<button type='submit' class='btn primary'><i class='fas fa-save'></i> Salva</button>";
+  html += "<button type='button' id='restart-btn' class='btn danger'><i class='fas fa-power-off'></i> Riavvia</button>";
+  html += "</div>";
+  
+  html += "</form>";
+  html += "</div>"; // chiusura form-section
+  html += "</section>";
+  
+  // Mostra lo stato del sistema
+  html += generateStatusHTML();
+  
+  html += "</main>";
+  
+  html += "<footer>";
+  html += "<p>&copy; 2025 AtmoVerse 2.0</p>";
+  html += "</footer>";
+  html += "</div>";
+  
+  // JavaScript per la pagina delle impostazioni
+  html += "<script>" + generateSettingsJS() + "</script>";
+  
+  html += "</body></html>";
+  return html;
+}
+
+// Generazione della pagina dedicata alla scansione WiFi
+String generateWiFiScanPage() {
+  String html = "<!DOCTYPE html><html lang='it'>";
+  html += "<head>";
+  html += "<meta charset='UTF-8'>";
+  html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+  html += "<title>Scansione WiFi - AtmoVerse 2.0</title>";
+  html += "<style>" + generateStyleCSS() + "</style>";
+  html += "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css'>";
+  html += "</head>";
+  html += "<body>";
+  html += "<div class='container'>";
+  html += "<header>";
+  html += "<h1>AtmoVerse 2.0</h1>";
+  html += "<nav>";
+  html += "<ul>";
+  html += "<li><a href='/'>Home</a></li>";
+  html += "<li><a href='/settings.html'>Impostazioni</a></li>";
+  html += "<li><a href='/wifi.html' class='active'>Scansione WiFi</a></li>";
+  html += "</ul>";
+  html += "</nav>";
+  html += "</header>";
+  
+  html += "<main>";
+  html += "<section>";
+  html += "<h2>Reti WiFi Disponibili</h2>";
+  
+  html += "<div class='card'>";
+  html += "<div class='form-group'>";
+  html += "<button id='scan-btn' class='btn primary'><i class='fas fa-sync-alt'></i> Scansiona Reti</button>";
+  html += "</div>";
+  
+  html += "<div id='scan-status' class='status-text'>Clicca il pulsante per iniziare la scansione.</div>";
+  
+  html += "<div id='networks-container'>";
+  html += "<div class='form-group' style='display: none;'>";
+  html += "<label for='network-select'>Reti disponibili:</label>";
+  html += "<select id='network-select'>";
+  html += "<option value='' disabled selected>-- Seleziona rete --</option>";
+  html += "</select>";
+  html += "</div>";
+  
+  html += "<div id='networks-list'></div>";
+  html += "</div>"; // fine networks-container
+  
+  html += "</div>"; // fine card
+  html += "</section>";
+  
+  html += generateStatusHTML();
+  
+  html += "</main>";
+  
+  html += "<footer>";
+  html += "<p>&copy; 2025 AtmoVerse 2.0</p>";
+  html += "</footer>";
+  html += "</div>";
+  
+  // JavaScript per la pagina di scansione WiFi
+  html += "<script>" + generateWiFiScanJS() + "</script>";
+  
+  html += "</body></html>";
+  return html;
+}
+
+// Generazione del JavaScript per la pagina delle impostazioni
+String generateSettingsJS() {
+  String js = R"(
+    // Gestione della visualizzazione password
+    document.querySelectorAll('.toggle-password').forEach(button => {
+      button.addEventListener('click', function() {
+        const input = this.previousElementSibling;
+        const icon = this.querySelector('i');
+        
+        if (input.type === 'password') {
+          input.type = 'text';
+          icon.classList.remove('fa-eye');
+          icon.classList.add('fa-eye-slash');
+        } else {
+          input.type = 'password';
+          icon.classList.remove('fa-eye-slash');
+          icon.classList.add('fa-eye');
+        }
+      });
+    });
+    
+    // Funzione per aggiornare lo stato della scansione
+    function updateScanStatus(message, isError = false) {
+      const statusElement = document.getElementById('scan-status');
+      statusElement.innerHTML = message;
+      statusElement.style.color = isError ? '#ff3860' : '#666';
+    }
+    
+    // Funzione per scansionare le reti WiFi
+    function scanWiFi() {
+      const scanBtn = document.getElementById('scan-wifi-btn');
+      const ssidSelect = document.getElementById('ssid');
+      const currentSsid = ssidSelect.value;
+      
+      scanBtn.disabled = true;
+      scanBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Scansione...';
+      updateScanStatus('Scansione reti in corso...');
+      
+      fetch('/api/wifi/scan')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Errore nella scansione: ' + response.status);
+          }
+          return response.json();
+        })
+        .then(networks => {
+          // Pulisce il dropdown mantenendo solo la prima opzione
+          while (ssidSelect.options.length > 1) {
+            ssidSelect.remove(1);
+          }
+          
+          // Controllo se ci sono reti trovate
+          if (networks.length === 0) {
+            updateScanStatus('Nessuna rete trovata.', true);
+            return;
+          }
+          
+          // Ordina le reti per potenza del segnale (RSSI)
+          networks.sort((a, b) => b.rssi - a.rssi);
+          
+          // Aggiunge le reti al dropdown
+          networks.forEach(network => {
+            const option = document.createElement('option');
+            option.value = network.ssid;
+            
+            // Calcola la potenza del segnale in percentuale
+            const signalStrength = Math.min(100, Math.max(0, (network.rssi + 100) * 2));
+            
+            // Crea il testo dell'opzione con informazioni sul segnale
+            let securityIcon = network.secure ? '&#128274;' : '&#128275;';
+            option.text = `${network.ssid} (${signalStrength.toFixed(0)}%, Ch${network.channel}, ${network.encryption}) ${securityIcon}`;
+            
+            // Se è la rete attualmente configurata, selezionala
+            if (network.ssid === currentSsid) {
+              option.selected = true;
+            }
+            
+            ssidSelect.add(option);
+          });
+          
+          updateScanStatus(`Trovate ${networks.length} reti.`);
+        })
+        .catch(error => {
+          updateScanStatus(`Errore: ${error.message}`, true);
+        })
+        .finally(() => {
+          scanBtn.disabled = false;
+          scanBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Scansiona';
+        });
+    }
+    
+    // Funzione per salvare le impostazioni
+    function saveSettings(event) {
+      event.preventDefault();
+      
+      const form = document.getElementById('wifi-form');
+      const formData = new FormData(form);
+      const jsonData = {};
+      
+      formData.forEach((value, key) => {
+        if (key === 'daylight_saving') {
+          jsonData[key] = true; // Se presente nel form, è checked
+        } else {
+          jsonData[key] = value;
+        }
+      });
+      
+      // Se daylight_saving non è nel form, lo imposta a false
+      if (!formData.has('daylight_saving')) {
+        jsonData['daylight_saving'] = false;
+      }
+      
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jsonData)
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Errore nel salvataggio');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Mostra messaggio di successo
+          const statusElement = document.createElement('div');
+          statusElement.className = 'status-message success';
+          statusElement.innerHTML = '<p>Impostazioni salvate con successo!</p>';
+          
+          const main = document.querySelector('main');
+          main.insertBefore(statusElement, main.firstChild);
+          
+          // Rimuovi il messaggio dopo 5 secondi
+          setTimeout(() => {
+            statusElement.style.opacity = '0';
+            setTimeout(() => statusElement.remove(), 500);
+          }, 5000);
+        } else {
+          throw new Error(data.message || 'Errore nel salvataggio');
+        }
+      })
+      .catch(error => {
+        // Mostra messaggio di errore
+        const statusElement = document.createElement('div');
+        statusElement.className = 'status-message error';
+        statusElement.innerHTML = `<p>${error.message}</p>`;
+        
+        const main = document.querySelector('main');
+        main.insertBefore(statusElement, main.firstChild);
+        
+        // Rimuovi il messaggio dopo 5 secondi
+        setTimeout(() => {
+          statusElement.style.opacity = '0';
+          setTimeout(() => statusElement.remove(), 500);
+        }, 5000);
+      });
+    }
+    
+    // Funzione per riavviare il dispositivo
+    function restartDevice() {
+      if (confirm('Sei sicuro di voler riavviare il dispositivo?')) {
+        fetch('/api/restart', { method: 'POST' })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Errore nel riavvio');
+            }
+            
+            // Mostra messaggio di riavvio
+            const statusElement = document.createElement('div');
+            statusElement.className = 'status-message info';
+            statusElement.innerHTML = '<p>Riavvio in corso...</p>';
+            
+            const main = document.querySelector('main');
+            main.insertBefore(statusElement, main.firstChild);
+            
+            // Aggiorna la pagina dopo 15 secondi
+            setTimeout(() => {
+              window.location.reload();
+            }, 15000);
+          })
+          .catch(error => {
+            // Mostra messaggio di errore
+            const statusElement = document.createElement('div');
+            statusElement.className = 'status-message error';
+            statusElement.innerHTML = `<p>${error.message}</p>`;
+            
+            const main = document.querySelector('main');
+            main.insertBefore(statusElement, main.firstChild);
+            
+            // Rimuovi il messaggio dopo 5 secondi
+            setTimeout(() => {
+              statusElement.style.opacity = '0';
+              setTimeout(() => statusElement.remove(), 500);
+            }, 5000);
+          });
+      }
+    }
+    
+    // Funzione per caricare le impostazioni e inizializzare la pagina
+    function loadSettings() {
+      // Aggiungi gli event listener
+      document.getElementById('wifi-form').addEventListener('submit', saveSettings);
+      document.getElementById('restart-btn').addEventListener('click', restartDevice);
+      document.getElementById('scan-wifi-btn').addEventListener('click', scanWiFi);
+      
+      // Se siamo in modalità AP, esegui immediatamente una scansione WiFi
+      if (document.getElementById('wifi-form-container').classList.contains('ap-mode-highlight')) {
+        // Scorri fino alla sezione WiFi
+        document.getElementById('wifi-settings').scrollIntoView({ behavior: 'smooth' });
+        
+        // Avvia la scansione dopo un breve ritardo
+        setTimeout(scanWiFi, 500);
+      }
+    }
+    
+    // Inizializza al caricamento della pagina
+    document.addEventListener('DOMContentLoaded', loadSettings);
+  )";
+  return js;
+}
+
+// Generazione del JavaScript per la pagina di scansione WiFi
+String generateWiFiScanJS() {
+  String js = R"(
+    document.addEventListener('DOMContentLoaded', () => {
+      const scanBtn = document.getElementById('scan-btn');
+      const statusElement = document.getElementById('scan-status');
+      const networksList = document.getElementById('networks-list');
+      const networkSelect = document.getElementById('network-select');
+      const networkSelectContainer = networkSelect.parentNode;
+      
+      // Funzione per convertire RSSI in percentuale
+      function rssiToPercentage(rssi) {
+        // RSSI tipicamente varia da -100 dBm (debole) a -30 dBm (forte)
+        if (rssi >= -50) {
+          return 100;
+        } else if (rssi <= -100) {
+          return 0;
+        } else {
+          // Conversione lineare tra -100 e -50
+          return 2 * (rssi + 100);
+        }
+      }
+      
+      // Funzione per creare una barra del segnale visiva
+      function createSignalBar(percentage) {
+        return `
+          <div class="signal-bar">
+            <div class="signal-fill" style="width: ${percentage}%"></div>
+          </div>
+          <div>${percentage.toFixed(0)}%</div>
+        `;
+      }
+      
+      // Funzione per scansionare le reti WiFi
+      function scanNetworks() {
+        scanBtn.disabled = true;
+        scanBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Scansione in corso...';
+        statusElement.innerHTML = 'Scansione reti in corso...';
+        networksList.innerHTML = '';
+        networkSelectContainer.style.display = 'none';
+        
+        // Svuota il dropdown
+        while (networkSelect.options.length > 1) {
+          networkSelect.remove(1);
+        }
+        
+        fetch('/api/wifi/scan')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Errore nella scansione: ' + response.status);
+            }
+            return response.json();
+          })
+          .then(networks => {
+            if (networks.length === 0) {
+              statusElement.innerHTML = 'Nessuna rete trovata.';
+              return;
+            }
+            
+            // Ordina le reti per potenza del segnale
+            networks.sort((a, b) => b.rssi - a.rssi);
+            
+            // Popola il dropdown e la lista visuale
+            networks.forEach(network => {
+              // Aggiunge al dropdown
+              const option = document.createElement('option');
+              option.value = network.ssid;
+              option.text = network.ssid;
+              networkSelect.add(option);
+              
+              // Calcola percentuale segnale
+              const signalPercentage = rssiToPercentage(network.rssi);
+              
+              // Crea card per la rete
+              const networkCard = document.createElement('div');
+              networkCard.className = 'card';
+              networkCard.style.marginBottom = '10px';
+              networkCard.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div style="flex-grow: 1;">
+                    <h3 style="margin-bottom: 5px;">${network.ssid}</h3>
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                      <div style="margin-right: 10px; width: 120px;">
+                        ${createSignalBar(signalPercentage)}
+                      </div>
+                      <div>
+                        <span style="font-size: 0.9em; color: #666;">
+                          CH: ${network.channel} | ${network.encryption}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    ${network.secure ? 
+                      '<i class="fas fa-lock" style="font-size: 1.5em; color: #f59f00;"></i>' : 
+                      '<i class="fas fa-lock-open" style="font-size: 1.5em; color: #0ca678;"></i>'}
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <button class="btn secondary select-network" data-ssid="${network.ssid}">
+                    Seleziona
+                  </button>
+                </div>
+              `;
+              
+              networksList.appendChild(networkCard);
+            });
+            
+            // Mostra il dropdown
+            networkSelectContainer.style.display = 'block';
+            
+            // Aggiunge event listener ai pulsanti "Seleziona"
+            document.querySelectorAll('.select-network').forEach(button => {
+              button.addEventListener('click', function() {
+                const ssid = this.getAttribute('data-ssid');
+                // Reindirizza alla pagina delle impostazioni con il SSID preselezionato
+                window.location.href = `/settings.html?ssid=${encodeURIComponent(ssid)}`;
+              });
+            });
+            
+            statusElement.innerHTML = `Trovate ${networks.length} reti.`;
+          })
+          .catch(error => {
+            statusElement.innerHTML = `Errore: ${error.message}`;
+          })
+          .finally(() => {
+            scanBtn.disabled = false;
+            scanBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Scansiona Reti';
+          });
+      }
+      
+      // Aggiungi event listener al pulsante di scansione
+      scanBtn.addEventListener('click', scanNetworks);
+      
+      // Avvia una scansione automatica all'apertura della pagina
+      scanNetworks();
+    });
+  )";
+  return js;
+}
+
+// Serve le icone meteo
+void serveWeatherIcon(WiFiClient& client, const String& path) {
+  // Estrai il nome del file dalla path
+  String iconName = path.substring(path.lastIndexOf('/') + 1);
+  
+  // Verifica se il file esiste nella SPIFFS
+  if (!SPIFFS.exists("/icons/" + iconName)) {
+    sendResponse(client, "text/plain", "404 - Icona non trovata", 404);
+    return;
+  }
+  
+  // Apri il file e invia il contenuto al client
+  File iconFile = SPIFFS.open("/icons/" + iconName, "r");
+  if (!iconFile) {
+    sendResponse(client, "text/plain", "500 - Errore lettura icona", 500);
+    return;
+  }
+  
+  // Invia l'icona con le intestazioni corrette
+  String contentType = "image/svg+xml";
+  if (iconName.endsWith(".png")) {
+    contentType = "image/png";
+  }
+  
+  // Intestazioni HTTP
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: " + contentType);
+  client.println("Connection: close");
+  client.println();
+  
+  // Invia il contenuto del file
+  while (iconFile.available()) {
+    client.write(iconFile.read());
+  }
+  
+  // Chiudi il file
+  iconFile.close();
+}
+
+// Serve il QR code
+void serveQRCode(WiFiClient& client) {
+  // Invece di leggere un file, genera direttamente la risposta con il QR code SVG
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: image/svg+xml");
+  client.println("Connection: close");
+  client.println();
+  
+  // QR code SVG basato sull'immagine fornita dall'utente
+  client.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+  client.println("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 350\">");
+  
+  // Balloon "SCAN ME" in alto
+  client.println("  <rect x=\"0\" y=\"0\" width=\"300\" height=\"50\" rx=\"10\" ry=\"10\" fill=\"black\"/>");
+  client.println("  <text x=\"150\" y=\"35\" font-family=\"Arial\" font-size=\"30\" font-weight=\"bold\" fill=\"white\" text-anchor=\"middle\">SCAN ME</text>");
+  
+  // Triangolo che collega il balloon al QR code
+  client.println("  <path d=\"M 150 50 L 170 70 L 130 70 Z\" fill=\"black\"/>");
+  
+  // Bordo esterno del QR code
+  client.println("  <rect x=\"20\" y=\"70\" width=\"260\" height=\"260\" stroke=\"black\" stroke-width=\"6\" fill=\"white\"/>");
+  
+  // Angoli di posizionamento del QR code
+  // Top-left
+  client.println("  <rect x=\"40\" y=\"90\" width=\"60\" height=\"60\" fill=\"black\"/>");
+  client.println("  <rect x=\"50\" y=\"100\" width=\"40\" height=\"40\" fill=\"white\"/>");
+  client.println("  <rect x=\"60\" y=\"110\" width=\"20\" height=\"20\" fill=\"black\"/>");
+  
+  // Top-right
+  client.println("  <rect x=\"200\" y=\"90\" width=\"60\" height=\"60\" fill=\"black\"/>");
+  client.println("  <rect x=\"210\" y=\"100\" width=\"40\" height=\"40\" fill=\"white\"/>");
+  client.println("  <rect x=\"220\" y=\"110\" width=\"20\" height=\"20\" fill=\"black\"/>");
+  
+  // Bottom-left
+  client.println("  <rect x=\"40\" y=\"250\" width=\"60\" height=\"60\" fill=\"black\"/>");
+  client.println("  <rect x=\"50\" y=\"260\" width=\"40\" height=\"40\" fill=\"white\"/>");
+  client.println("  <rect x=\"60\" y=\"270\" width=\"20\" height=\"20\" fill=\"black\"/>");
+  
+  // Pattern interni del QR code (generati parzialmente in modo casuale)
+  for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+      // Evita di sovrascrivere i marker angolari
+      bool isCorner = (i < 2 && j < 2) || (i < 2 && j > 7) || (i > 7 && j < 2);
+      if (!isCorner && (i + j) % 3 == 0) {
+        client.printf("  <rect x=\"%d\" y=\"%d\" width=\"15\" height=\"15\" fill=\"black\"/>\n", 
+                     40 + i * 22, 90 + j * 22);
+      }
+    }
+  }
+  
+  // Altri pattern per rendere più realistico il QR code
+  client.println("  <rect x=\"110\" y=\"110\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"140\" y=\"170\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"175\" y=\"200\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"90\" y=\"230\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"120\" y=\"260\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"195\" y=\"140\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"220\" y=\"220\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"150\" y=\"90\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"180\" y=\"120\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"90\" y=\"160\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"60\" y=\"195\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"155\" y=\"240\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"170\" y=\"290\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  
+  client.println("</svg>");
+}
+
+// ----------- FUNZIONI CONFIGURAZIONE -----------
+
+// Funzioni esterne dichiarate in Config.h, implementate in Config.cpp
+extern bool loadConfig();
+extern bool saveConfig();
+
+// ----------- FUNZIONE PRINCIPALE -----------
+
+// Implementazione della funzione setup() del modulo
+bool systemSetup() {
+  Serial.println("\n\n==== AtmoVerse 2.0 ====");
+  Serial.println("Avvio sistema...");
+  
+  // Inizializza la memoria SPIFFS
+  if (!SPIFFS.begin(true)) {
+    Serial.println("Errore nell'inizializzazione SPIFFS");
+    return false;
+  }
+  Serial.println("SPIFFS inizializzato");
+  
+  // Carica la configurazione
+  if (!loadConfig()) {
+    Serial.println("Utilizzo valori di default per la configurazione");
+    
+    // Imposta valori di default in caso di errore
+    strcpy(config.ssid, "");
+    strcpy(config.password, "");
+    strcpy(config.city, "Roma");
+    strcpy(config.api_key, "");
+    strcpy(config.ntpServer, "pool.ntp.org");
+    config.gmtOffset_sec = 3600;
+    config.daylightOffset_sec = 0;
+  }
+  
+  // Inizializza il WiFi
+  return setupWiFi();
+}
+
+// Prototipi delle funzioni
+void systemLoop();
+void updateWeatherData();
+void updateTime();
+void updateSystemStatus();
+int calculateSignalQuality(int rssi);
+
+void systemLoop() {
+  // Gestisce le richieste web
+  handleClientRequests();
+  
+  // Aggiorna i dati meteo ogni intervalloAggiornamento secondi
+  static unsigned long ultimoAggiornamento = 0;
+  unsigned long ora = millis();
+  const unsigned long intervalloAggiornamento = 10 * 60 * 1000; // 10 minuti
+  
+  if (ora - ultimoAggiornamento >= intervalloAggiornamento || ultimoAggiornamento == 0) {
+    ultimoAggiornamento = ora;
+    
+    // Se non siamo in AP mode e abbiamo una connessione WiFi
+    if (!apMode && WiFi.status() == WL_CONNECTED) {
+      // Aggiorna i dati meteo
+      updateWeatherData();
+      
+      // Sincronizza l'ora con NTP
+      updateTime();
+    }
+  }
+  
+  // Aggiorna lo stato del sistema (memoria, uptime, ecc.)
+  static unsigned long ultimoAggiornamentoStato = 0;
+  const unsigned long intervalloAggiornamentoStato = 5000; // 5 secondi
+  
+  if (ora - ultimoAggiornamentoStato >= intervalloAggiornamentoStato) {
+    ultimoAggiornamentoStato = ora;
+    updateSystemStatus();
+  }
+}
+
+void updateWeatherData() {
+  Serial.println("Aggiornamento dati meteo...");
+  
+  HTTPClient http;
+  String url = "http://api.openweathermap.org/data/2.5/weather?q=" + 
+               String(config.city) + 
+               "&units=metric&lang=it&appid=" + 
+               String(config.api_key);
+  
+  http.begin(url);
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    Serial.println("Dati meteo ricevuti");
+    currentWeather.last_update = time(nullptr);
+    
+    // Parsing del json
+    bool success = parseWeatherData(payload);
+    http.end();
+    weatherDataUpdated = success; // Invece di return success
+  } else {
+    Serial.print("Errore nel download dei dati meteo: ");
+    Serial.println(httpCode);
+    http.end();
+    weatherDataUpdated = false; // Invece di return false
+  }
+}
+
+void updateTime() {
+  if (WiFi.status() == WL_CONNECTED) {
+    // Ottieni l'ora corrente
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+      Serial.println("Errore nell'ottenere l'ora locale");
+      return;
+    }
+    
+    // Utilizziamo le variabili globali dichiarate altrove
+    // Log per debug
+    char timeString[30];
+    strftime(timeString, sizeof(timeString), "%d/%m/%Y %H:%M:%S", &timeinfo);
+    Serial.print("Ora aggiornata: ");
+    Serial.println(timeString);
+  }
+}
+
+void updateSystemStatus() {
+  // Aggiorna i dati di uptime
+  systemStatus.uptime = millis() / 1000; // Converti in secondi
+  
+  // Aggiorna i dati di utilizzo memoria
+  systemStatus.freeMemory = ESP.getFreeHeap();
+  systemStatus.totalMemory = ESP.getHeapSize();
+  systemStatus.memoryUsagePercent = 100.0 - ((float)systemStatus.freeMemory / systemStatus.totalMemory * 100.0);
+  
+  // Aggiorna i dati WiFi
+  if (WiFi.status() == WL_CONNECTED) {
+    systemStatus.wifiRSSI = WiFi.RSSI();
+    systemStatus.wifiQuality = calculateSignalQuality(systemStatus.wifiRSSI);
+  } else {
+    systemStatus.wifiRSSI = -100; // Valore molto basso
+    systemStatus.wifiQuality = 0;
+  }
+}
+
+int calculateSignalQuality(int rssi) {
+  // Converte il valore RSSI in una percentuale di qualità
+  // RSSI tipicamente varia da -100 dBm (segnale molto debole) a -30 dBm (segnale molto forte)
+  if (rssi <= -100) {
+    return 0;
+  } else if (rssi >= -50) {
+    return 100;
+  } else {
+    // Interpolazione lineare tra -100 e -50
+    return 2 * (rssi + 100);
+  }
+}
+
+void checkWiFiConnection() {
+  static unsigned long lastCheck = 0;
+  unsigned long currentMillis = millis();
+  if ((unsigned long)(currentMillis - lastCheck) >= WIFI_CHECK_INTERVAL) {
+    lastCheck = currentMillis;
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi connection lost, attempting to reconnect...");
+      reconnectToWiFi();
+    }
+  }
+}
+
+// Serve le icone meteo
+void serveWeatherIcon(WiFiClient& client, const String& path) {
+  // Estrai il nome del file dalla path
+  String iconName = path.substring(path.lastIndexOf('/') + 1);
+  
+  // Verifica se il file esiste nella SPIFFS
+  if (!SPIFFS.exists("/icons/" + iconName)) {
+    sendResponse(client, "text/plain", "404 - Icona non trovata", 404);
+    return;
+  }
+  
+  // Apri il file e invia il contenuto al client
+  File iconFile = SPIFFS.open("/icons/" + iconName, "r");
+  if (!iconFile) {
+    sendResponse(client, "text/plain", "500 - Errore lettura icona", 500);
+    return;
+  }
+  
+  // Invia l'icona con le intestazioni corrette
+  String contentType = "image/svg+xml";
+  if (iconName.endsWith(".png")) {
+    contentType = "image/png";
+  }
+  
+  // Intestazioni HTTP
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: " + contentType);
+  client.println("Connection: close");
+  client.println();
+  
+  // Invia il contenuto del file
+  while (iconFile.available()) {
+    client.write(iconFile.read());
+  }
+  
+  // Chiudi il file
+  iconFile.close();
+}
+
+// Serve il QR code
+void serveQRCode(WiFiClient& client) {
+  // Invece di leggere un file, genera direttamente la risposta con il QR code SVG
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: image/svg+xml");
+  client.println("Connection: close");
+  client.println();
+  
+  // QR code SVG basato sull'immagine fornita dall'utente
+  client.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+  client.println("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 350\">");
+  
+  // Balloon "SCAN ME" in alto
+  client.println("  <rect x=\"0\" y=\"0\" width=\"300\" height=\"50\" rx=\"10\" ry=\"10\" fill=\"black\"/>");
+  client.println("  <text x=\"150\" y=\"35\" font-family=\"Arial\" font-size=\"30\" font-weight=\"bold\" fill=\"white\" text-anchor=\"middle\">SCAN ME</text>");
+  
+  // Triangolo che collega il balloon al QR code
+  client.println("  <path d=\"M 150 50 L 170 70 L 130 70 Z\" fill=\"black\"/>");
+  
+  // Bordo esterno del QR code
+  client.println("  <rect x=\"20\" y=\"70\" width=\"260\" height=\"260\" stroke=\"black\" stroke-width=\"6\" fill=\"white\"/>");
+  
+  // Angoli di posizionamento del QR code
+  // Top-left
+  client.println("  <rect x=\"40\" y=\"90\" width=\"60\" height=\"60\" fill=\"black\"/>");
+  client.println("  <rect x=\"50\" y=\"100\" width=\"40\" height=\"40\" fill=\"white\"/>");
+  client.println("  <rect x=\"60\" y=\"110\" width=\"20\" height=\"20\" fill=\"black\"/>");
+  
+  // Top-right
+  client.println("  <rect x=\"200\" y=\"90\" width=\"60\" height=\"60\" fill=\"black\"/>");
+  client.println("  <rect x=\"210\" y=\"100\" width=\"40\" height=\"40\" fill=\"white\"/>");
+  client.println("  <rect x=\"220\" y=\"110\" width=\"20\" height=\"20\" fill=\"black\"/>");
+  
+  // Bottom-left
+  client.println("  <rect x=\"40\" y=\"250\" width=\"60\" height=\"60\" fill=\"black\"/>");
+  client.println("  <rect x=\"50\" y=\"260\" width=\"40\" height=\"40\" fill=\"white\"/>");
+  client.println("  <rect x=\"60\" y=\"270\" width=\"20\" height=\"20\" fill=\"black\"/>");
+  
+  // Pattern interni del QR code (generati parzialmente in modo casuale)
+  for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+      // Evita di sovrascrivere i marker angolari
+      bool isCorner = (i < 2 && j < 2) || (i < 2 && j > 7) || (i > 7 && j < 2);
+      if (!isCorner && (i + j) % 3 == 0) {
+        client.printf("  <rect x=\"%d\" y=\"%d\" width=\"15\" height=\"15\" fill=\"black\"/>\n", 
+                     40 + i * 22, 90 + j * 22);
+      }
+    }
+  }
+  
+  // Altri pattern per rendere più realistico il QR code
+  client.println("  <rect x=\"110\" y=\"110\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"140\" y=\"170\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"175\" y=\"200\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"90\" y=\"230\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"120\" y=\"260\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"195\" y=\"140\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"220\" y=\"220\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"150\" y=\"90\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"180\" y=\"120\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"90\" y=\"160\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"60\" y=\"195\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"155\" y=\"240\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  client.println("  <rect x=\"170\" y=\"290\" width=\"15\" height=\"15\" fill=\"black\"/>");
+  
+  client.println("</svg>");
+}
+
+// ----------- FUNZIONI SERVER WEB -----------
+
+// Configurazione delle route del server web
+void setupServer() {
+  // Inizializza il server web sulla porta 80
+  server = WiFiServer(80);
+  server.begin();
+  
+  Serial.println("Server web inizializzato");
+}
+
+// Funzione di gestione richieste web
+void handleClientRequests() {
+  if (apMode) {
+    // In modalità AP, gestisce le richieste DNS per il captive portal
+    dnsServer.processNextRequest();
+  }
+  
+  // Controlla se ci sono client connessi
+  WiFiClient client = server.available();
+  if (!client) {
+    return;
+  }
+  
+  Serial.println("Nuovo client connesso");
+  
+  // Timeout di lettura dei dati dalla request
+  unsigned long timeout = millis();
+  while (client.connected() && millis() - timeout < 1000) {
+    if (client.available()) {
+      // Legge la prima riga della richiesta
+      String request = client.readStringUntil('\r');
+      client.readStringUntil('\n');
+      Serial.println("Richiesta: " + request);
+      
+      // Estrae il metodo e il percorso
+      int firstSpace = request.indexOf(' ');
+      int secondSpace = request.indexOf(' ', firstSpace + 1);
+      
+      String method = request.substring(0, firstSpace);
+      String path = request.substring(firstSpace + 1, secondSpace);
+      
+      Serial.print("Metodo: ");
+      Serial.println(method);
+      Serial.print("Percorso: ");
+      Serial.println(path);
+      
+      // Legge le intestazioni fino alla riga vuota
+      while (client.available()) {
+        String line = client.readStringUntil('\r');
+        client.readStringUntil('\n');
+        if (line.length() == 0) {
+          break;
+        }
+      }
+      
+      // Legge il corpo della richiesta se presente (per richieste POST)
+      String body = "";
+      if (method == "POST") {
+        while (client.available()) {
+          body += (char)client.read();
+        }
+        Serial.print("Corpo: ");
+        Serial.println(body);
+      }
+      
+      // Routing delle richieste
+      if (path == "/" || path == "/index.html") {
+        // Pagina principale
+        sendResponse(client, "text/html", generateMainPage());
+      } else if (path == "/settings.html") {
+        // Pagina impostazioni
+        sendResponse(client, "text/html", generateSettingsPage());
+      } else if (path == "/wifi.html") {
+        // Pagina scansione WiFi
+        sendResponse(client, "text/html", generateWiFiScanPage());
+      } else if (path == "/api/wifi/scan") {
+        // API per la scansione delle reti WiFi
+        performWiFiScan(client);
+      } else if (path == "/api/settings" && method == "POST") {
+        // API per salvare le impostazioni
+        saveSettings(client, body);
+      } else if (path == "/api/restart" && method == "POST") {
+        // API per riavviare il dispositivo
+        restartDevice(client);
+      } else if (path.startsWith("/icons/")) {
+        // Serve le icone meteo
+        serveWeatherIcon(client, path);
+      } else if (path == "/qrcode.svg") {
+        // Serve il QR code
+        serveQRCode(client);
+      } else {
+        // In modalità AP, redireziona tutte le richieste non riconosciute alla pagina principale
+        if (apMode) {
+          sendResponse(client, "text/html", generateMainPage());
+        } else {
+          // In modalità normale, invia 404
+          sendResponse(client, "text/plain", "404 - Not Found", 404);
+        }
+      }
+      
+      break;
+    }
+  }
+  
+  // Chiude la connessione
+  client.stop();
+  Serial.println("Client disconnesso");
+}
+
+// Invia una risposta HTTP al client
+void sendResponse(WiFiClient& client, const String& contentType, const String& content, int statusCode) {
+  // Prepara lo stato HTTP appropriato
+  String status = "200 OK";
+  if (statusCode == 404) {
+    status = "404 Not Found";
+  } else if (statusCode == 500) {
+    status = "500 Internal Server Error";
+  }
+  
+  // Invia intestazioni
+  client.print("HTTP/1.1 ");
+  client.println(status);
+  client.println("Content-Type: " + contentType);
+  client.print("Content-Length: ");
+  client.println(content.length());
+  client.println("Connection: close");
+  
+  // Se siamo in modalità AP, aggiungi intestazioni per impedire caching
+  if (apMode) {
+    client.println("Cache-Control: no-cache, no-store, must-revalidate");
+    client.println("Pragma: no-cache");
+    client.println("Expires: 0");
+  }
+  
+  // Linea vuota che separa intestazioni e contenuto
+  client.println();
+  
+  // Invia il contenuto
+  client.println(content);
+}
+
+// API per la scansione delle reti WiFi
+void performWiFiScan(WiFiClient& client) {
+  // Effettua la scansione
+  String networksJson = scanWiFiNetworks();
+  
+  // Invia i risultati come JSON
+  sendResponse(client, "application/json", networksJson);
+}
+
+// API per salvare le impostazioni
+void saveSettings(WiFiClient& client, const String& jsonBody) {
+  Serial.println("Salvataggio impostazioni...");
+  
+  // Parsa il JSON
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, jsonBody);
+  
+  // Se c'è un errore nel parsing, restituisci errore
+  if (error) {
+    Serial.print("Errore nel parsing del JSON: ");
+    Serial.println(error.c_str());
+    sendResponse(client, "application/json", "{\"success\":false,\"message\":\"Errore nel parsing del JSON\"}", 500);
+    return;
+  }
+  
+  // Flag per tenere traccia dei cambiamenti
+  bool settingsChanged = false;
+  bool wifiChanged = false;
+  bool timeServerChanged = false;
+  bool weatherChanged = false;
+  
+  // Aggiorna le impostazioni WiFi
+  if (doc.containsKey("wifi")) {
+    JsonObject wifi = doc["wifi"];
+    
+    if (wifi.containsKey("ssid") && wifi.containsKey("password")) {
+      String newSsid = wifi["ssid"].as<String>();
+      String newPassword = wifi["password"].as<String>();
+      
+      // Imposta solo se sono valori diversi
+      if (strcmp(config.wifi_ssid, newSsid.c_str()) != 0 || 
+          strcmp(config.wifi_password, newPassword.c_str()) != 0) {
+        strncpy(config.wifi_ssid, newSsid.c_str(), sizeof(config.wifi_ssid) - 1);
+        strncpy(config.wifi_password, newPassword.c_str(), sizeof(config.wifi_password) - 1);
+        wifiChanged = true;
+        settingsChanged = true;
+      }
+    }
+  }
+  
+  // Aggiorna le impostazioni del server NTP
+  if (doc.containsKey("timeServer")) {
+    JsonObject timeServer = doc["timeServer"];
+    
+    if (timeServer.containsKey("server")) {
+      String newServer = timeServer["server"].as<String>();
+      if (strcmp(config.ntpServer, newServer.c_str()) != 0) {
+        strncpy(config.ntpServer, newServer.c_str(), sizeof(config.ntpServer) - 1);
+        timeServerChanged = true;
+        settingsChanged = true;
+      }
+    }
+    
+    if (timeServer.containsKey("gmtOffset")) {
+      long newOffset = timeServer["gmtOffset"].as<long>();
+      if (config.gmtOffset_sec != newOffset) {
+        config.gmtOffset_sec = newOffset;
+        timeServerChanged = true;
+        settingsChanged = true;
+      }
+    }
+    
+    if (timeServer.containsKey("daylightOffset")) {
+      int newOffset = timeServer["daylightOffset"].as<int>();
+      if (config.daylightOffset_sec != newOffset) {
+        config.daylightOffset_sec = newOffset;
+        timeServerChanged = true;
+        settingsChanged = true;
+      }
+    }
+  }
+  
+  // Aggiorna le impostazioni per il meteo
+  if (doc.containsKey("weather")) {
+    JsonObject weather = doc["weather"];
+    
+    if (weather.containsKey("city")) {
+      String newCity = weather["city"].as<String>();
+      if (strcmp(config.city, newCity.c_str()) != 0) {
+        strncpy(config.city, newCity.c_str(), sizeof(config.city) - 1);
+        weatherChanged = true;
+        settingsChanged = true;
+      }
+    }
+    
+    if (weather.containsKey("apiKey")) {
+      String newApiKey = weather["apiKey"].as<String>();
+      if (strcmp(config.api_key, newApiKey.c_str()) != 0) {
+        strncpy(config.api_key, newApiKey.c_str(), sizeof(config.api_key) - 1);
+        weatherChanged = true;
+        settingsChanged = true;
+      }
+    }
+  }
+  
+  // Salva le impostazioni se necessario
+  if (settingsChanged) {
+    if (saveConfig()) {
+      Serial.println("Impostazioni salvate con successo");
+      
+      // Invia risposta di successo
+      sendResponse(client, "application/json", "{\"success\":true,\"message\":\"Impostazioni salvate con successo\"}");
+      
+      // Applica le nuove impostazioni se necessario
+      if (wifiChanged) {
+        reconnectToWiFi();
+      }
+      
+      if (timeServerChanged) {
+        setupTimeServer();
+      }
+      
+      if (weatherChanged) {
+        updateWeatherData();
+      }
+    } else {
+      Serial.println("Errore nel salvataggio delle impostazioni");
+      sendResponse(client, "application/json", "{\"success\":false,\"message\":\"Errore nel salvataggio delle impostazioni\"}", 500);
+    }
+  } else {
+    Serial.println("Nessuna modifica alle impostazioni");
+    sendResponse(client, "application/json", "{\"success\":true,\"message\":\"Nessuna modifica necessaria\"}");
+  }
+}
+
+// API per riavviare il dispositivo
+void restartDevice(WiFiClient& client) {
+  // Invia una risposta prima di riavviare
+  sendResponse(client, "application/json", "{\"success\":true,\"message\":\"Il dispositivo si riavvierà a breve\"}");
+  
+  // Attendi che il client riceva la risposta
+  delay(500);
+  
+  // Registra l'evento nei log
+  Serial.println("Riavvio del dispositivo richiesto dall'utente");
+  
+  // Riavvia l'ESP
+  ESP.restart();
+}
