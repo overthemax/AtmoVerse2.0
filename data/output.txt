@@ -1,0 +1,651 @@
+In file included from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0/Network.h:5,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:44,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:30,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:34,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:5:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:172:11: error: 'NetworkClient' does not name a type
+  172 |   virtual NetworkClient &client() {
+      |           ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:255:22: error: 'NetworkClient' has not been declared
+  255 |   bool _parseRequest(NetworkClient &client);
+      |                      ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:257:19: error: 'NetworkClient' has not been declared
+  257 |   bool _parseForm(NetworkClient &client, const String &boundary, uint32_t len);
+      |                   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:260:23: error: 'NetworkClient' has not been declared
+  260 |   int _uploadReadByte(NetworkClient &client);
+      |                       ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:280:3: error: 'NetworkServer' does not name a type
+  280 |   NetworkServer _server;
+      |   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:282:3: error: 'NetworkClient' does not name a type
+  282 |   NetworkClient _currentClient;
+      |   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'size_t WebServer::streamFile(T&, const String&, int)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:236:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  236 |     return _currentClient.write(file);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'virtual size_t WebServer::_currentClientWrite(const char*, size_t)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:246:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  246 |     return _currentClient.write(b, l);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'virtual size_t WebServer::_currentClientWrite_P(const char*, size_t)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:249:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  249 |     return _currentClient.write_P(b, l);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h: At global scope:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:85:3: note: in expansion of macro 'wifi_event_id_t'
+   85 |   wifi_event_id_t onEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:86:3: note: in expansion of macro 'wifi_event_id_t'
+   86 |   wifi_event_id_t onEvent(WiFiEventFuncCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:87:3: note: in expansion of macro 'wifi_event_id_t'
+   87 |   wifi_event_id_t onEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:46:25: error: 'NetworkEventCb' has not been declared
+   46 | #define WiFiEventCb     NetworkEventCb
+      |                         ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:20: note: in expansion of macro 'WiFiEventCb'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:41: error: 'arduino_event_id_t' has not been declared
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:48:25: error: 'NetworkEventSysCb' has not been declared
+   48 | #define WiFiEventSysCb  NetworkEventSysCb
+      |                         ^~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:20: note: in expansion of macro 'WiFiEventSysCb'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:44: error: 'arduino_event_id_t' has not been declared
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                            ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:8: error: 'void WiFiGenericClass::removeEvent(int, int)' cannot be overloaded with 'void WiFiGenericClass::removeEvent(int, int)'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:8: note: previous declaration 'void WiFiGenericClass::removeEvent(int, int)'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' has not been declared
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:90:20: note: in expansion of macro 'wifi_event_id_t'
+   90 |   void removeEvent(wifi_event_id_t id);
+      |                    ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:134:25: error: 'arduino_event_id_t' has not been declared
+  134 |   const char *eventName(arduino_event_id_t id);
+      |                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:136:30: error: 'arduino_event_t' has not been declared
+  136 |   static void _eventCallback(arduino_event_t *event);
+      |                              ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:68: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                    ^~~~~~~~~~~~~~~~~
+      |                                                                    WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:71: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                       ^~~~~~~~~~~~~~~~~
+      |                                                                       WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:45:42: error: expected class-name before '{' token
+   45 | class STAClass : public NetworkInterface {
+      |                                          ^
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:35:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiAP.h:40:41: error: expected class-name before '{' token
+   40 | class APClass : public NetworkInterface {
+      |                                         ^
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp: In function 'void updateDisplay()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:193:26: error: 'getWeatherConfig' was not declared in this scope; did you mean 'getWeatherIconName'?
+  193 |     drawCityInfo(20, 30, getWeatherConfig().cityName);
+      |                          ^~~~~~~~~~~~~~~~
+      |                          getWeatherIconName
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:199:9: error: 'isWeatherDataValid' was not declared in this scope
+  199 |     if (isWeatherDataValid()) {
+      |         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:201:31: error: 'getCurrentWeatherId' was not declared in this scope
+  201 |       drawWeatherIcon(30, 50, getCurrentWeatherId(), isNightTime());
+      |                               ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:204:32: error: 'getCurrentTemperature' was not declared in this scope; did you mean 'getMinTemperature'?
+  204 |       drawTemperature(120, 70, getCurrentTemperature(), getCurrentFeelsLike());
+      |                                ^~~~~~~~~~~~~~~~~~~~~
+      |                                getMinTemperature
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:204:57: error: 'getCurrentFeelsLike' was not declared in this scope
+  204 |       drawTemperature(120, 70, getCurrentTemperature(), getCurrentFeelsLike());
+      |                                                         ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:207:29: error: 'getCurrentHumidity' was not declared in this scope
+  207 |       drawHumidity(320, 70, getCurrentHumidity());
+      |                             ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:208:29: error: 'getCurrentPressure' was not declared in this scope
+  208 |       drawPressure(320, 95, getCurrentPressure());
+      |                             ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:209:26: error: 'getCurrentWindSpeed' was not declared in this scope
+  209 |       drawWind(320, 120, getCurrentWindSpeed());
+      |                          ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:214:21: error: 'getCurrentWeatherDescription' was not declared in this scope; did you mean 'getWeatherDescription'?
+  214 |       display.print(getCurrentWeatherDescription());
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                     getWeatherDescription
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:217:7: error: 'drawMiniCalendar' was not declared in this scope
+  217 |       drawMiniCalendar(400, 200, 180, 180);
+      |       ^~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.cpp:220:49: error: 'getLastWeatherUpdate' was not declared in this scope; did you mean 'lastWeatherUpdate'?
+  220 |       drawLastUpdate(20, display.height() - 60, getLastWeatherUpdate());
+      |                                                 ^~~~~~~~~~~~~~~~~~~~
+      |                                                 lastWeatherUpdate
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Config.cpp: In function 'bool loadConfig()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Config.cpp:28:19: error: 'parseConfigFile' was not declared in this scope
+   28 |         success = parseConfigFile(file);
+      |                   ^~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Config.cpp:38:17: error: 'parseConfigFile' was not declared in this scope
+   38 |       success = parseConfigFile(file);
+      |                 ^~~~~~~~~~~~~~~
+In file included from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.h:5,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino:12:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:172:11: error: 'NetworkClient' does not name a type
+  172 |   virtual NetworkClient &client() {
+      |           ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:255:22: error: 'NetworkClient' has not been declared
+  255 |   bool _parseRequest(NetworkClient &client);
+      |                      ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:257:19: error: 'NetworkClient' has not been declared
+  257 |   bool _parseForm(NetworkClient &client, const String &boundary, uint32_t len);
+      |                   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:260:23: error: 'NetworkClient' has not been declared
+  260 |   int _uploadReadByte(NetworkClient &client);
+      |                       ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:280:3: error: 'NetworkServer' does not name a type
+  280 |   NetworkServer _server;
+      |   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:282:3: error: 'NetworkClient' does not name a type
+  282 |   NetworkClient _currentClient;
+      |   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'size_t WebServer::streamFile(T&, const String&, int)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:236:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  236 |     return _currentClient.write(file);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'virtual size_t WebServer::_currentClientWrite(const char*, size_t)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:246:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  246 |     return _currentClient.write(b, l);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'virtual size_t WebServer::_currentClientWrite_P(const char*, size_t)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:249:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  249 |     return _currentClient.write_P(b, l);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:30,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:34,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.h:6:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h: At global scope:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:85:3: note: in expansion of macro 'wifi_event_id_t'
+   85 |   wifi_event_id_t onEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:86:3: note: in expansion of macro 'wifi_event_id_t'
+   86 |   wifi_event_id_t onEvent(WiFiEventFuncCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:87:3: note: in expansion of macro 'wifi_event_id_t'
+   87 |   wifi_event_id_t onEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:46:25: error: 'NetworkEventCb' has not been declared
+   46 | #define WiFiEventCb     NetworkEventCb
+      |                         ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:20: note: in expansion of macro 'WiFiEventCb'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:41: error: 'arduino_event_id_t' has not been declared
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:48:25: error: 'NetworkEventSysCb' has not been declared
+   48 | #define WiFiEventSysCb  NetworkEventSysCb
+      |                         ^~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:20: note: in expansion of macro 'WiFiEventSysCb'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:44: error: 'arduino_event_id_t' has not been declared
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                            ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:8: error: 'void WiFiGenericClass::removeEvent(int, int)' cannot be overloaded with 'void WiFiGenericClass::removeEvent(int, int)'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:8: note: previous declaration 'void WiFiGenericClass::removeEvent(int, int)'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' has not been declared
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:90:20: note: in expansion of macro 'wifi_event_id_t'
+   90 |   void removeEvent(wifi_event_id_t id);
+      |                    ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:134:25: error: 'arduino_event_id_t' has not been declared
+  134 |   const char *eventName(arduino_event_id_t id);
+      |                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:136:30: error: 'arduino_event_t' has not been declared
+  136 |   static void _eventCallback(arduino_event_t *event);
+      |                              ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:68: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                    ^~~~~~~~~~~~~~~~~
+      |                                                                    WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:71: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                       ^~~~~~~~~~~~~~~~~
+      |                                                                       WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:45:42: error: expected class-name before '{' token
+   45 | class STAClass : public NetworkInterface {
+      |                                          ^
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:35:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiAP.h:40:41: error: expected class-name before '{' token
+   40 | class APClass : public NetworkInterface {
+      |                                         ^
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino:36:49: error: conflicting declaration 'GxEPD2_BW<GxEPD2_583_T8, 480> display'
+   36 | GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT> display(GxEPD2_583_T8(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+      |                                                 ^~~~~~~
+In file included from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino:13:
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Display.h:9:50: note: previous declaration as 'GxEPD2_BW<GxEPD2_583, 448> display'
+    9 | extern GxEPD2_BW<GxEPD2_583, GxEPD2_583::HEIGHT> display;
+      |                                                  ^~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino:51:21: error: conflicting declaration 'const long unsigned int weatherUpdateInterval'
+   51 | const unsigned long weatherUpdateInterval = 30 * 60 * 1000;
+      |                     ^~~~~~~~~~~~~~~~~~~~~
+In file included from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino:10:
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.h:50:18: note: previous declaration as 'const int weatherUpdateInterval'
+   50 | extern const int weatherUpdateInterval;
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino: In function 'void setup()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\AtmoVerse_2.0.ino:59:8: error: 'SPIFFS' was not declared in this scope
+   59 |   if (!SPIFFS.begin(true)) {
+      |        ^~~~~~
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:30,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:34,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0/Network.h:6,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:29,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.h:5,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:1:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:85:3: note: in expansion of macro 'wifi_event_id_t'
+   85 |   wifi_event_id_t onEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:86:3: note: in expansion of macro 'wifi_event_id_t'
+   86 |   wifi_event_id_t onEvent(WiFiEventFuncCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:87:3: note: in expansion of macro 'wifi_event_id_t'
+   87 |   wifi_event_id_t onEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:46:25: error: 'NetworkEventCb' has not been declared
+   46 | #define WiFiEventCb     NetworkEventCb
+      |                         ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:20: note: in expansion of macro 'WiFiEventCb'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:41: error: 'arduino_event_id_t' has not been declared
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:48:25: error: 'NetworkEventSysCb' has not been declared
+   48 | #define WiFiEventSysCb  NetworkEventSysCb
+      |                         ^~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:20: note: in expansion of macro 'WiFiEventSysCb'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:44: error: 'arduino_event_id_t' has not been declared
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                            ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:8: error: 'void WiFiGenericClass::removeEvent(int, int)' cannot be overloaded with 'void WiFiGenericClass::removeEvent(int, int)'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:8: note: previous declaration 'void WiFiGenericClass::removeEvent(int, int)'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' has not been declared
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:90:20: note: in expansion of macro 'wifi_event_id_t'
+   90 |   void removeEvent(wifi_event_id_t id);
+      |                    ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:134:25: error: 'arduino_event_id_t' has not been declared
+  134 |   const char *eventName(arduino_event_id_t id);
+      |                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:136:30: error: 'arduino_event_t' has not been declared
+  136 |   static void _eventCallback(arduino_event_t *event);
+      |                              ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:68: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                    ^~~~~~~~~~~~~~~~~
+      |                                                                    WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:71: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                       ^~~~~~~~~~~~~~~~~
+      |                                                                       WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:45:42: error: expected class-name before '{' token
+   45 | class STAClass : public NetworkInterface {
+      |                                          ^
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:35:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiAP.h:40:41: error: expected class-name before '{' token
+   40 | class APClass : public NetworkInterface {
+      |                                         ^
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0/Network.h:30:8: error: 'WebServer' does not name a type; did you mean 'WiFiServer'?
+   30 | extern WebServer server;
+      |        ^~~~~~~~~
+      |        WiFiServer
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp: In function 'String generateStatusHTML()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:122:7: error: 'isWeatherDataValid' was not declared in this scope
+  122 |   if (isWeatherDataValid()) {
+      |       ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:125:51: error: 'getCurrentTemperature' was not declared in this scope; did you mean 'getMinTemperature'?
+  125 |     html += "<div class='weather-temp'>" + String(getCurrentTemperature(), 1) + "&deg;C</div>";
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~
+      |                                                   getMinTemperature
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:126:51: error: 'getCurrentWeatherDescription' was not declared in this scope; did you mean 'getWeatherDescription'?
+  126 |     html += "<div class='weather-desc'>" + String(getCurrentWeatherDescription()) + "</div>";
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                                   getWeatherDescription
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:130:77: error: 'getCurrentFeelsLike' was not declared in this scope
+  130 |     html += "<div class='weather-detail'><span>Percepita:</span> " + String(getCurrentFeelsLike(), 1) + "&deg;C</div>";
+      |                                                                             ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:131:75: error: 'getCurrentHumidity' was not declared in this scope
+  131 |     html += "<div class='weather-detail'><span>Umidit├á:</span> " + String(getCurrentHumidity(), 0) + "%</div>";
+      |                                                                           ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:132:77: error: 'getCurrentPressure' was not declared in this scope
+  132 |     html += "<div class='weather-detail'><span>Pressione:</span> " + String(getCurrentPressure(), 0) + " hPa</div>";
+      |                                                                             ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:133:73: error: 'getCurrentWindSpeed' was not declared in this scope
+  133 |     html += "<div class='weather-detail'><span>Vento:</span> " + String(getCurrentWindSpeed(), 1) + " m/s</div>";
+      |                                                                         ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WebUI.cpp:138:25: error: 'getLastWeatherUpdate' was not declared in this scope; did you mean 'lastWeatherUpdate'?
+  138 |     time_t lastUpdate = getLastWeatherUpdate();
+      |                         ^~~~~~~~~~~~~~~~~~~~
+      |                         lastWeatherUpdate
+In file included from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.h:5,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:1:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:172:11: error: 'NetworkClient' does not name a type
+  172 |   virtual NetworkClient &client() {
+      |           ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:255:22: error: 'NetworkClient' has not been declared
+  255 |   bool _parseRequest(NetworkClient &client);
+      |                      ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:257:19: error: 'NetworkClient' has not been declared
+  257 |   bool _parseForm(NetworkClient &client, const String &boundary, uint32_t len);
+      |                   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:260:23: error: 'NetworkClient' has not been declared
+  260 |   int _uploadReadByte(NetworkClient &client);
+      |                       ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:280:3: error: 'NetworkServer' does not name a type
+  280 |   NetworkServer _server;
+      |   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:282:3: error: 'NetworkClient' does not name a type
+  282 |   NetworkClient _currentClient;
+      |   ^~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'size_t WebServer::streamFile(T&, const String&, int)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:236:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  236 |     return _currentClient.write(file);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'virtual size_t WebServer::_currentClientWrite(const char*, size_t)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:246:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  246 |     return _currentClient.write(b, l);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h: In member function 'virtual size_t WebServer::_currentClientWrite_P(const char*, size_t)':
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:249:12: error: '_currentClient' was not declared in this scope; did you mean '_currentClientWrite'?
+  249 |     return _currentClient.write_P(b, l);
+      |            ^~~~~~~~~~~~~~
+      |            _currentClientWrite
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:30,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:34,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.h:6:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h: At global scope:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:85:3: note: in expansion of macro 'wifi_event_id_t'
+   85 |   wifi_event_id_t onEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:86:3: note: in expansion of macro 'wifi_event_id_t'
+   86 |   wifi_event_id_t onEvent(WiFiEventFuncCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:87:3: note: in expansion of macro 'wifi_event_id_t'
+   87 |   wifi_event_id_t onEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:46:25: error: 'NetworkEventCb' has not been declared
+   46 | #define WiFiEventCb     NetworkEventCb
+      |                         ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:20: note: in expansion of macro 'WiFiEventCb'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:41: error: 'arduino_event_id_t' has not been declared
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:48:25: error: 'NetworkEventSysCb' has not been declared
+   48 | #define WiFiEventSysCb  NetworkEventSysCb
+      |                         ^~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:20: note: in expansion of macro 'WiFiEventSysCb'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:44: error: 'arduino_event_id_t' has not been declared
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                            ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:8: error: 'void WiFiGenericClass::removeEvent(int, int)' cannot be overloaded with 'void WiFiGenericClass::removeEvent(int, int)'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:8: note: previous declaration 'void WiFiGenericClass::removeEvent(int, int)'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' has not been declared
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:90:20: note: in expansion of macro 'wifi_event_id_t'
+   90 |   void removeEvent(wifi_event_id_t id);
+      |                    ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:134:25: error: 'arduino_event_id_t' has not been declared
+  134 |   const char *eventName(arduino_event_id_t id);
+      |                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:136:30: error: 'arduino_event_t' has not been declared
+  136 |   static void _eventCallback(arduino_event_t *event);
+      |                              ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:68: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                    ^~~~~~~~~~~~~~~~~
+      |                                                                    WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:71: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                       ^~~~~~~~~~~~~~~~~
+      |                                                                       WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:45:42: error: expected class-name before '{' token
+   45 | class STAClass : public NetworkInterface {
+      |                                          ^
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:35:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiAP.h:40:41: error: expected class-name before '{' token
+   40 | class APClass : public NetworkInterface {
+      |                                         ^
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp: In function 'void handleNotFound()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:164:5: error: 'redirect' was not declared in this scope
+  164 |     redirect("/");
+      |     ^~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp: In function 'void handleGetWeather()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:257:20: error: 'isWeatherDataValid' was not declared in this scope
+  257 |   doc["success"] = isWeatherDataValid();
+      |                    ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:261:27: error: 'getCurrentTemperature' was not declared in this scope; did you mean 'getMinTemperature'?
+  261 |     data["temperature"] = getCurrentTemperature();
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+      |                           getMinTemperature
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:262:26: error: 'getCurrentFeelsLike' was not declared in this scope
+  262 |     data["feels_like"] = getCurrentFeelsLike();
+      |                          ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:263:24: error: 'getCurrentHumidity' was not declared in this scope
+  263 |     data["humidity"] = getCurrentHumidity();
+      |                        ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:264:24: error: 'getCurrentPressure' was not declared in this scope
+  264 |     data["pressure"] = getCurrentPressure();
+      |                        ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:265:26: error: 'getCurrentWindSpeed' was not declared in this scope
+  265 |     data["wind_speed"] = getCurrentWindSpeed();
+      |                          ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:266:26: error: 'getCurrentWeatherId' was not declared in this scope
+  266 |     data["weather_id"] = getCurrentWeatherId();
+      |                          ^~~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:267:28: error: 'getCurrentWeatherDescription' was not declared in this scope; did you mean 'getWeatherDescription'?
+  267 |     data["weather_desc"] = getCurrentWeatherDescription();
+      |                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                            getWeatherDescription
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:269:27: error: 'getLastWeatherUpdate' was not declared in this scope; did you mean 'lastWeatherUpdate'?
+  269 |     data["last_update"] = getLastWeatherUpdate();
+      |                           ^~~~~~~~~~~~~~~~~~~~
+      |                           lastWeatherUpdate
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp: In function 'void handleGetWeatherHistory()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:321:23: error: 'class SwapManager' has no member named 'readWeatherHistory'
+  321 |       if (swapManager.readWeatherHistory(i, &data)) {
+      |                       ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\Network.cpp:323:34: error: 'struct WeatherData' has no member named 'timestamp'
+  323 |         item["timestamp"] = data.timestamp;
+      |                                  ^~~~~~~~~
+In file included from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0/Network.h:5,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\NetworkClientSecure\src/NetworkClientSecure.h:25,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\HTTPClient\src/HTTPClient.h:38,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.cpp:6:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer\src/WebServer.h:280:3: error: 'NetworkServer' does not name a type
+  280 |   NetworkServer _server;
+      |   ^~~~~~~~~~~~~
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:30,
+                 from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:34,
+                 from C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0/Network.h:6:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:85:3: note: in expansion of macro 'wifi_event_id_t'
+   85 |   wifi_event_id_t onEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:86:3: note: in expansion of macro 'wifi_event_id_t'
+   86 |   wifi_event_id_t onEvent(WiFiEventFuncCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' does not name a type; did you mean 'network_prov_event_handler_t'?
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:87:3: note: in expansion of macro 'wifi_event_id_t'
+   87 |   wifi_event_id_t onEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |   ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:46:25: error: 'NetworkEventCb' has not been declared
+   46 | #define WiFiEventCb     NetworkEventCb
+      |                         ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:20: note: in expansion of macro 'WiFiEventCb'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:41: error: 'arduino_event_id_t' has not been declared
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:48:25: error: 'NetworkEventSysCb' has not been declared
+   48 | #define WiFiEventSysCb  NetworkEventSysCb
+      |                         ^~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:20: note: in expansion of macro 'WiFiEventSysCb'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                    ^~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:44: error: 'arduino_event_id_t' has not been declared
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                            ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:8: error: 'void WiFiGenericClass::removeEvent(int, int)' cannot be overloaded with 'void WiFiGenericClass::removeEvent(int, int)'
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:8: note: previous declaration 'void WiFiGenericClass::removeEvent(int, int)'
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |        ^~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:49:25: error: 'network_event_handle_t' has not been declared
+   49 | #define wifi_event_id_t network_event_handle_t
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:90:20: note: in expansion of macro 'wifi_event_id_t'
+   90 |   void removeEvent(wifi_event_id_t id);
+      |                    ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:134:25: error: 'arduino_event_id_t' has not been declared
+  134 |   const char *eventName(arduino_event_id_t id);
+      |                         ^~~~~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:136:30: error: 'arduino_event_t' has not been declared
+  136 |   static void _eventCallback(arduino_event_t *event);
+      |                              ^~~~~~~~~~~~~~~
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:88:68: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   88 |   void removeEvent(WiFiEventCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                    ^~~~~~~~~~~~~~~~~
+      |                                                                    WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiGeneric.h:89:71: error: 'ARDUINO_EVENT_MAX' was not declared in this scope; did you mean 'WIFI_EVENT_MAX'?
+   89 |   void removeEvent(WiFiEventSysCb cbEvent, arduino_event_id_t event = ARDUINO_EVENT_MAX);
+      |                                                                       ^~~~~~~~~~~~~~~~~
+      |                                                                       WIFI_EVENT_MAX
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiSTA.h:45:42: error: expected class-name before '{' token
+   45 | class STAClass : public NetworkInterface {
+      |                                          ^
+In file included from C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFi.h:35:
+C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi\src/WiFiAP.h:40:41: error: expected class-name before '{' token
+   40 | class APClass : public NetworkInterface {
+      |                                         ^
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.cpp: In function 'bool updateWeatherData()':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.cpp:27:45: error: 'struct Config' has no member named 'weatherApiKey'
+   27 |                   "&appid=" + String(config.weatherApiKey);
+      |                                             ^~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.cpp:73:13: error: 'swapInitialized' was not declared in this scope
+   73 |         if (swapInitialized) {
+      |             ^~~~~~~~~~~~~~~
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.cpp: In function 'bool getWeatherHistory(WeatherHistoryEntry*, int*, int)':
+C:\Users\horus\OneDrive\Desktop\01010101\AtmoVerse_2.0\WeatherData.cpp:191:8: error: 'swapInitialized' was not declared in this scope
+  191 |   if (!swapInitialized) {
+      |        ^~~~~~~~~~~~~~~
+Multiple libraries were found for "SD.h"
+  Used: C:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\SD
+  Not used: C:\Users\horus\OneDrive\Documenti\Arduino\libraries\SD
+Error during build: exit status 1
+
+[92mUsed library[0m         [92mVersion[0m [90mPath[0m
+[93mSD[0m                   3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\SD[0m
+[93mFS[0m                   3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\FS[0m
+[93mSPI[0m                  3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\SPI[0m
+[93mWebServer[0m            3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WebServer[0m
+[93mWiFi[0m                 3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\WiFi[0m
+[93mNetworking[0m           3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\Network[0m
+[93mDNSServer[0m            3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\DNSServer[0m
+[93mESP32 Async UDP[0m      3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\AsyncUDP[0m
+[93mGxEPD2[0m               1.6.2   [90mC:\Users\horus\OneDrive\Documenti\Arduino\libraries\GxEPD2[0m
+[93mAdafruit GFX Library[0m 1.12.0  [90mC:\Users\horus\OneDrive\Documenti\Arduino\libraries\Adafruit_GFX_Library[0m
+[93mAdafruit BusIO[0m       1.17.0  [90mC:\Users\horus\OneDrive\Documenti\Arduino\libraries\Adafruit_BusIO[0m
+[93mWire[0m                 3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\Wire[0m
+[93mArduinoJson[0m          7.3.1   [90mC:\Users\horus\OneDrive\Documenti\Arduino\libraries\ArduinoJson[0m
+[93mSPIFFS[0m               3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\SPIFFS[0m
+[93mHTTPClient[0m           3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\HTTPClient[0m
+[93mNetworkClientSecure[0m  3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1\libraries\NetworkClientSecure[0m
+
+[92mUsed platform[0m [92mVersion[0m [90mPath[0m
+[93mesp32:esp32[0m   3.1.1   [90mC:\Users\horus\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.1.1[0m

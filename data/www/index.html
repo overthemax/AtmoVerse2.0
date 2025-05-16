@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtmoVerse</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Main Weather Card -->
+        <div class="card">
+            <div class="header">
+                <div class="title-container">
+                    <div class="weather-icon">
+                        <i class="fas fa-cloud"></i>
+                    </div>
+                    <h1 class="title">AtmoVerse</h1>
+                </div>
+                <div class="actions">
+                    <button class="action-button" onclick="location.href='/settings'">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="weather-description" id="weatherDescription">
+                In attesa dati...
+            </div>
+
+            <div class="weather-data">
+                <div class="data-row">
+                    <div class="data-label">
+                        <i class="fas fa-thermometer-half data-icon"></i>
+                        Temperatura
+                    </div>
+                    <div class="data-value" id="temperature">--</div>
+                </div>
+
+                <div class="data-row">
+                    <div class="data-label">
+                        <i class="fas fa-tint data-icon"></i>
+                        Umidità
+                    </div>
+                    <div class="data-value" id="humidity">--</div>
+                </div>
+
+                <div class="data-row">
+                    <div class="data-label">
+                        <i class="fas fa-tachometer-alt data-icon"></i>
+                        Pressione
+                    </div>
+                    <div class="data-value" id="pressure">--</div>
+                </div>
+
+                <div class="data-row">
+                    <div class="data-label">
+                        <i class="fas fa-map-marker-alt data-icon"></i>
+                        Località
+                    </div>
+                    <div class="data-value" id="location">--</div>
+                </div>
+
+                <div class="data-row">
+                    <div class="data-label">
+                        <i class="fas fa-clock data-icon"></i>
+                        Ultimo Aggiornamento
+                    </div>
+                    <div class="data-value" id="lastUpdate">--</div>
+                </div>
+            </div>
+
+            <button onclick="refreshWeather()" class="refresh-button">
+                <i class="fas fa-sync-alt"></i> Aggiorna
+            </button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

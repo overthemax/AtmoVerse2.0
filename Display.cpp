@@ -1,0 +1,975 @@
+#include "Display.h"
+#include <Fonts/FreeMonoBold9pt7b.h>
+#include <Fonts/FreeSerif9pt7b.h>
+#include <Fonts/FreeSerif12pt7b.h>
+#include <Fonts/FreeSansBold12pt7b.h>    // Font sans-serif più moderno e leggibile
+#include <Fonts/FreeMonoBoldOblique9pt7b.h> // Font corsivo per l'autore
+#include <WiFi.h>
+#include <math.h>
+#include "Config.h"
+#include "WeatherUtils.h"
+#include "Calendar.h"
+#include "Debug.h" // added
+#include "AtmoVerseConstants.h"  // Per utilizzare ATMOVERSE_AP_PASSWORD
+#include "QuotesManager.h"  // Per la gestione delle citazioni
+#include "SVGHelper.h"  // Per il supporto ai file SVG
+#include "WeatherIcons.h"  // Per le icone OpenWeatherMap
+
+// Visualizza un semplice box di testo centrale con il messaggio passato
+void showStatusOnDisplay(const char* msg) {
+  DEBUG_TRACE("showStatusOnDisplay"); // added
+    display.setFullWindow();
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        // bordo
+        display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
+        // testo centrato
+        display.setTextColor(GxEPD_BLACK);
+        display.setFont(&FreeSerif12pt7b);
+        int16_t tbx, tby; uint16_t tbw, tbh;
+        display.getTextBounds(msg, 0, 0, &tbx, &tby, &tbw, &tbh);
+        display.setCursor((display.width() - tbw) / 2, (display.height() + tbh) / 2);
+        display.print(msg);
+    } while (display.nextPage());
+    Serial.println(msg);
+}
+
+// Definizione pin per display e-ink già dichiarati nel file principale
+// Usiamo solo la referenza all'oggetto display tramite extern
+
+// Inizializzazione del display e-ink
+void initDisplay() {
+  DEBUG_TRACE("initDisplay"); // added
+  Serial.println("Inizializzazione display...");
+  display.init(115200);
+  display.setRotation(0);
+  display.setTextColor(GxEPD_BLACK);
+  display.setFullWindow();
+  Serial.println("Display inizializzato");
+}
+
+// Funzione per visualizzare la schermata di avvio
+void displayStartupScreen() {
+  DEBUG_TRACE("displayStartupScreen"); // added
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    
+    // Bordo decorativo
+    display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
+    
+    // Logo AtmoVerse 2.0
+    display.setFont(&FreeSerif12pt7b);
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds("AtmoVerse 2.0", 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.setCursor((display.width() - tbw) / 2, display.height() / 3);
+    display.print("AtmoVerse 2.0");
+    
+    // Sottotitolo
+    display.setFont(&FreeSerif9pt7b);
+    display.getTextBounds("Sistema meteo con calendario", 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.setCursor((display.width() - tbw) / 2, display.height() / 2);
+    display.print("Sistema meteo con calendario");
+    
+    // Messaggio di caricamento invece della data
+    display.getTextBounds("Caricamento...", 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.setCursor((display.width() - tbw) / 2, display.height() * 2 / 3);
+    display.print("Caricamento...");
+    
+    // Versione
+    display.setFont(NULL);
+    display.setCursor(display.width() / 2 - 30, display.height() - 20);
+    display.print("v2.0 - 2025");
+    
+  } while (display.nextPage());
+  
+  Serial.println("Schermata di avvio visualizzata");
+}
+
+// Funzione per visualizzare la schermata di configurazione
+void displaySetupScreen(String apName, String ipAddress) {
+  DEBUG_TRACE("displaySetupScreen"); // added
+  Serial.println("Visualizzazione schermata di configurazione...");
+  
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    
+    // Bordo esterno
+    display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
+    
+    // Disegna il sole - spostato a sinistra del titolo
+    int sunX = 50;
+    int sunY = 35;
+    display.fillCircle(sunX, sunY, 8, GxEPD_BLACK);
+    for(int i = 0; i < 8; i++) {
+        float angle = i * PI / 4;
+        int x1 = sunX + cos(angle) * 12;
+        int y1 = sunY + sin(angle) * 12;
+        int x2 = sunX + cos(angle) * 16;
+        int y2 = sunY + sin(angle) * 16;
+        display.drawLine(x1, y1, x2, y2, GxEPD_BLACK);
+    }
+    
+    // Disegna la nuvola - spostata a destra del titolo
+    int cloudX = display.width() - 50;
+    int cloudY = 35;
+    display.fillCircle(cloudX, cloudY, 6, GxEPD_BLACK);
+    display.fillCircle(cloudX + 8, cloudY, 8, GxEPD_BLACK);
+    display.fillCircle(cloudX - 6, cloudY + 4, 5, GxEPD_BLACK);
+    
+    // Titolo AtmoVerse - ora al centro, tra sole e nuvola
+    display.setFont(&FreeSerif12pt7b);
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds("AtmoVerse", 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.setCursor((display.width() - tbw) / 2, 45);
+    display.print("AtmoVerse");
+    
+    // Linea separatrice
+    display.drawLine(20, 65, display.width() - 20, 65, GxEPD_BLACK);
+    
+    // Cambio da "Modalità Configurazione" a "Prima Configurazione"
+    display.setFont(&FreeSerif12pt7b);
+    const char* configTitle = "Prima Configurazione";
+    display.getTextBounds(configTitle, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.setCursor((display.width() - tbw) / 2, 95);
+    display.print(configTitle);
+    
+    // Istruzioni di connessione con font più grande
+    // Aumento lo spazio tra le fasi
+    int textY = 135;
+    display.setFont(&FreeSerif9pt7b);
+    
+    // Passo 1 - Connessione alla rete AtmoVerse
+    display.fillCircle(30, textY, 12, GxEPD_BLACK);
+    display.setTextColor(GxEPD_WHITE);
+    display.setCursor(26, textY+4);
+    display.print("1");
+    display.setTextColor(GxEPD_BLACK);
+    display.setCursor(50, textY+4);
+    // Uso font più grande per il titolo del passo
+    display.setFont(&FreeSerif12pt7b);
+    display.print("Rete: ");
+    display.print(apName);
+    
+    // Spiegazione più concisa del passo 1
+    display.setFont(&FreeSerif9pt7b);
+    display.setCursor(50, textY+25);
+    display.print("Cerca questa rete WiFi sul tuo dispositivo");
+    
+    // Passo 2 - Password per connettersi
+    textY += 70; // Aumentata spaziatura tra le fasi
+    display.fillCircle(30, textY, 12, GxEPD_BLACK);
+    display.setTextColor(GxEPD_WHITE);
+    display.setCursor(26, textY+4);
+    display.print("2");
+    display.setTextColor(GxEPD_BLACK);
+    display.setCursor(50, textY+4);
+    // Uso font più grande per il titolo del passo
+    display.setFont(&FreeSerif12pt7b);
+    display.print("Password: ");
+    display.print(ATMOVERSE_AP_PASSWORD);
+    
+    // Spiegazione più concisa del passo 2
+    display.setFont(&FreeSerif9pt7b);
+    display.setCursor(50, textY+25);
+    display.print("Inserisci questa password quando richiesto");
+    
+    // Passo 3 - Apertura browser
+    textY += 70; // Aumentata spaziatura tra le fasi
+    display.fillCircle(30, textY, 12, GxEPD_BLACK);
+    display.setTextColor(GxEPD_WHITE);
+    display.setCursor(26, textY+4);
+    display.print("3");
+    display.setTextColor(GxEPD_BLACK);
+    display.setCursor(50, textY+4);
+    // Uso font più grande per il titolo del passo
+    display.setFont(&FreeSerif12pt7b);
+    display.print("Apri nel browser:");
+    
+    // Indirizzo IP con font ancora più grande
+    display.setFont(&FreeSerif12pt7b);
+    display.setCursor(50, textY+35);
+    display.print("http://192.168.4.1");
+    
+    // Spiegazione più concisa del passo 3
+    display.setFont(&FreeSerif9pt7b);
+    display.setCursor(50, textY+60);
+    display.print("Configura il dispositivo e salva");
+    
+    // Versione in basso
+    display.setFont(&FreeSerif9pt7b);
+    display.setCursor(20, display.height() - 20);
+    display.print("Calendario meteo integrato - AtmoVerse 2.0");
+    
+  } while (display.nextPage());
+  
+  Serial.println("Schermata di configurazione visualizzata");
+}
+
+// Versione aggiornata della funzione showAPModeInfo che utilizza displaySetupScreen
+void showAPModeInfo() {
+  // Utilizza la funzione displaySetupScreen per mostrare le informazioni in modalità AP
+  // Prende le informazioni di rete da WiFi
+  String macAddr = WiFi.macAddress();
+  macAddr.replace(":", "");
+  macAddr = macAddr.substring(6);
+  
+  // Usa il SSID effettivo dell'access point
+  String apName = WiFi.softAPSSID();
+  displaySetupScreen(apName, WiFi.softAPIP().toString());
+}
+
+// Funzione che aggiorna solo l'ora (minimale)
+void updateTimeOnly() {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)) return;
+  
+  char timeBuffer[10];
+  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
+  
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.setFont(&FreeSerif12pt7b);
+  display.getTextBounds(timeBuffer, 0, 0, &tbx, &tby, &tbw, &tbh);
+  
+  int x = 20 - 5;
+  int y = 70 - tbh - 5;
+  int w = tbw + 10;
+  int h = tbh + 10;
+  
+  display.setPartialWindow(x, y, w, h);
+  display.firstPage();
+  do {
+    display.fillRect(x, y, w, h, GxEPD_WHITE);
+    display.setCursor(20, 70);
+    display.print(timeBuffer);
+  } while (display.nextPage());
+}
+
+// Funzione che aggiorna orario e citazioni
+void updateTimeAndQuotes() {
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)) return;
+  
+  char timeBuffer[10];
+  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
+  
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    int timeX = 20;
+    int timeY = 70;
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.setFont(&FreeSerif12pt7b);
+    display.getTextBounds(timeBuffer, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.fillRect(timeX - 2, timeY - tbh - 2, tbw + 4, tbh + 4, GxEPD_WHITE);
+    display.fillRect(10, display.height() - 25, 150, 20, GxEPD_WHITE);
+    display.setCursor(timeX, timeY);
+    display.print(timeBuffer);
+    drawLastUpdate(10, display.height() - 10, currentWeather.last_update);
+  } while (display.nextPage());
+}
+
+// Flag per indicare se è il primo avvio
+static bool isFirstBoot = true;
+
+// Variabile esterna per lo stato dell'ultimo aggiornamento
+extern bool lastWeatherUpdateSuccess;
+
+// Funzione esterna per verificare se siamo in modalità risparmio energetico
+extern bool isPowerSavingMode();
+
+// Implementazione completa della funzione di aggiornamento display
+void updateDisplay() {
+  // Ottieni l'ora corrente
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  
+  // Metodo semplificato per aggiornamento display
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    drawDisplayContent();
+    
+    // Se l'ultimo aggiornamento meteo ha avuto problemi, mostra un indicatore
+    if (!lastWeatherUpdateSuccess) {
+      // Disegna un'icona di avvertimento in alto a destra
+      int iconX = display.width() - 30;
+      int iconY = 15;
+      
+      // Triangolo di avvertimento
+      display.fillTriangle(
+        iconX, iconY + 20,           // Base sinistra
+        iconX + 20, iconY + 20,      // Base destra
+        iconX + 10, iconY,           // Punta
+        GxEPD_BLACK
+      );
+      
+      // Punto esclamativo all'interno
+      display.fillRect(iconX + 9, iconY + 5, 2, 10, GxEPD_WHITE);
+      display.fillRect(iconX + 9, iconY + 16, 2, 2, GxEPD_WHITE);
+    }
+    
+    // Se siamo in modalità risparmio energetico, mostra un'icona luna
+    if (isPowerSavingMode()) {
+      int iconX = display.width() - 30;
+      int iconY = 40;
+      
+      // Luna per indicare risparmio energetico
+      display.fillCircle(iconX + 10, iconY + 10, 10, GxEPD_BLACK);
+      display.fillCircle(iconX + 15, iconY + 10, 9, GxEPD_WHITE);
+    }
+  } while (display.nextPage());
+  
+  if (isFirstBoot) isFirstBoot = false;
+}
+
+// Funzione che contiene tutto il codice per disegnare i contenuti
+// Separata per evitare duplicazione di codice
+void drawDisplayContent() {
+  DEBUG_TRACE("drawDisplayContent"); // added
+  // Se non siamo connessi, mostra le informazioni in modalità AP
+  if (WiFi.status() != WL_CONNECTED) {
+    showAPModeInfo();
+    return;
+  }
+  
+  // Disegna il calendario ancora più grande in alto a destra
+  drawCalendar(display.width() - 170, 5, 165, 170);
+  
+  // Disegna il nome della città a sinistra
+  display.setFont(&FreeSerif12pt7b);
+  display.setCursor(20, 40);
+  display.print(config.city);
+  
+  // Disegna solo l'ora sotto la città (non la data)
+  time_t now = time(nullptr);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  char timeBuffer[10];
+  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
+  
+  display.setFont(&FreeSerif12pt7b);
+  display.setCursor(20, 70);
+  display.print(timeBuffer);
+  
+  // Disegna temperatura, umidità e vento subito sotto l'ora
+  display.setFont(&FreeSerif9pt7b);
+  
+  // Temperatura (con un decimale)
+  String tempStr = String(currentWeather.temp, 1) + "°C";
+  display.setCursor(20, 100);
+  display.print(tempStr);
+  
+  // Umidità
+  String humidityStr = String(int(currentWeather.humidity)) + "%";
+  display.setCursor(20, 125);
+  display.print(humidityStr);
+  
+  // Vento
+  String windStr = "Vento: " + String(currentWeather.wind_speed, 1) + " km/h";
+  display.setCursor(20, 150);
+  display.print(windStr);
+  
+  // Disegna l'icona meteo molto più grande e centrata
+  int iconSize = 140; // Dimensione significativamente maggiore dell'icona (considerando un raggio di 70)
+  int iconX = (display.width() - iconSize) / 2 - 10; // Centrata e leggermente spostata a sinistra
+  int iconY = 40; // Spostata ancora più in alto per dare spazio al box citazione ingrandito
+  drawWeatherIcon(iconX, iconY, currentWeather.weather_id, isNightTime());
+  
+  // Disegna una citazione vicino al fondo del display
+  int quoteY = display.height() - 150; // Posizionato relativamente al fondo del display invece che dall'alto
+  drawQuote(20, quoteY, display.width() - 40);
+  
+  // Rimossa la riga orizzontale separatrice per un aspetto più pulito
+  
+  // Disegna l'ultimo aggiornamento a sinistra, significativamente spostato più in basso 
+  drawLastUpdate(10, display.height() - 10, currentWeather.last_update);
+  
+  // Mostra l'IP in basso al centro con font più grande e debug seriale
+  display.setFont(&FreeMonoBold9pt7b); // Font più leggibile
+  String ipString;
+  if (WiFi.status() == WL_CONNECTED) {
+      ipString = "IP: " + WiFi.localIP().toString();
+  } else {
+      ipString = "IP: N/A";
+  }
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(ipString.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
+  int centerX = (display.width() - tbw) / 2;
+  int bottomY = display.height() - 5;
+  display.setCursor(centerX, bottomY);
+  display.setTextColor(GxEPD_BLACK);
+  display.print(ipString);
+  
+  // Disegna lo stato della batteria (se disponibile) - mantenuto a destra
+  drawBattery(display.width() - 40, display.height() - 20, 80);
+}
+
+// Funzione per disegnare le diverse fasi lunari usando i file SVG
+void drawMoonPhase(int centerX, int centerY, int phase) {
+  // Dimensioni della luna
+  int size = 40;
+  
+  // Utilizziamo l'helper SVG per caricare e disegnare l'icona appropriata dalla SD
+  if (SVGHelper::begin()) {
+    // L'helper selezionerebbe automaticamente il file SVG appropriato
+    SVGHelper::drawMoonPhase(display, centerX - size/2, centerY - size/2, size, size, phase);
+    return;
+  }
+  
+  // Fallback nel caso in cui la SD non sia disponibile o il file non sia trovato
+  // Raggio ottimizzato per un aspetto elegante
+  int r = 20;
+  
+  // Disegniamo il contorno della luna perfettamente circolare
+  display.drawCircle(centerX, centerY, r, GxEPD_BLACK);
+  
+  // Gestiamo la fase lunare
+  if (phase == 0 || phase == 12) {
+    // Luna nuova - solo il contorno
+  } 
+  else if (phase == 6) {
+    // Luna piena - cerchio completamente nero
+    display.fillCircle(centerX, centerY, r-1, GxEPD_BLACK);
+  }
+  else {
+    // Per le fasi intermedie, calcoliamo la porzione illuminata
+    bool isWaxing = (phase < 6); // Crescente o calante
+    
+    if (isWaxing) {
+      // Luna crescente (illuminata a destra)
+      for (int y = centerY - r + 1; y < centerY + r; y++) {
+        int width = sqrt(r*r - (y-centerY)*(y-centerY));
+        display.fillRect(centerX, y, width, 1, GxEPD_BLACK);
+      }
+    } else {
+      // Luna calante (illuminata a sinistra)
+      for (int y = centerY - r + 1; y < centerY + r; y++) {
+        int width = sqrt(r*r - (y-centerY)*(y-centerY));
+        display.fillRect(centerX - width, y, width, 1, GxEPD_BLACK);
+      }
+    }
+  }
+}
+
+// Funzione per disegnare una nuvola usando i file SVG
+void drawCloud(int centerX, int centerY) {
+  // Dimensioni della nuvola
+  int size = 40;
+  
+  // Utilizziamo l'helper SVG per caricare e disegnare l'icona dalla SD
+  if (SVGHelper::begin()) {
+    // Carichiamo il file SVG della nuvola
+    if (SVGHelper::drawSVG(display, "/icons/cloud.svg", centerX - size/2, centerY - size/2, size, size)) {
+      return;
+    }
+  }
+  
+  // Fallback nel caso in cui la SD non sia disponibile o il file non sia trovato
+  // Dimensioni precise per replicare l'immagine condivisa
+  int baseWidth = 30;  // Larghezza rettangolo base
+  int baseHeight = 18; // Altezza rettangolo base
+  
+  // Posizione del rettangolo base
+  int baseY = centerY;
+  int baseX = centerX;
+  
+  // Disegniamo il rettangolo base
+  display.drawRect(baseX - baseWidth/2, baseY - baseHeight, baseWidth, baseHeight, GxEPD_BLACK);
+  
+  // Dimensioni del semicerchio superiore (più stretto e proporzionato)
+  int ovalWidth = 18;
+  int ovalHeight = 12;
+  int ovalY = baseY - baseHeight - 1;  // Collegato precisamente al rettangolo
+  
+  // Punto centrale dell'ovale
+  int ovalCenterY = ovalY - ovalHeight/2;
+  
+  // Disegniamo l'ovale superiore
+  for (int i = 0; i <= 180; i += 5) { // Step più piccoli per un contorno più pulito
+    float angle = i * PI / 180.0;
+    int x1 = baseX + (ovalWidth/2) * cos(angle);
+    int y1 = ovalCenterY + (ovalHeight/2) * sin(angle);
+    
+    int x2 = baseX + (ovalWidth/2) * cos((i+5) * PI / 180.0);
+    int y2 = ovalCenterY + (ovalHeight/2) * sin((i+5) * PI / 180.0);
+    
+    display.drawLine(x1, y1, x2, y2, GxEPD_BLACK);
+  }
+  
+  // Linee di connessione tra ovale e rettangolo
+  display.drawLine(baseX - ovalWidth/2, ovalCenterY, baseX - ovalWidth/2, ovalY, GxEPD_BLACK);
+  display.drawLine(baseX + ovalWidth/2, ovalCenterY, baseX + ovalWidth/2, ovalY, GxEPD_BLACK);
+}
+
+// Disegna l'icona meteo in base all'ID utilizzando le icone OpenWeatherMap
+void drawWeatherIcon(int x, int y, int weatherId, bool isNight) {
+  int iconSize = 140; // Dimensione dell'icona meteo (ingrandita come da preferenze utente)
+  int iconCenterX = x + iconSize/2;
+  int iconCenterY = y + iconSize/2;
+  
+  // Inizializza il gestore delle icone se necessario
+  if (!WeatherIcons::begin()) {
+    Serial.println("Impossibile inizializzare il gestore delle icone meteo");
+  }
+  
+  // Converti l'ID meteo nel codice icona OpenWeatherMap
+  String iconCode = getOpenWeatherIconCode(weatherId, isNight);
+  
+  // Prova a disegnare l'icona OpenWeatherMap
+  if (WeatherIcons::drawWeatherIcon(display, iconCode, x, y, iconSize)) {
+    // Se abbiamo condizioni serene di notte con luna, aggiungiamo la fase lunare
+    // separata dall'icona principale (65px più in alto, come da preferenze utente)
+    if (isNight && (weatherId == 800 || weatherId == 801)) {
+      // Utilizziamo la fase lunare SVG (se disponibile)
+      if (SVGHelper::begin()) {
+        SVGHelper::drawMoonPhase(display, iconCenterX - 30, iconCenterY - 65, 40, currentWeather.moon_phase);
+      } else {
+        // Fallback per la luna se SVG non è disponibile
+        drawMoonPhase(iconCenterX, iconCenterY - 65, currentWeather.moon_phase);
+      }
+    }
+    return;
+  }
+  
+  // Se non è stato possibile utilizzare le icone OpenWeatherMap, utilizziamo il fallback SVG
+  if (SVGHelper::begin()) {
+    // Converti l'ID meteo nell'icona SVG appropriata
+    WeatherIcon icon = SVGHelper::getIconFromWeatherID(weatherId, isNight);
+    
+    // Disegna l'icona dal file SVG
+    if (SVGHelper::drawWeatherIcon(display, icon, x, y, iconSize)) {
+      // Se abbiamo condizioni serene di notte, aggiungiamo anche la luna
+      if (isNight && (weatherId == 800 || weatherId == 801)) {
+        // Disegna la fase lunare (65px più in alto, come da preferenze utente)
+        SVGHelper::drawMoonPhase(display, iconCenterX - 30, iconCenterY - 65, 40, currentWeather.moon_phase);
+      }
+      return;
+    }
+  }
+  
+  // Fallback se né OpenWeatherMap né SVG sono disponibili
+  // Determina il tipo di icona meteo da disegnare
+  if (weatherId >= 200 && weatherId < 300) {
+    // Temporale
+    // Posizione della nuvola 40px più in basso (come da preferenze utente)
+    drawCloud(iconCenterX, iconCenterY + 30);
+    // Fulmine
+    display.drawLine(iconCenterX, iconCenterY + 60, iconCenterX - 10, iconCenterY + 80, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 10, iconCenterY + 80, iconCenterX + 5, iconCenterY + 80, GxEPD_BLACK);
+    display.drawLine(iconCenterX + 5, iconCenterY + 80, iconCenterX - 5, iconCenterY + 100, GxEPD_BLACK);
+  } 
+  else if (weatherId >= 300 && weatherId < 500) {
+    // Pioviggine
+    // Posizione della nuvola 40px più in basso (come da preferenze utente)
+    drawCloud(iconCenterX, iconCenterY + 30);
+    display.drawLine(iconCenterX - 15, iconCenterY + 60, iconCenterX - 15, iconCenterY + 70, GxEPD_BLACK);
+    display.drawLine(iconCenterX, iconCenterY + 65, iconCenterX, iconCenterY + 75, GxEPD_BLACK);
+    display.drawLine(iconCenterX + 15, iconCenterY + 60, iconCenterX + 15, iconCenterY + 70, GxEPD_BLACK);
+  } 
+  else if (weatherId >= 500 && weatherId < 600) {
+    // Pioggia
+    // Posizione della nuvola 40px più in basso (come da preferenze utente)
+    drawCloud(iconCenterX, iconCenterY + 30);
+    display.drawLine(iconCenterX - 15, iconCenterY + 60, iconCenterX - 15, iconCenterY + 80, GxEPD_BLACK);
+    display.drawLine(iconCenterX, iconCenterY + 65, iconCenterX, iconCenterY + 85, GxEPD_BLACK);
+    display.drawLine(iconCenterX + 15, iconCenterY + 60, iconCenterX + 15, iconCenterY + 80, GxEPD_BLACK);
+  } 
+  else if (weatherId >= 600 && weatherId < 700) {
+    // Neve
+    // Posizione della nuvola 40px più in basso (come da preferenze utente)
+    drawCloud(iconCenterX, iconCenterY + 30);
+    display.drawLine(iconCenterX - 15, iconCenterY + 65, iconCenterX - 15, iconCenterY + 75, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 20, iconCenterY + 70, iconCenterX - 10, iconCenterY + 70, GxEPD_BLACK);  
+    display.drawLine(iconCenterX, iconCenterY + 65, iconCenterX, iconCenterY + 75, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 5, iconCenterY + 70, iconCenterX + 5, iconCenterY + 70, GxEPD_BLACK);
+    display.drawLine(iconCenterX + 15, iconCenterY + 65, iconCenterX + 15, iconCenterY + 75, GxEPD_BLACK);
+    display.drawLine(iconCenterX + 10, iconCenterY + 70, iconCenterX + 20, iconCenterY + 70, GxEPD_BLACK);
+  } 
+  else if (weatherId >= 700 && weatherId < 800) {
+    // Nebbia/atmosfera - design minimalista
+    display.drawLine(iconCenterX - 30, iconCenterY - 20, iconCenterX + 30, iconCenterY - 20, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 20, iconCenterY, iconCenterX + 20, iconCenterY, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 30, iconCenterY + 20, iconCenterX + 30, iconCenterY + 20, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 25, iconCenterY + 40, iconCenterX + 25, iconCenterY + 40, GxEPD_BLACK);
+  } 
+  else if (weatherId == 800) {
+    // Sereno
+    if (isNight) {
+      // Luna (65px più in alto, come da preferenze utente)
+      drawMoonPhase(iconCenterX, iconCenterY - 65, currentWeather.moon_phase);
+    } else {
+      // Sole - design minimalista senza bordo nero circolare
+      display.drawCircle(iconCenterX, iconCenterY, 30, GxEPD_BLACK);
+      // Raggi del sole
+      display.drawLine(iconCenterX, iconCenterY - 45, iconCenterX, iconCenterY - 35, GxEPD_BLACK);
+      display.drawLine(iconCenterX, iconCenterY + 35, iconCenterX, iconCenterY + 45, GxEPD_BLACK);
+      display.drawLine(iconCenterX - 45, iconCenterY, iconCenterX - 35, iconCenterY, GxEPD_BLACK);
+      display.drawLine(iconCenterX + 35, iconCenterY, iconCenterX + 45, iconCenterY, GxEPD_BLACK);
+      // Diagonali
+      display.drawLine(iconCenterX - 32, iconCenterY - 32, iconCenterX - 25, iconCenterY - 25, GxEPD_BLACK);
+      display.drawLine(iconCenterX + 25, iconCenterY - 25, iconCenterX + 32, iconCenterY - 32, GxEPD_BLACK);
+      display.drawLine(iconCenterX - 32, iconCenterY + 32, iconCenterX - 25, iconCenterY + 25, GxEPD_BLACK);
+      display.drawLine(iconCenterX + 25, iconCenterY + 25, iconCenterX + 32, iconCenterY + 32, GxEPD_BLACK);
+    }
+  } 
+  else if (weatherId > 800 && weatherId < 900) {
+    // Nuvoloso
+    if (weatherId == 801) { // Poco nuvoloso
+      if (isNight) {
+        // Luna (65px più in alto, come da preferenze utente)
+        drawMoonPhase(iconCenterX, iconCenterY - 65, currentWeather.moon_phase);
+      } else {
+        // Sole - design minimalista
+        display.drawCircle(iconCenterX, iconCenterY, 30, GxEPD_BLACK);
+      }
+      // Nuvola (40px più in basso, come da preferenze utente)
+      drawCloud(iconCenterX + 20, iconCenterY + 80);
+    } else if (weatherId == 802) { // Nubi sparse
+      if (isNight) {
+        // Luna (65px più in alto, come da preferenze utente)
+        drawMoonPhase(iconCenterX, iconCenterY - 65, currentWeather.moon_phase);
+      } else {
+        // Sole - design minimalista
+        display.drawCircle(iconCenterX - 20, iconCenterY - 10, 20, GxEPD_BLACK);
+      }
+      // Nuvola (40px più in basso, come da preferenze utente)
+      drawCloud(iconCenterX + 10, iconCenterY + 60);
+    } else { // Molto nuvoloso
+      // Nuvole (40px più in basso, come da preferenze utente)
+      drawCloud(iconCenterX - 25, iconCenterY + 30);
+      drawCloud(iconCenterX + 15, iconCenterY + 50);
+    }
+  } else {
+    // Icona predefinita per ID sconosciuti - design minimalista
+    // Disegna solo il contorno del riquadro senza riempimento
+    display.drawRect(iconCenterX - 30, iconCenterY - 30, 60, 60, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 30, iconCenterY - 30, iconCenterX + 30, iconCenterY + 30, GxEPD_BLACK);
+    display.drawLine(iconCenterX - 30, iconCenterY + 30, iconCenterX + 30, iconCenterY - 30, GxEPD_BLACK);
+  }
+}
+
+// Funzione per ottenere il codice icona OpenWeatherMap in base all'ID meteo
+String getOpenWeatherIconCode(int weatherId, bool isNight) {
+  String suffix = isNight ? "n" : "d";
+  
+  if (weatherId >= 200 && weatherId < 300) {
+    // Temporali
+    if (weatherId == 210 || weatherId == 211) {
+      return "11" + suffix; // Temporale
+    } else if (weatherId >= 212) {
+      return "11" + suffix; // Temporale forte
+    } else {
+      return "11" + suffix; // Temporale con pioggia
+    }
+  }
+  else if (weatherId >= 300 && weatherId < 400) {
+    // Pioviggine
+    return "09" + suffix;
+  }
+  else if (weatherId >= 500 && weatherId < 600) {
+    // Pioggia
+    if (weatherId == 500) {
+      return "10" + suffix; // Pioggia leggera
+    } else if (weatherId == 501) {
+      return "10" + suffix; // Pioggia moderata
+    } else if (weatherId >= 502) {
+      return "10" + suffix; // Pioggia intensa
+    } else if (weatherId >= 520) {
+      return "09" + suffix; // Pioggia a rovesci
+    }
+    return "10" + suffix;
+  }
+  else if (weatherId >= 600 && weatherId < 700) {
+    // Neve
+    if (weatherId == 600 || weatherId == 601) {
+      return "13" + suffix; // Neve leggera/moderata
+    } else if (weatherId > 601) {
+      return "13" + suffix; // Neve intensa
+    } else if (weatherId == 611 || weatherId == 612 || weatherId == 613) {
+      return "13" + suffix; // Nevischio
+    } else if (weatherId == 615 || weatherId == 616) {
+      return "13" + suffix; // Pioggia e neve
+    } else {
+      return "13" + suffix; // Altri fenomeni nevosi
+    }
+  }
+  else if (weatherId >= 700 && weatherId < 800) {
+    // Atmosfera
+    if (weatherId == 701 || weatherId == 741) {
+      return "50" + suffix; // Nebbia
+    } else {
+      return "50" + suffix; // Altri fenomeni atmosferici
+    }
+  }
+  else if (weatherId == 800) {
+    // Sereno
+    return "01" + suffix;
+  }
+  else if (weatherId > 800 && weatherId < 900) {
+    // Nuvoloso
+    if (weatherId == 801) {
+      return "02" + suffix; // Poco nuvoloso
+    } else if (weatherId == 802) {
+      return "03" + suffix; // Nubi sparse
+    } else if (weatherId == 803) {
+      return "04" + suffix; // Nuvoloso
+    } else {
+      return "04" + suffix; // Coperto
+    }
+  }
+  
+  // Codice di fallback per ID sconosciuti
+  return "01" + suffix;
+}
+
+// Mostra informazioni sul dispositivo
+//void drawSwapInfo(int x, int y) {
+//  display.setFont(NULL);
+//  display.setCursor(x, y);
+//  display.print("SWAP: ");
+//}
+
+// Funzione per visualizzare messaggi di errore
+void displayError(const char* message) {
+  display.fillScreen(GxEPD_WHITE);
+  display.setTextColor(GxEPD_BLACK);
+  display.setFont(&FreeMonoBold9pt7b);
+  display.setCursor(10, 30);
+  display.print("ERRORE:");
+  display.setCursor(10, 60);
+  display.print(message);
+  display.update();
+}
+// Funzione per disegnare le informazioni della città
+void drawCityInfo(int x, int y, const char* cityName) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print(cityName);
+}
+
+// Funzione per disegnare la temperatura
+void drawTemperature(int x, int y, float temp, float feelsLike) {
+  display.setFont(&FreeSansBold12pt7b);
+  display.setCursor(x, y);
+  display.print(String(temp, 1));
+  display.print("\xB0"); // Simbolo gradi
+  display.print("C");
+  
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y + 25);
+  display.print("Percepita: ");
+  display.print(String(feelsLike, 1));
+  display.print("\xB0");
+  display.print("C");
+}
+// Funzione per disegnare l'umidità
+void drawHumidity(int x, int y, float humidity) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Umidità: ");
+  display.print(String(humidity, 0));
+  display.print("%");
+}
+// Funzione per disegnare la pressione
+void drawPressure(int x, int y, float pressure) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Pressione: ");
+  display.print(String(pressure, 0));
+  display.print(" hPa");
+}
+// Funzione per disegnare il vento
+void drawWind(int x, int y, float windSpeed) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Vento: ");
+  display.print(String(windSpeed, 1));
+  display.print(" m/s");
+}
+// Funzione per disegnare data e ora
+void drawDateTime(int x, int y) {
+  time_t now = getNow();
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  
+  display.setFont(&FreeSansBold12pt7b);
+  display.setCursor(x, y);
+  
+  // Format: 15:30
+  char timeStr[6];
+  sprintf(timeStr, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+  display.print(timeStr);
+  
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y + 25);
+  
+  // Format: 15/05/2025
+  char dateStr[11];
+  sprintf(dateStr, "%02d/%02d/%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+  display.print(dateStr);
+}
+
+// Funzione per disegnare le informazioni della città
+void drawCityInfo(int x, int y, const char* cityName) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print(cityName);
+}
+
+// Funzione per disegnare l'ultimo aggiornamento
+void drawLastUpdate(int x, int y, time_t lastUpdate) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  
+  struct tm timeinfo;
+  localtime_r(&lastUpdate, &timeinfo);
+  
+  char timeStr[20];
+  sprintf(timeStr, "Aggiornato: %02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+  display.print(timeStr);
+}
+
+// Funzione per disegnare l'umidità
+void drawHumidity(int x, int y, float humidity) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Umidità: ");
+  display.print(String(humidity, 0));
+  display.print("%");
+}
+
+// Funzione per disegnare la pressione
+void drawPressure(int x, int y, float pressure) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Pressione: ");
+  display.print(String(pressure, 0));
+  display.print(" hPa");
+}
+
+// Funzione per disegnare il vento
+void drawWind(int x, int y, float windSpeed) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Vento: ");
+  display.print(String(windSpeed, 1));
+  display.print(" m/s");
+}
+
+// Funzione per disegnare una citazione nella parte inferiore del display
+void drawQuote(int x, int y, int maxWidth) {
+  display.setFont(&FreeSerif9pt7b);
+  
+  // Array di citazioni ispiranti
+  const char* quotes[] = {
+    "Non misurare la vita in respiri, ma in momenti che tolgono il respiro.",
+    "La bellezza è negli occhi di chi guarda.",
+    "Non c'è nulla di permanente tranne il cambiamento.",
+    "La vita è ciò che ti accade mentre sei impegnato a fare altri progetti.",
+    "La felicità non è qualcosa di pronto all'uso. Viene dalle tue azioni."
+  };
+  
+  // Scegliamo una citazione casuale
+  int quoteIndex = random(0, sizeof(quotes) / sizeof(quotes[0]));
+  const char* quote = quotes[quoteIndex];
+  
+  // Disegniamo la citazione con wrapping del testo
+  int16_t cursorX = x;
+  int16_t cursorY = y;
+  String word = "";
+  String line = "";
+  int lineWidth = 0;
+  
+  for (int i = 0; i < strlen(quote); i++) {
+    if (quote[i] == ' ' || i == strlen(quote) - 1) {
+      // Aggiungi l'ultimo carattere se siamo alla fine della citazione
+      if (i == strlen(quote) - 1 && quote[i] != ' ') {
+        word += quote[i];
+      }
+      
+      // Calcola la larghezza della parola
+      int16_t tbx, tby;
+      uint16_t tbw, tbh;
+      display.getTextBounds(word.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
+      
+      // Se aggiungere questa parola supera la larghezza massima, vai a capo
+      if (lineWidth + tbw > maxWidth) {
+        display.setCursor(cursorX, cursorY);
+        display.print(line);
+        line = word + " ";
+        lineWidth = tbw + 6; // 6 è la larghezza approssimativa di uno spazio
+        cursorY += tbh + 5;  // 5 è lo spazio tra le righe
+      } else {
+        line += word + " ";
+        lineWidth += tbw + 6;
+      }
+      
+      word = "";
+    } else {
+      word += quote[i];
+    }
+  }
+  
+  // Stampa l'ultima riga
+  if (line.length() > 0) {
+    display.setCursor(cursorX, cursorY);
+    display.print(line);
+  }
+}
+
+// Funzione per disegnare lo stato della batteria
+void drawBattery(int x, int y, int percentage) {
+  int width = 25;
+  int height = 12;
+  
+  // Disegniamo il contorno della batteria
+  display.drawRect(x, y, width, height, GxEPD_BLACK);
+  display.drawRect(x + width, y + 3, 2, height - 6, GxEPD_BLACK);
+  
+  // Disegniamo il livello della batteria
+  int fillWidth = map(percentage, 0, 100, 0, width - 4);
+  if (fillWidth > 0) {
+    display.fillRect(x + 2, y + 2, fillWidth, height - 4, GxEPD_BLACK);
+  }
+  
+  // Disegniamo la percentuale
+  display.setFont(NULL);
+  display.setCursor(x + width + 5, y + height - 3);
+  display.print(String(percentage) + "%");
+}
+// Funzione per disegnare una barra di progresso
+void drawProgress(int x, int y, int width, int progress) {
+  display.drawRect(x, y, width, 10, GxEPD_BLACK);
+  display.fillRect(x + 1, y + 1, map(progress, 0, 100, 0, width - 2), 8, GxEPD_BLACK);
+}
+
+
+
+// Funzione per disegnare lo stato della batteria
+void drawBattery(int x, int y, int percentage) {
+  // Disegna il contorno della batteria
+  display.drawRect(x, y, 40, 20, GxEPD_BLACK);
+  display.fillRect(x+40, y+5, 4, 10, GxEPD_BLACK);
+  
+  // Disegna il livello interno in base alla percentuale
+  int width = 36 * percentage / 100;
+  display.fillRect(x+2, y+2, width, 16, GxEPD_BLACK);
+  
+  // Visualizza la percentuale
+  display.setFont(NULL);
+  display.setTextColor(percentage > 50 ? GxEPD_WHITE : GxEPD_BLACK);
+  display.setCursor(x+10, y+12);
+  display.print(String(percentage) + "%");
+}
+
+// Funzione per disegnare una barra di progresso
+void drawProgress(int x, int y, int width, int progress) {
+  display.drawRect(x, y, width, 10, GxEPD_BLACK);
+  display.fillRect(x + 1, y + 1, map(progress, 0, 100, 0, width - 2), 8, GxEPD_BLACK);
+}

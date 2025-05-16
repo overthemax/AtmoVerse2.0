@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtmoVerse - Impostazioni</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div class="title-container">
+                    <div class="weather-icon">
+                        <i class="fas fa-cloud"></i>
+                    </div>
+                    <h1 class="title">AtmoVerse</h1>
+                </div>
+                <div class="actions">
+                    <button class="action-button" onclick="location.href='/'">
+                        <i class="fas fa-home"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Istruzioni di Configurazione -->
+            <div class="setup-instructions">
+                <h3>Modalità Configurazione</h3>
+                <ol>
+                    <li>Connettiti alla rete WiFi "atmoverse_setup"</li>
+                    <li>Seleziona la tua rete WiFi dall'elenco e inserisci la password</li>
+                    <li>Imposta la tua città per le previsioni meteo</li>
+                </ol>
+            </div>
+
+            <form id="settingsForm">
+                <!-- WiFi Settings -->
+                <div class="form-group">
+                    <label for="ssid">Rete WiFi:</label>
+                    <div class="wifi-field">
+                        <select id="ssid" name="ssid" required>
+                            <option value="">Seleziona una rete...</option>
+                        </select>
+                        <button type="button" class="wifi-scan-button" onclick="scanWiFi()">
+                            <i class="fas fa-sync-alt"></i> Cerca reti
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password WiFi:</label>
+                    <div class="password-field">
+                        <input type="password" id="password" name="password" placeholder="Inserisci la password della rete WiFi">
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Location Settings -->
+                <div class="form-group">
+                    <label for="city">Città:</label>
+                    <input type="text" id="city" name="city" required placeholder="Es: Roma, Milano, Torino">
+                </div>
+
+                <!-- Time Settings -->
+                <div class="form-group">
+                    <label for="timezone">Fuso Orario:</label>
+                    <select id="timezone" name="timezone" required>
+                        <option value="1" selected>GMT+1 (Roma, Parigi, Berlino)</option>
+                        <option value="2">GMT+2 (Atene, Istanbul)</option>
+                        <option value="0">GMT+0 (Londra, Dublino)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="daylightSaving" name="daylightSaving">
+                        Ora legale (attiva da marzo a ottobre)
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="ntpServer">Server Orario:</label>
+                    <select id="ntpServer" name="ntpServer" required>
+                        <option value="it.pool.ntp.org">Server Italiano (it.pool.ntp.org)</option>
+                        <option value="europe.pool.ntp.org">Server Europeo (europe.pool.ntp.org)</option>
+                        <option value="pool.ntp.org">Server Globale (pool.ntp.org)</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="submit-button" onclick="saveSettings(event)">
+                    <i class="fas fa-save"></i> Salva Impostazioni
+                </button>
+            </form>
+        </div>
+
+        <!-- Device Info Card -->
+        <div class="card">
+            <h3>Stato Dispositivo</h3>
+            <div class="data-row">
+                <div class="data-label">
+                    <i class="fas fa-broadcast-tower data-icon"></i>
+                    Modalità
+                </div>
+                <div class="data-value" id="deviceMode">--</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label">
+                    <i class="fas fa-network-wired data-icon"></i>
+                    Indirizzo IP
+                </div>
+                <div class="data-value" id="ipAddress">--</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status-message" class="status-message hidden"></div>
+    <script src="script.js"></script>
+</body>
+</html>

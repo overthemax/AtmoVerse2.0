@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <!-- QR Code con testo "SCAN ME" -->
+  <rect x="0" y="0" width="300" height="300" fill="white" stroke="black" stroke-width="5"/>
+  
+  <!-- Pattern Finder Top-Left -->
+  <rect x="30" y="30" width="40" height="40" fill="black"/>
+  <rect x="40" y="40" width="20" height="20" fill="white"/>
+  <rect x="45" y="45" width="10" height="10" fill="black"/>
+  
+  <!-- Pattern Finder Top-Right -->
+  <rect x="230" y="30" width="40" height="40" fill="black"/>
+  <rect x="240" y="40" width="20" height="20" fill="white"/>
+  <rect x="245" y="45" width="10" height="10" fill="black"/>
+  
+  <!-- Pattern Finder Bottom-Left -->
+  <rect x="30" y="230" width="40" height="40" fill="black"/>
+  <rect x="40" y="240" width="20" height="20" fill="white"/>
+  <rect x="45" y="245" width="10" height="10" fill="black"/>
+  
+  <!-- QR Code Data (pattern semplificato) -->
+  <rect x="90" y="30" width="10" height="10" fill="black"/>
+  <rect x="110" y="30" width="10" height="10" fill="black"/>
+  <rect x="140" y="30" width="10" height="10" fill="black"/>
+  <rect x="160" y="30" width="10" height="10" fill="black"/>
+  <rect x="170" y="30" width="10" height="10" fill="black"/>
+  <rect x="190" y="30" width="10" height="10" fill="black"/>
+  
+  <rect x="30" y="90" width="10" height="10" fill="black"/>
+  <rect x="60" y="90" width="10" height="10" fill="black"/>
+  <rect x="80" y="90" width="10" height="10" fill="black"/>
+  <rect x="90" y="90" width="10" height="10" fill="black"/>
+  <rect x="100" y="90" width="10" height="10" fill="black"/>
+  <rect x="120" y="90" width="10" height="10" fill="black"/>
+  <rect x="130" y="90" width="10" height="10" fill="black"/>
+  <rect x="150" y="90" width="10" height="10" fill="black"/>
+  <rect x="160" y="90" width="10" height="10" fill="black"/>
+  <rect x="180" y="90" width="10" height="10" fill="black"/>
+  <rect x="210" y="90" width="10" height="10" fill="black"/>
+  <rect x="230" y="90" width="10" height="10" fill="black"/>
+  <rect x="250" y="90" width="10" height="10" fill="black"/>
+  <rect x="260" y="90" width="10" height="10" fill="black"/>
+  
+  <rect x="30" y="100" width="10" height="10" fill="black"/>
+  <rect x="50" y="100" width="10" height="10" fill="black"/>
+  <rect x="60" y="100" width="10" height="10" fill="black"/>
+  <rect x="80" y="100" width="10" height="10" fill="black"/>
+  <rect x="130" y="100" width="10" height="10" fill="black"/>
+  <rect x="140" y="100" width="10" height="10" fill="black"/>
+  <rect x="150" y="100" width="10" height="10" fill="black"/>
+  <rect x="170" y="100" width="10" height="10" fill="black"/>
+  <rect x="190" y="100" width="10" height="10" fill="black"/>
+  <rect x="200" y="100" width="10" height="10" fill="black"/>
+  <rect x="220" y="100" width="10" height="10" fill="black"/>
+  <rect x="230" y="100" width="10" height="10" fill="black"/>
+  <rect x="260" y="100" width="10" height="10" fill="black"/>
+  
+  <!-- più pattern per simulare un QR Code -->
+  <rect x="90" y="140" width="10" height="10" fill="black"/>
+  <rect x="120" y="150" width="10" height="10" fill="black"/>
+  <rect x="130" y="160" width="10" height="10" fill="black"/>
+  <rect x="150" y="170" width="10" height="10" fill="black"/>
+  <rect x="160" y="180" width="10" height="10" fill="black"/>
+  <rect x="100" y="190" width="10" height="10" fill="black"/>
+  <rect x="110" y="200" width="10" height="10" fill="black"/>
+  <rect x="140" y="210" width="10" height="10" fill="black"/>
+  <rect x="180" y="180" width="10" height="10" fill="black"/>
+  <rect x="200" y="160" width="10" height="10" fill="black"/>
+  <rect x="220" y="170" width="10" height="10" fill="black"/>
+  <rect x="210" y="200" width="10" height="10" fill="black"/>
+  
+  <!-- Text "SCAN ME" displayed above the QR code -->
+  <rect x="0" y="0" width="300" height="50" fill="black" rx="10" ry="10"/>
+  <text x="150" y="35" font-family="Arial" font-size="30" font-weight="bold" fill="white" text-anchor="middle">SCAN ME</text>
+</svg>

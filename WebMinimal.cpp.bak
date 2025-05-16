@@ -1,0 +1,467 @@
+#include "Config.h"
+#include "SD.h"
+
+// NOTA: Tutte le funzioni originali sono state eliminate per risparmiare spazio nel firmware.
+// I contenuti delle pagine web vengono caricati dalla SD card nella directory /www/
+// Qui rimangono solo stubs minimi per compatibilità con il codice esistente
+
+// Pagina principale (stub)
+String generateMinimalMainPage() {
+  return "<!DOCTYPE html><html><body><h1>AtmoVerse</h1><p>Fallback: Verifica la SD card</p></body></html>";
+}
+    "<head>"
+    "<meta charset='UTF-8'>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+    "<title>AtmoVerse 2.0</title>"
+    "<style>";
+
+  // Stili CSS minimali con PROGMEM
+  static const char css_minimal[] PROGMEM = 
+    "*{box-sizing:border-box;margin:0;padding:0;}"
+    "body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f7f0e3;color:#7a604a;}"
+    ".container{max-width:800px;margin:0 auto;padding:15px;}"
+    ".header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}"
+    ".action-buttons{display:flex;gap:10px;}"
+    ".weather-card{background:#fff;border-radius:15px;padding:20px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);}"
+    ".weather-main{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px;}"
+    ".temp{font-size:52px;font-weight:300;color:#43281c;}"
+    ".desc{font-size:18px;margin-top:5px;color:#7a604a;}"
+    ".details{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:15px;}"
+    ".detail{display:flex;flex-direction:column;align-items:center;padding:10px;background:#fcf7ef;border-radius:10px;}"
+    ".detail-label{font-size:14px;margin-bottom:5px;color:#8d6e46;}"
+    ".detail-value{font-size:18px;font-weight:500;color:#43281c;}"
+    ".btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#f3e2c2;color:#8d6e46;text-decoration:none;border:none;cursor:pointer;transition:all .2s;}"
+    ".btn svg{width:24px;height:24px;fill:currentColor;}"
+    ".btn:hover{background:#e2b76a;color:#fff;transform:translateY(-2px);box-shadow:0 2px 5px rgba(0,0,0,0.1);}"
+    ".btn:active{transform:translateY(0);box-shadow:none;}"
+    ".weather-icon{width:80px;height:80px;fill:#43281c;}"
+    ".toolbox{background:#f3e2c2;border-radius:15px;padding:15px;margin-top:20px;}"
+    ".toolbox-header{font-size:18px;margin-bottom:10px;font-weight:500;color:#8d6e46;display:flex;align-items:center;}"
+    ".toolbox-header svg{width:24px;height:24px;fill:currentColor;margin-right:8px;}"
+    ".quote{font-style:italic;color:#43281c;line-height:1.4;}"
+    ".quote-author{text-align:right;font-size:14px;margin-top:8px;color:#8d6e46;}";
+
+  String html = FPSTR(html_header);
+  html += FPSTR(css_minimal);
+  html += F("</style>");
+  html += F("</head>");
+  html += F("<body>");
+  html += F("<div class='container'>");
+  
+  // Header con titolo e azioni
+  html += F("<div class='header'>");
+  html += F("<h1>AtmoVerse 2.0</h1>");
+  
+  // Pulsanti azione (refresh, edit, info)
+  html += F("<div class='action-buttons'>");
+  
+  // Info button
+  html += F("<a href='/info' class='btn' title='Informazioni'>");
+  html += FPSTR(SVG_INFO_ICON);
+  html += F("</a>");
+  
+  // Edit quotes button
+  html += F("<a href='/edit' class='btn' title='Modifica citazioni'>");
+  html += FPSTR(SVG_EDIT_ICON);
+  html += F("</a>");
+  
+  // Refresh button
+  html += F("<button onclick='location.reload()' class='btn' title='Aggiorna'>");
+  html += FPSTR(SVG_REFRESH_ICON);
+  html += F("</button>");
+  
+  html += F("</div>"); // Chiude action-buttons
+  html += F("</div>"); // Chiude header
+  
+  // Card principale con dati meteo
+  html += F("<div class='weather-card'>");
+  
+  // Sezione principale con temperatura e icona
+  html += F("<div class='weather-main'>");
+  
+  // Dati temperatura
+  html += F("<div>");
+  html += F("<div class='temp'>"); 
+  
+  extern WeatherData currentWeather;
+  // Se abbiamo dati validi, mostra temperatura, altrimenti N/A
+  if(currentWeather.valid) {
+    html += String(int(currentWeather.temp));
+    html += F("&deg;C");
+  } else {
+    html += F("N/A");
+  }
+  html += F("</div>");
+  
+  // Descrizione meteo
+  if(currentWeather.valid) {
+    html += F("<div class='desc'>");
+    html += currentWeather.description;
+    html += F("</div>");
+  }
+  html += F("</div>");
+  
+  // Icona meteo
+  html += F("<div class='weather-icon-container'>");
+  
+  // Seleziona l'icona appropriata in base al codice meteo
+  if(currentWeather.valid) {
+    switch(currentWeather.weather_id / 100) {
+      case 2: // Temporali
+        html += FPSTR(SVG_THUNDER_ICON);
+        break;
+      case 3: // Pioggerella
+      case 5: // Pioggia
+        html += FPSTR(SVG_RAIN_ICON);
+        break;
+      case 6: // Neve
+        html += FPSTR(SVG_SNOW_ICON);
+        break;
+      case 7: // Atmosfera (nebbia, etc)
+        html += FPSTR(SVG_MIST_ICON);
+        break;
+      case 8: // Sereno o nuvoloso
+        if(currentWeather.weather_id == 800) {
+          html += FPSTR(SVG_SUN_ICON); // Sereno
+        } else {
+          html += FPSTR(SVG_CLOUD_ICON); // Nuvoloso
+        }
+        break;
+      default:
+        html += FPSTR(SVG_UNKNOWN_ICON); // Sconosciuto
+    }
+  } else {
+    html += FPSTR(SVG_UNKNOWN_ICON); // Dati non disponibili
+  }
+  
+  html += F("</div>"); // Chiude weather-icon-container
+  html += F("</div>"); // Chiude weather-main
+  
+  // Dettagli aggiuntivi
+  html += F("<div class='details'>");
+  
+  // Umidità
+  html += F("<div class='detail'>");
+  html += F("<div class='detail-label'>Umidità</div>");
+  html += F("<div class='detail-value'>");
+  if(currentWeather.valid) {
+    html += String(int(currentWeather.humidity));
+    html += F("%");
+  } else {
+    html += F("N/A");
+  }
+  html += F("</div>");
+  html += F("</div>");
+  
+  // Pressione
+  html += F("<div class='detail'>");
+  html += F("<div class='detail-label'>Pressione</div>");
+  html += F("<div class='detail-value'>");
+  if(currentWeather.valid) {
+    html += String(int(currentWeather.pressure));
+    html += F(" hPa");
+  } else {
+    html += F("N/A");
+  }
+  html += F("</div>");
+  html += F("</div>");
+  
+  // Temperatura percepita
+  html += F("<div class='detail'>");
+  html += F("<div class='detail-label'>Percepita</div>");
+  html += F("<div class='detail-value'>");
+  if(currentWeather.valid) {
+    html += String(int(currentWeather.feels_like));
+    html += F("&deg;C");
+  } else {
+    html += F("N/A");
+  }
+  html += F("</div>");
+  html += F("</div>");
+  
+  html += F("</div>"); // Chiude details
+  
+  // Toolbox con citazione
+  html += F("<div class='toolbox'>");
+  html += F("<div class='toolbox-header'>");
+  
+  // Icona citazione
+  html += FPSTR(SVG_QUOTE_ICON);
+  html += F("Citazione</div>");
+  
+  // Citazione
+  // Determina la categoria in base al meteo
+  String quoteCategory = "any"; // Default
+  if (currentWeather.valid) {
+    int weatherCode = currentWeather.weather_id;
+    if (weatherCode == 800) {
+      quoteCategory = "sunny"; // Sereno
+    } else if (weatherCode >= 801 && weatherCode <= 804) {
+      quoteCategory = "cloudy"; // Nuvoloso
+    } else if ((weatherCode >= 300 && weatherCode <= 531) || 
+              (weatherCode >= 200 && weatherCode <= 232)) {
+      quoteCategory = "rainy"; // Pioggia o temporali
+    } else if (weatherCode >= 600 && weatherCode <= 622) {
+      quoteCategory = "snowy"; // Neve
+    }
+  }
+  
+  // Ottieni una citazione casuale dalla categoria appropriata
+  extern String getRandomQuote(String category);
+  String randomQuote = getRandomQuote(quoteCategory);
+  
+  html += F("<div class='quote'>");
+  html += randomQuote;
+  html += F("</div>");
+  
+  html += F("</div>"); // Chiude toolbox
+  
+  html += F("</div>"); // Chiude weather-card
+  
+  html += F("</div>"); // Chiude container
+  html += F("</body></html>");
+  
+  return html;
+}
+
+// Genera una versione minimalista della pagina delle citazioni
+String generateMinimalQuotesPage() {
+  // Intestazione HTML in PROGMEM
+  static const char html_header[] PROGMEM = 
+    "<!DOCTYPE html><html lang='it'>"
+    "<head>"
+    "<meta charset='UTF-8'>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+    "<title>Citazioni - AtmoVerse 2.0</title>"
+    "<style>";
+
+  // CSS minimale in PROGMEM
+  static const char css_minimal[] PROGMEM = 
+    "*{box-sizing:border-box;margin:0;padding:0;}"
+    "body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f7f0e3;color:#7a604a;line-height:1.5;}"
+    ".container{max-width:800px;margin:0 auto;padding:15px;}"
+    ".header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}"
+    ".card{background:#fff;border-radius:15px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:20px;}"
+    ".btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#f3e2c2;color:#8d6e46;text-decoration:none;border:none;cursor:pointer;transition:all .2s;}"
+    ".btn svg{width:24px;height:24px;fill:currentColor;}"
+    ".btn:hover{background:#e2b76a;color:#fff;transform:translateY(-2px);box-shadow:0 2px 5px rgba(0,0,0,0.1);}"
+    "form{margin-bottom:20px;}"
+    "label{display:block;margin-bottom:5px;font-weight:500;}"
+    "input[type='text'],textarea,select{width:100%;padding:10px;border:1px solid #e0d3bd;border-radius:8px;background:#fff;margin-bottom:15px;font-size:16px;}"
+    "button{background:#e2b76a;color:white;border:none;padding:10px 15px;border-radius:8px;cursor:pointer;font-size:16px;}"
+    "button:hover{background:#d5a64a;}"
+    ".quote-list{border:1px solid #e0d3bd;border-radius:8px;padding:10px;max-height:300px;overflow-y:auto;background:#fcf7ef;margin-bottom:15px;}"
+    ".quote-item{padding:10px;margin-bottom:5px;border-bottom:1px solid #e0d3bd;}"
+    ".quote-item:last-child{border-bottom:none;}"
+    ".quote-text{font-style:italic;}"
+    ".quote-author{text-align:right;font-weight:500;margin-top:5px;font-size:14px;}"
+    ".no-quotes{color:#8d6e46;font-style:italic;text-align:center;padding:20px;}";
+  
+  String html = FPSTR(html_header);
+  html += FPSTR(css_minimal);
+  
+  // Stili aggiuntivi per la gestione delle citazioni
+  html += F(".delete-btn{color:#d2433f;background:none;border:none;cursor:pointer;padding:5px;margin-left:10px;font-size:16px;}");
+  html += F(".delete-btn:hover{color:#b22a26;}");
+  html += F(".feedback{padding:8px;margin:10px 0;border-radius:4px;}");
+  html += F(".success{background:#e0f7e0;color:#2e7d32;border:1px solid #c8e6c9;}");
+  html += F(".error{background:#ffebee;color:#c62828;border:1px solid #ffcdd2;}");
+  html += F(".category-header{margin:15px 0 5px;font-weight:500;color:#7a604a;}");
+  
+  html += F("</style>");
+  html += F("</head>");
+  html += F("<body>");
+  html += F("<div class='container'>");
+  
+  // Header con titolo e bottone indietro
+  html += F("<div class='header'>");
+  html += F("<h1>Gestione Citazioni</h1>");
+  html += F("<a href='/' class='btn' title='Torna alla home'>");
+  html += F("<svg viewBox='0 0 24 24'><path d='M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z'/></svg>");
+  html += F("</a>");
+  html += F("</div>");
+  
+  // Card per aggiunta nuova citazione
+  html += F("<div class='card'>");
+  html += F("<h2>Aggiungi nuova citazione</h2>");
+  
+  // Form modificato per usare JavaScript e inviare i dati come JSON all'endpoint corretto
+  html += F("<div id='quote-form'>");
+  
+  html += F("<div>");
+  html += F("<label for='quote'>Citazione:</label>");
+  html += F("<textarea id='quote' rows='3' required></textarea>");
+  html += F("</div>");
+  
+  html += F("<div>");
+  html += F("<label for='author'>Autore:</label>");
+  html += F("<input type='text' id='author' required>");
+  html += F("</div>");
+  
+  html += F("<div>");
+  html += F("<label for='category'>Categoria:</label>");
+  html += F("<select id='category'>");
+  html += F("<option value='sunny'>Soleggiato</option>");
+  html += F("<option value='cloudy'>Nuvoloso</option>");
+  html += F("<option value='rainy'>Piovoso</option>");
+  html += F("<option value='snowy'>Nevoso</option>");
+  html += F("<option value='any'>Qualsiasi</option>");
+  html += F("</select>");
+  html += F("</div>");
+  
+  html += F("<div id='status-message'></div>");
+  
+  // Pulsante di submit con gestione JavaScript
+  html += F("<button type='button' onclick='saveQuote()'>Aggiungi</button>");
+  html += F("</div>");
+  html += F("</div>");
+  
+  // Card per visualizzazione citazioni
+  html += F("<div class='card'>");
+  html += F("<h2>Citazioni salvate</h2>");
+  
+  // Contenitore per le citazioni - verrà riempito dinamicamente via JavaScript
+  html += F("<div class='quote-list' id='quote-list'>");
+  html += F("<div class='no-quotes'>Caricamento citazioni...</div>");
+  html += F("</div>"); // Chiude quote-list
+  html += F("</div>"); // Chiude card
+  
+  // Aggiungiamo lo script JavaScript per caricare e gestire le citazioni
+  html += F("<script>");
+  
+  // Funzione per caricare le citazioni
+  html += F("function loadQuotes() {");
+  html += F("  const quoteList = document.getElementById('quote-list');");
+  html += F("  quoteList.innerHTML = '<div class=\"no-quotes\">Caricamento...</div>';");
+  
+  html += F("  fetch('/api/quotes/list')");
+  html += F("    .then(response => response.json())");
+  html += F("    .then(data => {");
+  html += F("      if (data.success && data.quotes) {");
+  html += F("        let html = '';");
+  html += F("        let isEmpty = true;");
+  
+  html += F("        // Cicla per ogni categoria");
+  html += F("        for (const category in data.quotes) {");
+  html += F("          const quotes = data.quotes[category];");
+  html += F("          if (quotes && quotes.length > 0) {");
+  html += F("            isEmpty = false;");
+  html += F("            const displayName = getCategoryDisplayName(category);");
+  html += F("            html += '<div style=\"margin-top:10px;font-weight:bold;\">' + displayName + '</div>';");
+  
+  html += F("            quotes.forEach((quote, index) => {");
+  html += F("              html += '<div class=\"quote-item\">';");
+  html += F("              html += '<div class=\"quote-text\">' + quote + '</div>';");
+  html += F("              html += '<button style=\"color:red;background:none;border:none;cursor:pointer;\" onclick=\"deleteQuote(\\'' + category + '\\', ' + index + ')\">&times; Elimina</button>';");
+  html += F("              html += '</div>';");
+  html += F("            });");
+  html += F("          }");
+  html += F("        }");
+  
+  html += F("        if (isEmpty) {");
+  html += F("          quoteList.innerHTML = '<div class=\"no-quotes\">Nessuna citazione salvata</div>';");
+  html += F("        } else {");
+  html += F("          quoteList.innerHTML = html;");
+  html += F("        }");
+  html += F("      } else {");
+  html += F("          quoteList.innerHTML = '<div class=\"no-quotes\">Nessuna citazione trovata</div>';");
+  html += F("      }");
+  html += F("    })");
+  html += F("    .catch(error => {");
+  html += F("      quoteList.innerHTML = '<div class=\"no-quotes\">Errore nel caricamento delle citazioni</div>';");
+  html += F("    });");
+  html += F("};");
+  
+  // Funzione per eliminare una citazione
+  html += F("function deleteQuote(category, index) {");
+  html += F("  if (!confirm('Sei sicuro di voler eliminare questa citazione?')) return;");
+  html += F("  ");
+  html += F("  const statusMsg = document.getElementById('status-message');");
+  html += F("  statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;\">Eliminazione in corso...</div>';");
+  
+  html += F("  fetch('/api/quotes/delete', {");
+  html += F("    method: 'POST',");
+  html += F("    headers: { 'Content-Type': 'application/json' },");
+  html += F("    body: JSON.stringify({ cat: category, index: index })");
+  html += F("  })");
+  html += F("  .then(response => response.json())");
+  html += F("  .then(result => {");
+  html += F("    if (result.success) {");
+  html += F("      statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:4px;\">Citazione eliminata con successo!</div>';");
+  html += F("      loadQuotes(); // Ricarica l'elenco");
+  html += F("    } else {");
+  html += F("      statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:4px;\">Errore: ' + (result.message || 'Impossibile eliminare la citazione') + '</div>';");
+  html += F("    }");
+  html += F("  })");
+  html += F("  .catch(error => {");
+  html += F("    statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:4px;\">Errore di connessione</div>';");
+  html += F("  });");
+  html += F("};");
+  
+  // Funzione per ottenere il nome visualizzato delle categorie
+  html += F("function getCategoryDisplayName(category) {");
+  html += F("  const categoryMap = {");
+  html += F("    sunny: 'Soleggiato',");
+  html += F("    cloudy: 'Nuvoloso',");
+  html += F("    rainy: 'Piovoso',");
+  html += F("    snowy: 'Nevoso',");
+  html += F("    any: 'Qualsiasi'");
+  html += F("  };");
+  html += F("  return categoryMap[category] || category;");
+  html += F("};");
+  
+  // Funzione per salvare una citazione con feedback
+  html += F("function saveQuote() {");
+  html += F("  const quote = document.getElementById('quote').value;");
+  html += F("  const author = document.getElementById('author').value;");
+  html += F("  const category = document.getElementById('category').value;");
+  html += F("  const statusMsg = document.getElementById('status-message');");
+  
+  html += F("  if (!quote || !author) {");
+  html += F("    statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:4px;\">Citazione e autore sono campi obbligatori</div>';");
+  html += F("    return;");
+  html += F("  }");
+  
+  html += F("  statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;\">Invio in corso...</div>';");
+  
+  html += F("  // Prepara i dati in formato JSON");
+  html += F("  const combinedQuote = quote + ' - ' + author;");
+  html += F("  const data = {");
+  html += F("    cat: category,");
+  html += F("    quote: combinedQuote");
+  html += F("  };");
+  
+  html += F("  fetch('/api/quotes', {");
+  html += F("    method: 'POST',");
+  html += F("    headers: { 'Content-Type': 'application/json' },");
+  html += F("    body: JSON.stringify(data)");
+  html += F("  })");
+  html += F("  .then(response => response.json())");
+  html += F("  .then(result => {");
+  html += F("    if (result.success) {");
+  html += F("      statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#d4edda;color:#155724;border:1px solid #c3e6cb;border-radius:4px;\">Citazione salvata con successo!</div>';");
+  html += F("      document.getElementById('quote').value = '';");
+  html += F("      document.getElementById('author').value = '';");
+  html += F("      loadQuotes(); // Ricarica le citazioni dopo l'aggiunta");
+  html += F("    } else {");
+  html += F("      statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:4px;\">Errore: ' + (result.message || 'Impossibile salvare la citazione') + '</div>';");
+  html += F("    }");
+  html += F("  })");
+  html += F("  .catch(error => {");
+  html += F("    statusMsg.innerHTML = '<div style=\"padding:8px;margin:10px 0;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:4px;\">Errore di connessione</div>';");
+  html += F("  });");
+  html += F("};");
+  
+  // Carica le citazioni all'avvio della pagina
+  html += F("document.addEventListener('DOMContentLoaded', loadQuotes);");
+  
+  html += F("</script>");
+  
+  html += F("</div>"); // Chiude container
+  html += F("</body></html>");
+  
+  return html;
+}
+
+// Includere la funzione generateMinimalInfoPage
+#include "info_page.h"

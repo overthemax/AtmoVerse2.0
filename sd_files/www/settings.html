@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impostazioni AtmoVerse</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; color: #333; line-height: 1.6; }
+    h1, h2, h3 { color: #555; margin-bottom: 20px; }
+    h1 { font-size: 32px; font-weight: 300; }
+    p { margin-bottom: 15px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 25px; }
+    .section-title { font-size: 18px; font-weight: 500; color: #444; margin-bottom: 15px; display: flex; align-items: center; }
+    .section-icon { margin-right: 10px; font-size: 22px; }
+    .info-group { margin-bottom: 15px; }
+    .button { display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; margin-bottom: 20px; }
+    .button:hover { background: #45a049; }
+    .button.cancel { background: #f44336; }
+    .button.cancel:hover { background: #d32f2f; }
+    .nav-buttons { display: flex; justify-content: flex-start; margin-bottom: 20px; }
+    
+    /* Stili per il form */
+    form { margin-bottom: 20px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-weight: 500; color: #555; }
+    input[type="text"], input[type="number"], select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
+    input[type="checkbox"] { margin-right: 10px; }
+    .checkbox-label { display: flex; align-items: center; font-weight: normal; }
+    .time-inputs { display: flex; gap: 20px; }
+    .time-inputs .form-group { flex: 1; }
+    .form-hint { font-size: 14px; color: #777; margin-top: 5px; }
+    .form-section { border-bottom: 1px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav-buttons">
+      <a href="/" class="button">Indietro</a>
+    </div>
+    
+    <h1>Impostazioni</h1>
+    
+    <!-- Form di configurazione -->
+    <form id="settingsForm" action="/api/settings" method="POST">
+      <div class="card">
+        <div class="section-title"><div class="section-icon">⚡</div>Risparmio Energetico</div>
+        
+        <div class="form-section">
+          <div class="form-group">
+            <div class="checkbox-label">
+              <input type="checkbox" id="powerSavingEnabled" name="powerSavingEnabled" checked>
+              <label for="powerSavingEnabled">Abilita modalità risparmio energetico</label>
+            </div>
+            <p class="form-hint">In modalità risparmio, il display si aggiorna meno frequentemente per ridurre il consumo.</p>
+          </div>
+          
+          <div class="form-group">
+            <label>Orari di attivazione:</label>
+            <div class="time-inputs">
+              <div class="form-group">
+                <label for="powerSavingStartHour">Dalle ore:</label>
+                <input type="number" id="powerSavingStartHour" name="powerSavingStartHour" min="0" max="23" value="22">
+              </div>
+              <div class="form-group">
+                <label for="powerSavingEndHour">Alle ore:</label>
+                <input type="number" id="powerSavingEndHour" name="powerSavingEndHour" min="0" max="23" value="7">
+              </div>
+            </div>
+            <p class="form-hint">Orari in cui la modalità risparmio è attiva (formato 24 ore, es. 22 = 10 PM)</p>
+          </div>
+          
+          <div class="form-group">
+            <label>Intervalli di aggiornamento (minuti):</label>
+            <div class="time-inputs">
+              <div class="form-group">
+                <label for="normalUpdateInterval">Normale:</label>
+                <input type="number" id="normalUpdateInterval" name="normalUpdateInterval" min="5" max="180" value="30">
+              </div>
+              <div class="form-group">
+                <label for="powerSavingUpdateInterval">Risparmio:</label>
+                <input type="number" id="powerSavingUpdateInterval" name="powerSavingUpdateInterval" min="30" max="360" value="120">
+              </div>
+            </div>
+            <p class="form-hint">Tempo tra gli aggiornamenti dei dati meteo (in minuti)</p>
+          </div>
+        </div>
+        
+        <div class="section-title"><div class="section-icon">🌐</div>Gestione Errori di Rete</div>
+        
+        <div class="form-section">
+          <div class="form-group">
+            <label for="maxNetworkRetries">Numero massimo di tentativi:</label>
+            <input type="number" id="maxNetworkRetries" name="maxNetworkRetries" min="1" max="10" value="3">
+            <p class="form-hint">Quante volte tentare di riconnetersi prima di mostrare un errore</p>
+          </div>
+          
+          <div class="form-group">
+            <div class="checkbox-label">
+              <input type="checkbox" id="showLastDataOnError" name="showLastDataOnError" checked>
+              <label for="showLastDataOnError">Mostra ultimi dati disponibili in caso di errore</label>
+            </div>
+            <p class="form-hint">Se attivo, in caso di errore di connessione verranno mostrati gli ultimi dati meteo disponibili</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="nav-buttons">
+        <button type="submit" class="button">Salva Impostazioni</button>
+        <a href="/" class="button cancel" style="margin-left: 10px;">Annulla</a>
+      </div>
+    </form>
+    
+    <script>
+      // Funzione per caricare le impostazioni correnti
+      async function loadCurrentSettings() {
+        try {
+          const response = await fetch('/api/settings');
+          if (!response.ok) {
+            throw new Error('Errore nel caricamento delle impostazioni');
+          }
+          
+          const settings = await response.json();
+          
+          // Popola i campi del form
+          document.getElementById('powerSavingEnabled').checked = settings.powerSavingEnabled;
+          document.getElementById('powerSavingStartHour').value = settings.powerSavingStartHour;
+          document.getElementById('powerSavingEndHour').value = settings.powerSavingEndHour;
+          document.getElementById('normalUpdateInterval').value = settings.normalUpdateInterval;
+          document.getElementById('powerSavingUpdateInterval').value = settings.powerSavingUpdateInterval;
+          document.getElementById('maxNetworkRetries').value = settings.maxNetworkRetries;
+          document.getElementById('showLastDataOnError').checked = settings.showLastDataOnError;
+        } catch (error) {
+          console.error('Errore:', error);
+          alert('Impossibile caricare le impostazioni correnti. Saranno utilizzati i valori predefiniti.');
+        }
+      }
+      
+      // Carica le impostazioni quando la pagina è completamente caricata
+      document.addEventListener('DOMContentLoaded', loadCurrentSettings);
+      
+      // Gestione dell'invio del form
+      document.getElementById('settingsForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        
+        // Raccogli tutti i dati dal form
+        const formData = new FormData(this);
+        const settings = {
+          powerSavingEnabled: formData.get('powerSavingEnabled') === 'on',
+          powerSavingStartHour: parseInt(formData.get('powerSavingStartHour')),
+          powerSavingEndHour: parseInt(formData.get('powerSavingEndHour')),
+          normalUpdateInterval: parseInt(formData.get('normalUpdateInterval')),
+          powerSavingUpdateInterval: parseInt(formData.get('powerSavingUpdateInterval')),
+          maxNetworkRetries: parseInt(formData.get('maxNetworkRetries')),
+          showLastDataOnError: formData.get('showLastDataOnError') === 'on'
+        };
+        
+        try {
+          const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+          });
+          
+          if (!response.ok) {
+            throw new Error('Errore nel salvataggio delle impostazioni');
+          }
+          
+          alert('Impostazioni salvate con successo!');
+          window.location.href = '/';
+        } catch (error) {
+          console.error('Errore:', error);
+          alert('Errore nel salvataggio delle impostazioni. Riprova più tardi.');
+        }
+      });
+    </script>
+  </div>
+</body>
+</html>
