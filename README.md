@@ -1,45 +1,46 @@
 # AtmoVerse 2.0
 
-Sistema meteo avanzato basato su ESP32 con display e-ink, design minimalista e interfaccia web intuitiva. Supporta gestione avanzata delle icone meteo, swap su SD card, power saving e robusta gestione degli errori.
+Sistema meteo avanzato basato su ESP32 con display e-ink, design minimalista e interfaccia web intuitiva. Progettato per massima leggibilità e semplicità d’uso.
 
 ![AtmoVerse 2.0](https://example.com/atmoverse_image.jpg)
 
 ## Caratteristiche Principali
 
-- **Display e-Ink minimalista**: Visualizzazione chiara e pulita di dati meteo e calendario, icone extra-large senza elementi superflui.
-- **Gestione avanzata icone meteo**: Icone SVG/Png ridisegnate, ottimizzate per e-ink, con posizionamento custom (nuvole, luna, ecc.).
-- **Citazioni dinamiche**: Box citazioni ingrandito, font serif, autore posizionato elegantemente, testo adattivo.
-- **Power Saving Mode**: Modalità a basso consumo per aumentare la durata della batteria.
-- **Gestione errori di rete**: Mostra sempre l'ultimo dato valido e log dettagliati per debug.
-- **Configurazione WiFi/AP**: Modalità Access Point automatica se non configurato, gestione semplice da web.
-- **Swap su SD card**: Memorizzazione storica dei dati meteo (24h), swap file ottimizzato.
-- **Interfaccia Web**: Configurazione WiFi, API key, località e altre impostazioni direttamente da browser.
+- **Display e-Ink minimalista**: Visualizzazione chiara di dati meteo, calendario senza griglia, icone extra-large e layout ordinato.
+- **Gestione avanzata icone meteo**: Icone SVG/PNG ottimizzate per e-ink, posizionamento personalizzato (nuvole, luna, ecc.), icone nere su sfondo bianco.
+- **Citazioni dinamiche**: Box citazioni ingrandito, font serif, autore posizionato elegantemente, testo adattivo e cambio automatico in base a ora/meteo.
+- **Gestione errori**: Mostra sempre l'ultimo dato valido in caso di problemi di rete, logging dettagliato.
+- **Power Saving Mode**: Modalità risparmio energetico per aumentare la durata della batteria.
+- **Configurazione WiFi/AP**: Se non configurato, crea una rete WiFi per la configurazione tramite web.
+- **Interfaccia Web**: Configurazione WiFi, API key, località e gestione citazioni direttamente da browser.
+- **SD Card**: Utilizzata per file di configurazione e citazioni, non per swap o cronologia meteo.
 
-## Novità e Ottimizzazioni Recenti
+## Preferenze di Design
 
-- Gestione robusta della memoria e delle risorse (nessun memory leak nelle icone)
-- Timeout e controlli avanzati sulle operazioni di rete
-- Logging chiaro e informativo per ogni errore
-- Codice documentato con Doxygen per una facile manutenzione
-- Design minimalista: niente bordi inutili, font eleganti, layout ordinato
-- Supporto a quote dinamiche e calendario senza griglie
+- Nessun bordo o griglia superflua
+- Icone meteo extra-large senza cerchio nero
+- Font serif per citazioni e autore (FreeSerif12pt7b)
+- Posizionamento avanzato di luna, nuvole e autore
+- Quote non troncate (max 35 caratteri/linea)
+- Styling elegante e spaziatura ampia
+- Nessun effetto speciale tra icone
 
 ## Architettura del Software
 
 - **AtmoVerse_2.0.ino**: Loop principale e setup
-- **WeatherIcons.h/cpp**: Gestione scaricamento e visualizzazione icone meteo
-- **SVGHelper.h/cpp**: Parsing e rendering SVG, funzioni di disegno avanzate
+- **WeatherIcons.h/cpp**: Gestione e disegno icone meteo
+- **SVGHelper.h/cpp**: Parsing e rendering SVG
 - **Config.h/cpp**: Gestione configurazione utente
-- **Display.h/cpp**: Rendering grafico e logica UI
-- **NetworkUtils.h/cpp**: Gestione WiFi, fallback AP e server web
-- **SwapManager.h/cpp**: Gestione swap file su SD card
+- **Display.h/cpp**: Rendering grafico, calendario, citazioni
+- **NetworkUtils.h/cpp**: Gestione WiFi, AP e web server
+- **QuotesManager/QuotesUtils**: Gestione citazioni e file su SD
 
 ## Installazione e Configurazione
 
 ### Requisiti Hardware
 - ESP32 (testato su ESP32-WROOM-32)
 - Display e-ink (GxEPD2, GDEW0583T8 5.83" consigliato)
-- Scheda SD (min 1GB)
+- Scheda SD (min 1GB, FAT32)
 - Alimentazione 5V
 
 ### Collegamenti Pin (default)
@@ -50,15 +51,16 @@ Sistema meteo avanzato basato su ESP32 con display e-ink, design minimalista e i
 1. Inserisci la SD card formattata in FAT32.
 2. Carica il firmware tramite Arduino IDE o PlatformIO.
 3. All'avvio, se non configurato, il dispositivo crea una rete WiFi AP.
-4. Collegati all'AP e accedi all'interfaccia web per configurare WiFi e API key.
+4. Collegati all'AP e accedi all’interfaccia web per configurare WiFi e API key.
 
 ## Utilizzo
 - Dopo la configurazione, il dispositivo scarica i dati meteo e aggiorna il display ogni 30 minuti.
-- In caso di errore di rete, viene mostrato l'ultimo dato valido.
-- Le citazioni cambiano dinamicamente in base all'orario e alle condizioni meteo.
+- In caso di errore di rete, viene mostrato l’ultimo dato valido.
+- Le citazioni cambiano dinamicamente in base all’orario e alle condizioni meteo.
+- Il calendario mostra solo il bordo e i giorni, senza griglie.
 
 ## Sviluppo e Contribuzione
-- Tutto il codice è documentato con Doxygen.
+- Codice documentato con Doxygen.
 - Per contribuire: crea una branch, invia una pull request descrivendo la modifica.
 - Segnala bug o suggerimenti tramite le Issues di GitHub.
 
