@@ -48,6 +48,31 @@ Sistema meteo avanzato basato su ESP32 con display e-ink, design minimalista e i
 - **SD Card**: CS GPIO5, MOSI GPIO23, MISO GPIO19, SCK GPIO18
 
 ### Prima Configurazione
+
+## Librerie utilizzate e versioni
+
+Il progetto utilizza le seguenti librerie (versioni rilevate dal log di compilazione):
+
+- **SPI**: 3.1.1
+- **Wire**: 3.1.1
+- **SD**: 3.1.1
+- **FS**: 3.1.1
+- **WiFi**: 3.1.1
+- **Networking**: 3.1.1
+- **HTTPClient**: 3.1.1
+- **NetworkClientSecure**: 3.1.1
+- **DNSServer**: 3.1.1
+- **ESP32 Async UDP**: 3.1.1
+- **ArduinoJson**: 7.3.1
+- **GxEPD2**: 1.6.2
+- **Adafruit GFX Library**: 1.12.0
+- **Adafruit BusIO**: 1.17.0
+
+**Piattaforma ESP32**: 3.1.1
+
+Assicurati di installare queste librerie tramite il Library Manager di Arduino IDE o PlatformIO per evitare problemi di compatibilità.
+
+
 1. Inserisci la SD card formattata in FAT32.
 2. Carica il firmware tramite Arduino IDE o PlatformIO.
 3. All'avvio, se non configurato, il dispositivo crea una rete WiFi AP.
