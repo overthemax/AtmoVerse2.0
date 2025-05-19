@@ -29,5 +29,6 @@ void drawLastUpdate(int x, int y, time_t lastUpdate);
 void drawQuote(int x, int y, int maxWidth);
 void drawQRCode(int x, int y, int size);
 void showStatusOnDisplay(const char* msg);
+String getOpenWeatherIconCode(int weatherId, bool isNight);
 
 #endif // DISPLAY_H

@@ -14,14 +14,14 @@ struct Config {
   long gmtOffset_sec;     // Offset GMT in secondi
   int daylightOffset_sec; // Offset per ora legale in secondi
   char ntpServer[64];     // Server NTP
-  
+
   // Impostazioni risparmio energetico
   bool powerSavingEnabled;      // Modalità risparmio energetico attiva
   int powerSavingStartHour;     // Ora di inizio risparmio energetico (es. 22 per le 22:00)
   int powerSavingEndHour;       // Ora di fine risparmio energetico (es. 7 per le 7:00)
   int normalUpdateInterval;     // Intervallo di aggiornamento normale in minuti
   int powerSavingUpdateInterval; // Intervallo di aggiornamento in risparmio energetico in minuti
-  
+
   // Impostazioni gestione errori di rete
   int maxNetworkRetries;        // Numero massimo di tentativi in caso di errore di rete
   bool showLastDataOnError;     // Mostra l'ultimo dato disponibile in caso di errore

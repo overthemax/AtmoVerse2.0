@@ -1,6 +1,7 @@
 #ifndef HARDWARE_H
 #define HARDWARE_H
 
+
 // Definizione pin per display e-ink
 #define EPD_BUSY    4    // GPIO04 - busy
 #define EPD_RST     16   // GPIO16 - res (reset)
@@ -29,6 +30,6 @@ void initHardware();
 
 // Dichiarazione globale del display
 #include <GxEPD2_BW.h>
-extern GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT> display;
+extern GxEPD2_BW<GxEPD2_583_T8, 120> display; // Using 120px page height for paged drawing
 
 #endif // HARDWARE_H
