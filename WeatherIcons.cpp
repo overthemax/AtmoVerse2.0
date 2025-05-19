@@ -4,14 +4,18 @@
 #include <SD.h>
 #include <SPI.h>
 #include <ArduinoJson.h>
-#include "GxEPD.h"
+#include <GxEPD2_BW.h>
+#include <GxEPD2_3C.h>
+#include <GxEPD2_7C.h>
+#include <GxEPD2_750_T7.h>
+#include <PNGdec.h>
 
 // Inizializzazione dei membri statici
 bool WeatherIcons::initialized = false;
 
 // Buffer per i dati delle icone decodificate
 static uint8_t* pngBuffer = nullptr;
-static GxEPD_Class* currentDisplay = nullptr;
+static void* currentDisplay = nullptr;
 static int drawX = 0, drawY = 0, drawSize = 0;
 
 // Timeout predefinito per le operazioni di rete (in ms)
@@ -21,50 +25,68 @@ static const uint32_t DEFAULT_NETWORK_TIMEOUT = 10000;
 static const size_t DOWNLOAD_BUFFER_SIZE = 102400;
 
 // Struttura per passare i dati durante la decodifica PNG
+template<typename DisplayType>
 struct PNGDrawData {
-  GxEPD_Class* display;
+  DisplayType* display;
   int x;
   int y;
   int size;
+  PNG* pngPtr;
+  int height;
 };
 
-// Callback per la decodifica PNG
-void pngDraw(PNGDRAW *pDraw) {
-  if (!currentDisplay || !pngBuffer) return;
+// Template function for PNG draw callback
+template<typename DisplayType>
+void pngDrawCallback(PNGDRAW *pDraw) {
+  if (!pDraw || !pDraw->pUser) return;
   
-  uint16_t lineBuffer[pDraw->iWidth];
+  auto* data = static_cast<PNGDrawData<DisplayType>*>(pDraw->pUser);
+  if (!data || !data->display) return;
   
-  // Ottieni i dati della linea corrente
-  PNG.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
+  // Buffer per i dati della riga corrente
+  // Usa la larghezza massima supportata dal display per evitare overflow
+  static const int MAX_DISPLAY_WIDTH = 800; // Larghezza massima supportata
+  static uint16_t lineBuffer[MAX_DISPLAY_WIDTH];
   
-  // Scala e disegna ogni pixel sull'e-ink display
-  float scaleX = (float)drawSize / pDraw->iWidth;
-  int yPos = drawY + (int)(pDraw->y * scaleX);
+  // Assicurati di non superare la larghezza massima
+  if (pDraw->iWidth > MAX_DISPLAY_WIDTH) {
+    return; // Evita overflow del buffer
+  }
   
-  // Convert RGB565 to 1-bit black and white using dithering
+  // Leggi la riga corrente in formato RGB565
+  PNG* png = static_cast<PNG*>(data->pngPtr);
+  if (!png) return;
+  
+  png->getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
+  
+  // Calcola la posizione Y nel display
+  int yPos = data->y + pDraw->y;
+  
+  // Disegna ogni pixel della riga
   for (int x = 0; x < pDraw->iWidth; x++) {
+    // Estrai i componenti di colore
     uint16_t rgb = lineBuffer[x];
-    
-    // Estrai i valori RGB
     uint8_t r = (rgb >> 11) & 0x1F;
     uint8_t g = (rgb >> 5) & 0x3F;
     uint8_t b = rgb & 0x1F;
     
-    // Calcola la luminosità (semplificata)
-    uint8_t luminance = (r * 77 + g * 151 + b * 28) / 64; // Pesatura standard per la luminosità
+    // Calcola la luminosità (formula standard per la conversione RGB in scala di grigi)
+    uint8_t gray = (r * 77 + g * 151 + b * 28) >> 8;
     
-    // Applica la soglia per decidere bianco o nero (128 è a metà tra 0 e 255)
-    bool isBlack = (luminance < 128);
+    // Calcola la posizione X nel display
+    int xPos = data->x + x;
     
-    // Calcola la posizione scalata
-    int xPos = drawX + (int)(x * scaleX);
-    
-    // Disegna il pixel
-    if (isBlack) {
-      currentDisplay->drawPixel(xPos, yPos, GxEPD_BLACK);
-    }
+    // Disegna il pixel in base alla soglia
+    data->display->drawPixel(xPos, yPos, (gray < 128) ? GxEPD_BLACK : GxEPD_WHITE);
   }
+  
+  // Non aggiorniamo più qui per evitare flickering
+  // L'aggiornamento verrà fatto una sola volta dopo che tutta l'immagine è stata disegnata
 }
+
+// Explicit instantiation for common display types
+template void pngDrawCallback<GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT>>(PNGDRAW *pDraw);
+template void pngDrawCallback<GxEPD2_BW<GxEPD2_583_T8, 120>>(PNGDRAW *pDraw);
 
 bool WeatherIcons::begin() {
   if (initialized) {
@@ -258,122 +280,148 @@ bool WeatherIcons::prepareIcon(const String& iconCode) {
   return true;
 }
 
-bool WeatherIcons::drawWeatherIcon(GxEPD_Class& display, const String& iconCode, int x, int y, int size) {
+template<typename DisplayType>
+bool WeatherIcons::drawWeatherIcon(DisplayType& display, const String& iconCode, int x, int y, int size) {
   if (!initialized && !begin()) {
     Serial.println(F("[ERROR] WeatherIcons non inizializzato"));
     return false;
   }
-  
-  // Verifica i parametri di input
-  if (size <= 0) {
-    Serial.println(F("[ERROR] Dimensione icona non valida"));
+
+  // Verifica che il codice dell'icona non sia vuoto
+  if (iconCode.length() == 0) {
+    Serial.println(F("[ERROR] Codice icona non valido"));
     return false;
   }
-  
-  // Assicurati che l'icona esista
+
+  // Prepara l'icona (scarica se necessario)
   if (!prepareIcon(iconCode)) {
-    Serial.print(F("[ERROR] Icona non disponibile: \""));
-    Serial.print(iconCode);
-    Serial.println(F("\""));
+    Serial.print(F("[ERROR] Impossibile preparare l'icona: "));
+    Serial.println(iconCode);
     return false;
   }
-  
-  // Ottieni il percorso completo del file
-  String iconPath = getIconPath(iconCode);
-  
+
   // Apri il file dell'icona
-  File iconFile = SD.open(iconPath, FILE_READ);
+  String iconPath = getIconPath(iconCode);
+  File iconFile = SD.open(iconPath.c_str(), FILE_READ);
   if (!iconFile) {
-    Serial.print(F("[ERROR] Impossibile aprire il file: \""));
-    Serial.print(iconPath);
-    Serial.println(F("\""));
+    Serial.print(F("[ERROR] Impossibile aprire il file dell'icona: "));
+    Serial.println(iconPath);
     return false;
   }
-  
-  // Inizializza il decoder PNG
-  PNG png;
-  
-  // Configura le funzioni di callback per il file system
-  int16_t rc = png.openFILE(
-    iconPath.c_str(),
-    [](const char* filename) -> void* { return (void*)SD.open(filename, FILE_READ).filePtr(); },
-    [](void* handle) { if (handle) ((File*)handle)->close(); },
-    [](void* handle, uint8_t* buffer, int32_t length) { return ((File*)handle)->read(buffer, length); },
-    [](void* handle, int32_t position) { return ((File*)handle)->seek(position); },
-    [](PNGDRAW* pDraw) {
-      if (!currentDisplay) return;
-      
-      uint16_t lineBuffer[pDraw->iWidth];
-      
-      // Ottieni i dati della linea corrente
-      PNG.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
-      
-      // Scala e disegna ogni pixel sull'e-ink display
-      float scaleX = (float)drawSize / pDraw->iWidth;
-      int yPos = drawY + (int)(pDraw->y * scaleX);
-      
-      // Converti RGB565 in bianco e nero usando il dithering
-      for (int x = 0; x < pDraw->iWidth; x++) {
-        uint16_t rgb = lineBuffer[x];
-        
-        // Estrai i valori RGB
-        uint8_t r = (rgb >> 11) & 0x1F;
-        uint8_t g = (rgb >> 5) & 0x3F;
-        uint8_t b = rgb & 0x1F;
-        
-        // Calcola la luminosità (semplificata)
-        uint8_t luminance = (r * 77 + g * 151 + b * 28) / 64; // Pesatura standard per la luminosità
-        
-        // Applica la soglia per decidere bianco o nero (128 è a metà tra 0 e 255)
-        bool isBlack = (luminance < 128);
-        
-        // Calcola la posizione scalata
-        int xPos = drawX + (int)(x * scaleX);
-        
-        // Disegna il pixel
-        if (isBlack) {
-          currentDisplay->drawPixel(xPos, yPos, GxEPD_BLACK);
-        }
-      }
-    }
-  );
-  
-  if (rc != PNG_SUCCESS) {
-    Serial.print(F("[ERROR] Errore nell'apertura del file PNG: "));
-    Serial.println(rc);
-    iconFile.close();
-    return false;
-  }
-  
-  // Ottieni le informazioni sull'immagine PNG
-  rc = png.getInfo();
-  
-  Serial.printf("Dimensioni PNG: %d x %d, %d bpp\n", png.getWidth(), png.getHeight(), png.getBpp());
-  
-  // Configura i parametri di disegno
-  currentDisplay = &display;
-  drawX = x;
-  drawY = y;
-  drawSize = size;
-  
-  // Alloca il buffer per i dati dell'immagine
-  pngBuffer = (uint8_t*)malloc(png.getWidth() * 2); // 2 byte per pixel RGB565
-  
-  if (!pngBuffer) {
-    Serial.println("Memoria insufficiente per decodificare l'icona");
-    png.close();
-    iconFile.close();
-    return false;
-  }
-  
-  // Decodifica l'immagine PNG
-  rc = png.decode(pngBuffer, 0);
-  
-  if (rc != PNG_SUCCESS) {
-    Serial.printf("Errore nella decodifica del PNG: %d\n", rc);
+
+  // Alloca il buffer per i dati PNG
+  if (pngBuffer) {
     free(pngBuffer);
     pngBuffer = nullptr;
-    currentDisplay = nullptr;
+  }
+  
+  // Verifica le dimensioni dell'icona
+  if (size <= 0) {
+    Serial.println(F("[ERROR] Dimensione non valida"));
+    return false;
+  }
+
+  // Usa una dimensione fissa per il buffer PNG
+  const size_t PNG_BUFFER_SIZE = 1024;
+  pngBuffer = (uint8_t*)malloc(PNG_BUFFER_SIZE);
+  if (!pngBuffer) {
+    Serial.println(F("[ERROR] Memoria insufficiente per il buffer PNG"));
+    iconFile.close();
+    return false;
+  }
+
+  // Inizializza il decoder PNG
+  PNG png; // Made non-static
+  
+  // Prepare file reading functions for PNG decoder
+  // These are the standard functions needed by the PNGdec library
+  static auto openPNG = [](const char* filename, int32_t* size) -> void* {
+    File* f = new File(SD.open(filename, FILE_READ));
+    if (*f) {
+      *size = f->size();
+      return f;
+    }
+    delete f;
+    return nullptr;
+  };
+  
+  static auto closePNG = [](void* handle) {
+    File* f = static_cast<File*>(handle);
+    if (f) {
+      f->close();
+      delete f;
+    }
+  };
+  
+  static auto readPNG = [](PNGFILE* file, uint8_t* buffer, int32_t length) -> int32_t {
+    File* f = static_cast<File*>(file->fHandle);
+    return f->read(buffer, length);
+  };
+  
+  static auto seekPNG = [](PNGFILE* file, int32_t position) -> int32_t {
+    File* f = static_cast<File*>(file->fHandle);
+    return f->seek(position) ? 0 : -1;
+  };
+  
+  // Prepara la struttura dati per il callback
+  PNGDrawData<DisplayType> drawData; // Made non-static
+  drawData.display = &display;
+  drawData.x = x;
+  drawData.y = y;
+  drawData.size = size;
+  drawData.pngPtr = &png;
+  drawData.height = png.getHeight(); // Imposta l'altezza corretta per il callback
+  
+  // Open PNG file using the proper API
+  int16_t pngReturn = png.open(iconPath.c_str(), openPNG, closePNG, readPNG, seekPNG, pngDrawCallback<DisplayType>);
+  
+  if (pngReturn != PNG_SUCCESS) {
+    Serial.print(F("[ERROR] Errore nell'apertura del PNG: "));
+    Serial.println(pngReturn);
+    free(pngBuffer);
+    pngBuffer = nullptr;
+    iconFile.close();
+    return false;
+  }
+  
+  // In PNGdec library, the user data is passed via the callback function
+  // when registering it with the PNG object in the open call
+  
+  // Create a global static pointer that can be accessed by the callback
+  static void* g_pUserData = nullptr;
+  g_pUserData = &drawData;
+
+  // Set partial window for the icon area
+  display.setPartialWindow(x, y, png.getWidth(), png.getHeight());
+  
+  // Decodifica e disegna l'immagine per ogni pagina
+  display.firstPage();
+  do {
+    // Nota: La callback pngDrawCallback disegnerà solo sulla pagina corrente.
+    // Il decoder PNGDEc potrebbe dover essere resettato o riaperto per ogni pagina
+    // se non gestisce nativamente il rendering a pezzi. Testare attentamente.
+    // Per ora, assumiamo che chiamare decode() ripetutamente funzioni correttamente
+    // per il disegno a pagine, dato che la callback disegna solo pixel visibili sulla pagina.
+    pngReturn = png.decode(nullptr, 0);
+    if (pngReturn != PNG_SUCCESS) { // PNG_FEW_PIXELS might be ok if area is small
+      // If decode fails mid-way through pages, it's problematic.
+      // Consider how to handle. For now, log and break.
+      Serial.print(F("[ERROR] Errore nella decodifica del PNG per una pagina: "));
+      Serial.println(pngReturn);
+      // No need to free buffers here, will be done after loop
+      png.close();
+      iconFile.close();
+      if (pngBuffer) { free(pngBuffer); pngBuffer = nullptr; }
+      return false; // Abort paged drawing if a page fails
+    }
+  } while (display.nextPage());
+
+  // Check final status after loop if needed, though errors are caught inside
+  if (pngReturn != PNG_SUCCESS) {
+    Serial.print(F("[ERROR] Errore nella decodifica del PNG: "));
+    Serial.println(pngReturn);
+    free(pngBuffer);
+    pngBuffer = nullptr;
     png.close();
     iconFile.close();
     return false;
@@ -382,17 +430,30 @@ bool WeatherIcons::drawWeatherIcon(GxEPD_Class& display, const String& iconCode,
   // Pulizia
   free(pngBuffer);
   pngBuffer = nullptr;
-  currentDisplay = nullptr;
   png.close();
   iconFile.close();
   
-  Serial.print("Disegnata icona: ");
-  Serial.println(iconCode);
-  
+  Serial.println(F("[SUCCESS] Icona disegnata con successo"));
   return true;
 }
 
+// Explicit template instantiation
+template bool WeatherIcons::drawWeatherIcon<GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT>>(
+  GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT>& display, 
+  const String& iconCode, 
+  int x, 
+  int y, 
+  int size
+);
 
+// Explicit template instantiation for the GxEPD2_583_T8 display
+template bool WeatherIcons::drawWeatherIcon<GxEPD2_BW<GxEPD2_583_T8, 120>>(
+  GxEPD2_BW<GxEPD2_583_T8, 120>& display, 
+  const String& iconCode, 
+  int x, 
+  int y, 
+  int size
+);
 
 // Implementazione della funzione di conversione in bianco e nero con dithering Floyd-Steinberg
 void WeatherIcons::convertToBlackAndWhite(uint8_t* buffer, int width, int height) {

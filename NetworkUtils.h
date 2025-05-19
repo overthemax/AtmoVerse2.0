@@ -26,7 +26,7 @@ struct WiFiNetwork {
 bool setupWiFi();
 void setupTimeServer();
 bool isWiFiConnected();
-bool connectToWiFi(const char* ssid, const char* password);
+bool connectToWiFi(const char* ssid, const char* password, uint32_t timeoutMs = 30000);
 bool reconnectIfNeeded();
 bool reconnectToWiFi();
 void startAccessPoint(bool forceStart = false);

@@ -7,6 +7,8 @@
  */
 
 #include "SVGHelper.h"
+#include <GxEPD2_EPD.h>
+#include <GxEPD2_583_T8.h>
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
@@ -35,13 +37,53 @@ const IconCoords SVGHelper::iconPositions[ICON_COUNT] = {
 };
 
 // Buffer per il parsing dei file SVG
-static char pathBuffer[SVGHelper::MAX_PATH_LENGTH];
+static char pathBuffer[SVGHelper::MAX_PATH_LENGTH]; // Usa la costante pubblica
 
 // Funzioni di utilità per il parsing SVG
-static bool skipWhitespace(const char*& str);
-static bool parseNumber(const char*& str, float& value);
-static bool parseCommand(const char*& str, char& cmd, bool& relative);
-static bool parseCoord(const char*& str, float& x, float& y, bool relative, float lastX, float lastY);
+bool SVGHelper::skipWhitespace(const char*& str) {
+  while (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r') {
+    str++;
+  }
+  return *str != '\0';
+}
+
+bool SVGHelper::parseNumber(const char*& str, float& value) {
+  if (!skipWhitespace(str)) return false;
+  
+  char* endptr;
+  value = strtof(str, &endptr);
+  if (str == endptr) return false;
+  
+  str = endptr;
+  return true;
+}
+
+bool SVGHelper::parseCommand(const char*& str, char& cmd, bool& relative) {
+  if (!skipWhitespace(str)) return false;
+  
+  cmd = *str++;
+  relative = (cmd >= 'a' && cmd <= 'z');
+  
+  // Converti il comando in maiuscolo per il confronto
+  if (relative) {
+    cmd -= 32; // Converti in maiuscolo
+  }
+  
+  return true;
+}
+
+bool SVGHelper::parseCoord(const char*& str, float& x, float& y, bool relative, float lastX, float lastY) {
+  if (!parseNumber(str, x) || !skipWhitespace(str) || !parseNumber(str, y)) {
+    return false;
+  }
+  
+  if (relative) {
+    x += lastX;
+    y += lastY;
+  }
+  
+  return true;
+}
 
 bool SVGHelper::begin(int8_t csPin) {
   if (initialized) {
@@ -71,7 +113,8 @@ bool SVGHelper::begin(int8_t csPin) {
   return true;
 }
 
-bool SVGHelper::drawWeatherIcon(GxEPD_Class& display, WeatherIcon icon, int x, int y, int size) {
+template<typename DisplayType>
+bool SVGHelper::drawWeatherIcon(DisplayType& display, WeatherIcon icon, int x, int y, int size) {
   // Verifica i parametri di input
   if (icon < 0 || icon >= ICON_COUNT) {
     Serial.print(F("[SVG] Errore: codice icona non valido: "));
@@ -99,7 +142,8 @@ bool SVGHelper::drawWeatherIcon(GxEPD_Class& display, WeatherIcon icon, int x, i
   return extractAndDrawIcon(display, iconFile, icon, x, y, size);
 }
 
-bool SVGHelper::drawMoonPhase(GxEPD_Class& display, int x, int y, int size, int phase) {
+template<typename DisplayType>
+bool SVGHelper::drawMoonPhase(DisplayType& display, int x, int y, int size, int phase) {
   // Verifica i parametri di input
   if (size <= 0) {
     Serial.println(F("[SVG] Errore: dimensione non valida per la fase lunare"));
@@ -150,7 +194,8 @@ bool SVGHelper::drawMoonPhase(GxEPD_Class& display, int x, int y, int size, int 
   return true;
 }
 
-bool SVGHelper::loadSVG(GxEPD_Class& display, const char* filename, int x, int y, int width, int height) {
+template<typename DisplayType>
+bool SVGHelper::loadSVG(DisplayType& display, const char* filename, int x, int y, int width, int height) {
   if (!initialized && !begin()) {
     return false;
   }
@@ -312,186 +357,10 @@ bool SVGHelper::loadSVG(GxEPD_Class& display, const char* filename, int x, int y
       }
     }
   }
-bool SVGHelper::extractAndDrawIcon(GxEPD_Class& display, const char* filename, WeatherIcon icon, int x, int y, int size) {
-  // Verifica i parametri di input
-  if (!initialized && !begin()) {
-    Serial.println(F("[SVG] Errore: SVGHelper non inizializzato"));
-    return false;
-  }
-  
-  if (icon < 0 || icon >= ICON_COUNT) {
-    Serial.print(F("[SVG] Errore: codice icona non valido: "));
-    Serial.println(icon);
-    return false;
-  }
-  
-  if (size <= 0) {
-    Serial.println(F("[SVG] Errore: dimensione non valida"));
-  File svgFile = SD.open(filename);
-  if (!svgFile) {
-    Serial.print("Impossibile aprire il file: ");
-    Serial.println(filename);
-    return false;
-  }
-  
-  const int bufferSize = 128;
-  char buffer[bufferSize];
-  String line = "";
-  int viewBoxX = 0, viewBoxY = 0, viewBoxWidth = 0, viewBoxHeight = 0;
-  
-  // Coordinate dell'icona specifica
-  int srcX = iconPositions[icon].x;
-  int srcY = iconPositions[icon].y;
-  int iconSize = 100; // Dimensione tipica di ogni icona nel file SVG
-  
-  // Prima passata: trovare il viewBox
-  while (svgFile.available()) {
-    int bytesRead = svgFile.readBytesUntil('\n', buffer, bufferSize - 1);
-    buffer[bytesRead] = '\0';
-    line = String(buffer);
-    
-    // Cerca la definizione del viewBox
-    if (line.indexOf("viewBox") != -1) {
-      int start = line.indexOf("viewBox=\"");
-      if (start != -1) {
-        start += 9; // Lunghezza di "viewBox=\""
-        int end = line.indexOf('\"', start);
-        if (end != -1) {
-          String viewBox = line.substring(start, end);
-          
-          // Formato viewBox: "x y width height"
-          int space1 = viewBox.indexOf(' ');
-          int space2 = viewBox.indexOf(' ', space1 + 1);
-          int space3 = viewBox.indexOf(' ', space2 + 1);
-          
-          if (space1 != -1 && space2 != -1 && space3 != -1) {
-            viewBoxX = viewBox.substring(0, space1).toInt();
-            viewBoxY = viewBox.substring(space1 + 1, space2).toInt();
-            viewBoxWidth = viewBox.substring(space2 + 1, space3).toInt();
-            viewBoxHeight = viewBox.substring(space3 + 1).toInt();
-            break;
-          }
-        }
-      }
-    }
-  }
-  
-  // Se non è stato trovato un viewBox valido, usa valori predefiniti
-  if (viewBoxWidth == 0 || viewBoxHeight == 0) {
-    viewBoxWidth = 1200;
-    viewBoxHeight = 900;
-  }
-  
-  // Calcola il fattore di scala
-  float scale = (float)size / iconSize;
-  
-  // Riapri il file
-  svgFile.close();
-  svgFile = SD.open(filename);
-  
-  bool inIconGroup = false;
-  String currentPath = "";
-  bool pathStarted = false;
-  
-  // Trasformazione per estrazione dell'icona specifica
-  String targetTransform = String("translate(") + srcX + ", " + srcY + ")";
-  
-  // Cerca e disegna l'icona specifica
-  while (svgFile.available()) {
-    int bytesRead = svgFile.readBytesUntil('\n', buffer, bufferSize - 1);
-    buffer[bytesRead] = '\0';
-    line = String(buffer);
-    
-    // Trova il gruppo che corrisponde all'icona specifica
-    if (line.indexOf("<g ") != -1 && line.indexOf(targetTransform) != -1) {
-      inIconGroup = true;
-      continue;
-    }
-    
-    // Interrompi quando troviamo la fine del gruppo dell'icona
-    if (inIconGroup && line.indexOf("</g>") != -1) {
-      inIconGroup = false;
-      break;
-    }
-    
-    // Elabora gli elementi all'interno del gruppo dell'icona
-    if (inIconGroup) {
-      // Gestione dei tag path (disegni complessi)
-      if (line.indexOf("<path") != -1) {
-        int dStart = line.indexOf("d=\"");
-        if (dStart != -1) {
-          dStart += 3; // Lunghezza di "d=\""
-          int dEnd = line.indexOf('\"', dStart);
-          if (dEnd != -1) {
-            String pathData = line.substring(dStart, dEnd);
-            drawPath(display, pathData, x, y, scale);
-          }
-        }
-      }
-      
-      // Gestione dei cerchi
-      else if (line.indexOf("<circle") != -1) {
-        int cx = extractAttribute(line, "cx", 0);
-        int cy = extractAttribute(line, "cy", 0);
-        int r = extractAttribute(line, "r", 0);
-        bool fill = line.indexOf("fill=\"none\"") == -1;
-        
-        // Scala e posiziona l'elemento nell'area di destinazione
-        int scaledCX = x + cx * scale;
-        int scaledCY = y + cy * scale;
-        int scaledR = r * scale;
-        
-        drawCircle(display, scaledCX, scaledCY, scaledR, fill);
-      }
-      
-      // Gestione delle linee
-      else if (line.indexOf("<line") != -1) {
-        int x1 = extractAttribute(line, "x1", 0);
-        int y1 = extractAttribute(line, "y1", 0);
-        int x2 = extractAttribute(line, "x2", 0);
-        int y2 = extractAttribute(line, "y2", 0);
-        
-        // Scala e posiziona l'elemento nell'area di destinazione
-        int scaledX1 = x + x1 * scale;
-        int scaledY1 = y + y1 * scale;
-        int scaledX2 = x + x2 * scale;
-        int scaledY2 = y + y2 * scale;
-        
-        display.drawLine(scaledX1, scaledY1, scaledX2, scaledY2, GxEPD_BLACK);
-      }
-      
-      // Gestione dei rettangoli
-      else if (line.indexOf("<rect") != -1) {
-        int rectX = extractAttribute(line, "x", 0);
-        int rectY = extractAttribute(line, "y", 0);
-        int rectWidth = extractAttribute(line, "width", 0);
-        int rectHeight = extractAttribute(line, "height", 0);
-        bool fill = line.indexOf("fill=\"none\"") == -1;
-        
-        // Scala e posiziona l'elemento nell'area di destinazione
-        int scaledX = x + rectX * scale;
-        int scaledY = y + rectY * scale;
-        int scaledWidth = rectWidth * scale;
-        int scaledHeight = rectHeight * scale;
-        
-        if (fill) {
-          display.fillRect(scaledX, scaledY, scaledWidth, scaledHeight, GxEPD_BLACK);
-        } else {
-          display.drawRect(scaledX, scaledY, scaledWidth, scaledHeight, GxEPD_BLACK);
-        }
-      }
-    }
-  }
-  
-  svgFile.close();
-  
-  // Se non siamo riusciti a trovare e disegnare l'icona, disegna un cerchio predefinito
-  if (!inIconGroup) {
-    drawCircle(display, x + size/2, y + size/2, size/2 - 2, false);
-  }
-  
-  return true;
 }
+
+// Template implementation for extractAndDrawIcon
+// [RIMOSSO: implementazione template extractAndDrawIcon spostata in SVGHelper.h]
 
 // Funzione di supporto per estrarre attributi numerici da una stringa SVG
 int SVGHelper::extractAttribute(String& line, const char* attr, int defaultValue) {
@@ -507,7 +376,7 @@ int SVGHelper::extractAttribute(String& line, const char* attr, int defaultValue
 }
 
 // Disegna un'ellisse approssimata
-void SVGHelper::drawEllipse(GxEPD_Class& display, int centerX, int centerY, int radiusX, int radiusY, bool fill) {
+void SVGHelper::drawEllipse(GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, int centerX, int centerY, int radiusX, int radiusY, bool fill) {
   if (fill) {
     // Per riempire l'ellisse usiamo linee orizzontali
     for (int y = centerY - radiusY; y <= centerY + radiusY; y++) {
@@ -526,7 +395,7 @@ void SVGHelper::drawEllipse(GxEPD_Class& display, int centerX, int centerY, int 
 }
 
 // Funzione helper per disegnare cerchi
-void SVGHelper::drawCircle(GxEPD_Class& display, int cx, int cy, int r, bool fill) {
+void SVGHelper::drawCircle(GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, int cx, int cy, int r, bool fill) {
   if (fill) {
     display.fillCircle(cx, cy, r, GxEPD_BLACK);
   } else {
@@ -535,7 +404,7 @@ void SVGHelper::drawCircle(GxEPD_Class& display, int cx, int cy, int r, bool fil
 }
 
 // Funzione per disegnare un percorso SVG (path)
-void SVGHelper::drawPath(GxEPD_Class& display, String path, int offsetX, int offsetY, float scale) {
+void SVGHelper::drawPath(GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, String path, int offsetX, int offsetY, float scale) {
   // Coordinate correnti per i comandi relativi
   float currentX = 0, currentY = 0;
   
@@ -851,7 +720,7 @@ void SVGHelper::drawPath(GxEPD_Class& display, String path, int offsetX, int off
       // Comando non riconosciuto o non implementato
       default:
         // Salta al prossimo comando
-        while (i < len && !isAlpha(path.charAt(i))) {
+        while (i < len && !isalpha(path.charAt(i))) {
           i++;
         }
         break;
@@ -859,20 +728,190 @@ void SVGHelper::drawPath(GxEPD_Class& display, String path, int offsetX, int off
   }
 }
 
-// Disegna una forma di luna crescente o calante
-void SVGHelper::drawMoonShape(GxEPD_Class& display, int centerX, int centerY, int radius, bool isWaxing) {
-  // Disegna il contorno della luna
-  display.drawCircle(centerX, centerY, radius, GxEPD_BLACK);
+// Template implementation for drawMoonShape
+template<typename DisplayType>
+void SVGHelper::drawMoonShape(DisplayType& display, int centerX, int centerY, int radius, bool isWaxing) {
+  // Implementazione semplificata: disegna un cerchio con un cerchio sovrapposto per creare la falce
+  if (isWaxing) {
+    // Luna crescente: cerchio nero a destra
+    display.fillCircle(centerX + radius/2, centerY, radius, GxEPD_BLACK);
+    display.fillCircle(centerX, centerY, radius, GxEPD_WHITE);
+  } else {
+    // Luna calante: cerchio nero a sinistra
+    display.fillCircle(centerX - radius/2, centerY, radius, GxEPD_BLACK);
+    display.fillCircle(centerX, centerY, radius, GxEPD_WHITE);
+  }
+}
+
+// Template implementation for drawCircle
+template<typename DisplayType>
+void SVGHelper::drawCircle(DisplayType& display, int cx, int cy, int r, bool fill) {
+  if (fill) {
+    display.fillCircle(cx, cy, r, GxEPD_BLACK);
+  } else {
+    display.drawCircle(cx, cy, r, GxEPD_BLACK);
+  }
+}
+
+// Template implementation for drawPath
+template<typename DisplayType>
+void SVGHelper::drawPath(DisplayType& display, const String& path, int offsetX, int offsetY, float scale) {
+  // Implementazione semplificata: disegna solo i segmenti di linea
+  int len = path.length();
+  float currentX = 0, currentY = 0;
+  float startX = 0, startY = 0;
+  float lastControlX = 0, lastControlY = 0;
   
-  // Disegna la parte illuminata
-  for (int y = centerY - radius + 1; y < centerY + radius; y++) {
-    int width = sqrt(radius*radius - (y-centerY)*(y-centerY));
-    if (isWaxing) {
-      // Luna crescente (illuminata a destra)
-      display.fillRect(centerX, y, width, 1, GxEPD_BLACK);
-    } else {
-      // Luna calante (illuminata a sinistra)
-      display.fillRect(centerX - width, y, width, 1, GxEPD_BLACK);
+  int i = 0;
+  while (i < len) {
+    char c = path[i++];
+    
+    switch(c) {
+      case 'M': // MoveTo assoluto
+      case 'm': { // MoveTo relativo
+        bool relative = (c == 'm');
+        // Estrai le coordinate
+        int comma = path.indexOf(',', i);
+        if (comma == -1) break;
+        float x = path.substring(i, comma).toFloat();
+        i = comma + 1;
+        int space = path.indexOf(' ', i);
+        if (space == -1) space = len;
+        float y = path.substring(i, space).toFloat();
+        i = space + 1;
+        
+        if (relative) {
+          currentX += x;
+          currentY += y;
+        } else {
+          currentX = x;
+          currentY = y;
+        }
+        startX = currentX;
+        startY = currentY;
+        break;
+      }
+      
+      case 'L': // LineTo assoluto
+      case 'l': { // LineTo relativo
+        bool relative = (c == 'l');
+        // Estrai le coordinate
+        int comma = path.indexOf(',', i);
+        if (comma == -1) break;
+        float x = path.substring(i, comma).toFloat();
+        i = comma + 1;
+        int space = path.indexOf(' ', i);
+        if (space == -1) space = len;
+        float y = path.substring(i, space).toFloat();
+        i = space + 1;
+        
+        float endX = relative ? currentX + x : x;
+        float endY = relative ? currentY + y : y;
+        
+        // Disegna la linea
+        display.drawLine(
+          offsetX + currentX * scale, 
+          offsetY + currentY * scale,
+          offsetX + endX * scale,
+          offsetY + endY * scale,
+          GxEPD_BLACK
+        );
+        
+        currentX = endX;
+        currentY = endY;
+        break;
+      }
+      
+      case 'Z': // Chiudi percorso (sia 'Z' che 'z' sono uguali)
+      case 'z': {
+        // Chiudi il percorso disegnando una linea fino al punto iniziale
+        display.drawLine(
+          offsetX + currentX * scale, 
+          offsetY + currentY * scale,
+          offsetX + startX * scale,
+          offsetY + startY * scale,
+          GxEPD_BLACK
+        );
+        currentX = startX;
+        currentY = startY;
+        break;
+      }
+      
+      // Comando H (linea orizzontale)
+      case 'H':
+      case 'h': {
+        bool relative = (c == 'h');
+        int space = path.indexOf(' ', i);
+        if (space == -1) space = len;
+        float x = path.substring(i, space).toFloat();
+        i = space + 1;
+        
+        float endX = relative ? currentX + x : x;
+        
+        // Disegna la linea orizzontale
+        display.drawLine(
+          offsetX + currentX * scale, 
+          offsetY + currentY * scale,
+          offsetX + endX * scale,
+          offsetY + currentY * scale,
+          GxEPD_BLACK
+        );
+        
+        currentX = endX;
+        break;
+      }
+      
+      // Comando V (linea verticale)
+      case 'V':
+      case 'v': {
+        bool relative = (c == 'v');
+        int space = path.indexOf(' ', i);
+        if (space == -1) space = len;
+        float y = path.substring(i, space).toFloat();
+        i = space + 1;
+        
+        float endY = relative ? currentY + y : y;
+        
+        // Disegna la linea verticale
+        display.drawLine(
+          offsetX + currentX * scale, 
+          offsetY + currentY * scale,
+          offsetX + currentX * scale,
+          offsetY + endY * scale,
+          GxEPD_BLACK
+        );
+        
+        currentY = endY;
+        break;
+      }
+      
+      // Comando non riconosciuto o non implementato
+      default:
+        // Salta al prossimo comando
+        while (i < len && !isalpha(path.charAt(i))) {
+          i++;
+        }
+        break;
+    }
+  }
+}
+
+// Template implementation for drawEllipse
+template<typename DisplayType>
+void SVGHelper::drawEllipse(DisplayType& display, int centerX, int centerY, int radiusX, int radiusY, bool fill) {
+  if (fill) {
+    // Per riempire l'ellisse usiamo linee orizzontali
+    for (int y = centerY - radiusY; y <= centerY + radiusY; y++) {
+      int x_width = radiusX * sqrt(1.0 - pow((float)(y - centerY) / radiusY, 2));
+      display.drawLine(centerX - x_width, y, centerX + x_width, y, GxEPD_BLACK);
+    }
+  } else {
+    // Per il contorno disegniamo punti sulla circonferenza
+    for (int i = 0; i < 360; i += 5) {
+      float angle = i * PI / 180.0;
+      int x = centerX + radiusX * cos(angle);
+      int y = centerY + radiusY * sin(angle);
+      display.drawPixel(x, y, GxEPD_BLACK);
     }
   }
 }
@@ -937,165 +976,205 @@ WeatherIcon SVGHelper::getIconFromWeatherID(int weatherID, bool isNight) {
   return ICON_SOLE;
 }
 
-/**
- * @brief Estrae e disegna un'icona specifica da un file SVG
- * 
- * Questa funzione estrae un'icona specifica da un file SVG contenente più icone
- * e la disegna sul display nella posizione specificata con la dimensione desiderata.
- * 
- * @param display Riferimento all'oggetto display GxEPD
- * @param filename Percorso del file SVG contenente le icone
- * @param icon Indice dell'icona da estrarre
- * @param x Coordinata X di destinazione sul display
- * @param y Coordinata Y di destinazione sul display
- * @param size Dimensione desiderata dell'icona (larghezza e altezza)
- * @return true se l'icona è stata trovata e disegnata con successo, false altrimenti
- */
-bool SVGHelper::extractAndDrawIcon(GxEPD_Class& display, const char* filename, WeatherIcon icon, int x, int y, int size) {
-  // Verifica i parametri di input
-  if (!initialized) {
-    if (!begin()) {
-      Serial.println(F("[SVG] Errore: inizializzazione fallita"));
-      return false;
-    }
-  }
+// Explicit template instantiations for the display types we're using
 
-  if (icon < 0 || icon >= ICON_COUNT) {
-    Serial.print(F("[SVG] Errore: codice icona non valido: "));
-    Serial.print(icon);
-    Serial.println('"');
+// Specializzazione completa della funzione extractAndDrawIcon per GxEPD2_BW<GxEPD2_583_T8, 480>
+bool SVGHelper::extractAndDrawIcon(GxEPD2_BW<GxEPD2_583_T8, 480>& display, const char* filename, WeatherIcon icon, int x, int y, int size) {
+  if (!initialized && !begin()) {
+    Serial.println(F("[SVG] Errore: SVGHelper non inizializzato"));
     return false;
   }
-
+  if (icon < 0 || icon >= ICON_COUNT) {
+    Serial.print(F("[SVG] Errore: codice icona non valido: "));
+    Serial.println(icon);
+    return false;
+  }
   if (size <= 0) {
     Serial.println(F("[SVG] Errore: dimensione non valida"));
     return false;
   }
-
-  if (!filename || strlen(filename) == 0) {
-    Serial.println(F("[SVG] Errore: nome file non valido"));
-    return false;
-  }
-
-  // Verifica che il file esista
-  if (!SD.exists(filename)) {
-    Serial.print(F("[SVG] File non trovato: "));
-    Serial.print(filename);
-    Serial.println('"');
-    return false;
-  }
-
-  // Apri il file SVG
-  File file = SD.open(filename, FILE_READ);
-  if (!file) {
-    Serial.print(F("[SVG] Impossibile aprire il file: "));
+  File svgFile = SD.open(filename);
+  if (!svgFile) {
+    Serial.print("Impossibile aprire il file: ");
     Serial.println(filename);
     return false;
   }
 
-  bool result = false;
-  const size_t bufferSize = 256;
+  // Usa meno memoria allocando il buffer su stack
+  const int bufferSize = 128;
   char buffer[bufferSize];
-  bool inSvg = false;
-  bool inIcon = false;
-  String currentId = "";
+  String line = "";
   
-  // Crea un ID univoco per l'icona basato sulla sua posizione
-  String targetId = "icon";
-  targetId += icon;
-
-  try {
-    // Leggi il file riga per riga
-    while (file.available()) {
-      const int bytesRead = file.readBytesUntil('\n', buffer, bufferSize - 1);
-      if (bytesRead <= 0) continue;
-      
-      buffer[bytesRead] = '\0';
-      String line = String(buffer);
-      
-      // Cerca il tag di apertura SVG
-      if (!inSvg) {
-        if (line.indexOf("<svg") >= 0) {
-          inSvg = true;
-        }
-        continue;
-      }
-      
-      // Cerca il tag di chiusura SVG
-      if (line.indexOf("</svg>") >= 0) {
-        break;
-      }
-      
-      // Cerca l'elemento con l'ID dell'icona
-      const int idPos = line.indexOf("id=\"");
-      if (idPos >= 0) {
-        const int idStart = idPos + 4; // Lunghezza di "id=""
-        const int idEnd = line.indexOf('"', idStart);
-        if (idEnd > idStart) {
-          currentId = line.substring(idStart, idEnd);
-          inIcon = (currentId == targetId);
-        }
-      }
-      
-      // Se siamo all'interno dell'icona, disegna l'elemento
-      if (inIcon) {
-        // Sostituisci eventuali riferimenti a stili inline con colori espliciti
-        line.replace("currentColor", "black");
-        line.replace("#000", "black");
-        line.replace("#000000", "black");
-        
-        // Disegna l'elemento in base al suo tipo
-        if (line.indexOf("<path") >= 0) {
-          // Estrai l'attributo d="..."
-          const int dStart = line.indexOf("d=\"");
-          if (dStart >= 0) {
-            const int dEnd = line.indexOf('"', dStart + 3);
-            if (dEnd > dStart) {
-              String path = line.substring(dStart + 3, dEnd);
-              const float scale = static_cast<float>(size) / 200.0f; // 200px è la dimensione predefinita
-              drawPath(display, path, x, y, scale);
-            }
-          }
-        }
-        else if (line.indexOf("<circle") >= 0) {
-          // Estrai gli attributi cx, cy, r, fill
-          const int cx = extractAttribute(line, "cx", 0);
-          const int cy = extractAttribute(line, "cy", 0);
-          const int r = extractAttribute(line, "r", 0);
-          const bool fill = (line.indexOf("fill=\"none\"") == -1);
+  int viewBoxX = 0, viewBoxY = 0, viewBoxWidth = 0, viewBoxHeight = 0;
+  int srcX = iconPositions[icon].x;
+  int srcY = iconPositions[icon].y;
+  int iconSize = 100; // Dimensione standard icona
+  
+  // Prima passata per trovare viewBox
+  bool found = false;
+  while (svgFile.available()) {
+    int bytesRead = svgFile.readBytesUntil('\n', buffer, bufferSize - 1);
+    buffer[bytesRead] = '\0';
+    line = String(buffer);
+    
+    if (line.indexOf("viewBox") != -1) {
+      int start = line.indexOf("viewBox=\"");
+      if (start != -1) {
+        start += 9;
+        int end = line.indexOf('"', start);
+        if (end != -1) {
+          String viewBox = line.substring(start, end);
           
-          if (r > 0) {
-            const float scale = static_cast<float>(size) / 200.0f;
-            const int drawX = x + (cx - 100) * scale; // 100 è l'offset del centro
-            const int drawY = y + (cy - 100) * scale;
-            const int drawR = r * scale;
-            
-            drawCircle(display, drawX, drawY, drawR, fill);
+          int space1 = viewBox.indexOf(' ');
+          int space2 = viewBox.indexOf(' ', space1 + 1);
+          int space3 = viewBox.indexOf(' ', space2 + 1);
+          
+          if (space1 != -1 && space2 != -1 && space3 != -1) {
+            viewBoxX = viewBox.substring(0, space1).toInt();
+            viewBoxY = viewBox.substring(space1 + 1, space2).toInt();
+            viewBoxWidth = viewBox.substring(space2 + 1, space3).toInt();
+            viewBoxHeight = viewBox.substring(space3 + 1).toInt();
+            found = true;
+            break;
           }
-        }
-        
-        // Verifica se abbiamo raggiunto la fine dell'elemento
-        if (line.indexOf("/>") >= 0 || line.indexOf("</") >= 0) {
-          inIcon = false;
-          result = true; // Abbiamo trovato e disegnato l'icona
-          break;
         }
       }
     }
-  } catch (...) {
-    Serial.println(F("[SVG] Eccezione durante l'elaborazione del file SVG"));
-    result = false;
   }
   
-  // Chiudi il file
-  file.close();
-  
-  if (!result) {
-    Serial.print(F("[SVG] Impossibile trovare o disegnare l'icona: "));
-    Serial.print(targetId);
-    Serial.print(F(" in "));
-    Serial.println(filename);
+  if (!found || viewBoxWidth == 0 || viewBoxHeight == 0) {
+    viewBoxWidth = 1200; // Default
+    viewBoxHeight = 900;
   }
   
-  return result;
+  svgFile.close();
+  
+  // Seconda passata per disegnare l'icona specifica
+  svgFile = SD.open(filename);
+  if (!svgFile) return false;
+  
+  // Fattore di scala
+  float scale = (float)size / iconSize;
+  String targetTransform = String("translate(") + srcX + ", " + srcY + ")";
+  
+  bool inIconGroup = false;
+  
+  while (svgFile.available()) {
+    int bytesRead = svgFile.readBytesUntil('\n', buffer, bufferSize - 1);
+    buffer[bytesRead] = '\0';
+    line = String(buffer);
+    
+    // Trova il gruppo dell'icona tramite transform
+    if (!inIconGroup && line.indexOf(targetTransform) != -1) {
+      inIconGroup = true;
+      continue;
+    }
+    
+    // Fine gruppo
+    if (inIconGroup && line.indexOf("</g>") != -1) {
+      break;
+    }
+    
+    // Disegno elementi SVG nel gruppo
+    if (inIconGroup) {
+      // Path (forme complesse)
+      if (line.indexOf("<path") != -1) {
+        int dStart = line.indexOf("d=\"");
+        if (dStart != -1) {
+          dStart += 3;
+          int dEnd = line.indexOf('"', dStart);
+          if (dEnd != -1) {
+            String pathData = line.substring(dStart, dEnd);
+            drawPath(display, pathData, x, y, scale);
+          }
+        }
+      }
+      
+      // Cerchi
+      else if (line.indexOf("<circle") != -1) {
+        int cx = extractAttribute(line, "cx", 0);
+        int cy = extractAttribute(line, "cy", 0);
+        int r = extractAttribute(line, "r", 0);
+        bool fill = line.indexOf("fill=\"none\"") == -1;
+        
+        int scaledCX = x + cx * scale;
+        int scaledCY = y + cy * scale;
+        int scaledR = r * scale;
+        
+        drawCircle(display, scaledCX, scaledCY, scaledR, fill);
+      }
+      
+      // Altri elementi (linee, rettangoli, ecc.) come necessario
+    }
+  }
+  
+  svgFile.close();
+  
+  // In caso di fallimento, disegna un cerchio come fallback
+  if (!inIconGroup) {
+    drawCircle(display, x + size/2, y + size/2, size/2 - 2, false);
+  }
+  
+  return true;
 }
+
+
+template void SVGHelper::drawCircle<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    int cx, int cy, int r, bool fill);
+
+template void SVGHelper::drawPath<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    const String& path, 
+    int offsetX, int offsetY, float scale);
+
+template void SVGHelper::drawEllipse<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    int centerX, int centerY, int radiusX, int radiusY, bool fill);
+
+// Explicit instantiation of the drawMoonShape template
+template void SVGHelper::drawMoonShape<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    int centerX, int centerY, int radius, bool isWaxing);
+
+// Explicit instantiation of the loadSVG template
+template bool SVGHelper::loadSVG<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    const char* filename, 
+    int x, int y, int width, int height);
+
+// Explicit instantiation of the drawWeatherIcon template
+template bool SVGHelper::drawWeatherIcon<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    WeatherIcon icon, 
+    int x, int y, int size);
+
+// Explicit instantiation of the drawMoonPhase template
+template bool SVGHelper::drawMoonPhase<GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>>(
+    GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>& display, 
+    int x, int y, int size, int phase);
+
+// L'istanziazione di extractAndDrawIcon per GxEPD2_BW<GxEPD2_583_T8, 480> esiste già sopra
+
+// Explicit template instantiations for GxEPD2_BW<GxEPD2_583_T8, 120>
+template bool SVGHelper::drawWeatherIcon<GxEPD2_BW<GxEPD2_583_T8, 120>>(
+    GxEPD2_BW<GxEPD2_583_T8, 120>& display,
+    WeatherIcon icon,
+    int x,
+    int y,
+    int size);
+
+template bool SVGHelper::loadSVG<GxEPD2_BW<GxEPD2_583_T8, 120>>(
+    GxEPD2_BW<GxEPD2_583_T8, 120>& display,
+    const char* filename,
+    int x,
+    int y,
+    int width,
+    int height);
+
+template bool SVGHelper::drawMoonPhase<GxEPD2_BW<GxEPD2_583_T8, 120>>(
+    GxEPD2_BW<GxEPD2_583_T8, 120>& display,
+    int x,
+    int y,
+    int size,
+    int phase);

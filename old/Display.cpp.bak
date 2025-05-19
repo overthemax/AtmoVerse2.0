@@ -16,7 +16,7 @@
 #include "WeatherIcons.h"  // Per le icone OpenWeatherMap
 
 // Reference to the display defined in Hardware.cpp
-extern GxEPD2_BW<GxEPD2_583_T8, 120> display; // Using 120px page height for paged drawing
+extern GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT> display;
 
 /**
  * @brief Returns the current time
@@ -289,11 +289,9 @@ static bool isFirstBoot = true;
 
 // Variabile esterna per lo stato dell'ultimo aggiornamento
 extern bool lastWeatherUpdateSuccess;
-bool lastWeatherUpdateSuccess = false;
 
 // Funzione esterna per verificare se siamo in modalit├á risparmio energetico
 extern bool isPowerSavingMode();
-bool isPowerSavingMode() { return false; }
 
 // Implementazione completa della funzione di aggiornamento display
 void updateDisplay() {
@@ -347,15 +345,12 @@ void drawDisplayContent() {
   DEBUG_TRACE("drawDisplayContent"); // added
   // Se non siamo connessi, mostra le informazioni in modalit├á AP
   if (WiFi.status() != WL_CONNECTED) {
-    showAPModeInfo(); // This function handles its own paged drawing
+    showAPModeInfo();
     return;
   }
-
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    // Disegna il calendario ancora pi├╣ grande in alto a destra
-    drawCalendar(display.width() - 170, 5, 165, 170);
+  
+  // Disegna il calendario ancora pi├╣ grande in alto a destra
+  drawCalendar(display.width() - 170, 5, 165, 170);
   
   // Disegna il nome della citt├á a sinistra
   display.setFont(&FreeSerif12pt7b);
@@ -424,7 +419,6 @@ void drawDisplayContent() {
   
   // Disegna lo stato della batteria (se disponibile) - mantenuto a destra
   drawBattery(display.width() - 40, display.height() - 20, 80);
-  } while (display.nextPage());
 }
 
 // Funzione per disegnare le diverse fasi lunari usando i file SVG
@@ -482,7 +476,7 @@ void drawCloud(int centerX, int centerY) {
   // Utilizziamo l'helper SVG per caricare e disegnare l'icona dalla SD
   if (SVGHelper::begin()) {
     // Carichiamo il file SVG della nuvola
-    if (SVGHelper::loadSVG(display, "/icons/cloud.svg", centerX - size/2, centerY - size/2, size, size)) {
+    if (SVGHelper::drawSVG(display, "/icons/cloud.svg", centerX - size/2, centerY - size/2, size, size)) {
       return;
     }
   }
@@ -754,17 +748,20 @@ String getOpenWeatherIconCode(int weatherId, bool isNight) {
 
 // Funzione per visualizzare messaggi di errore
 void displayError(const char* message) {
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setCursor(10, 30);
-    display.print("ERRORE:");
-    display.setCursor(10, 60);
-    display.print(message);
-  } while (display.nextPage());
+  display.fillScreen(GxEPD_WHITE);
+  display.setTextColor(GxEPD_BLACK);
+  display.setFont(&FreeMonoBold9pt7b);
+  display.setCursor(10, 30);
+  display.print("ERRORE:");
+  display.setCursor(10, 60);
+  display.print(message);
+  display.update();
+}
+// Funzione per disegnare le informazioni della citt├á
+void drawCityInfo(int x, int y, const char* cityName) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print(cityName);
 }
 
 // Funzione per disegnare la temperatura
@@ -782,13 +779,30 @@ void drawTemperature(int x, int y, float temp, float feelsLike) {
   display.print("\xB0");
   display.print("C");
 }
-
 // Funzione per disegnare l'umidit├á
-
+void drawHumidity(int x, int y, float humidity) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Umidit├á: ");
+  display.print(String(humidity, 0));
+  display.print("%");
+}
 // Funzione per disegnare la pressione
-
+void drawPressure(int x, int y, float pressure) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Pressione: ");
+  display.print(String(pressure, 0));
+  display.print(" hPa");
+}
 // Funzione per disegnare il vento
-
+void drawWind(int x, int y, float windSpeed) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Vento: ");
+  display.print(String(windSpeed, 1));
+  display.print(" m/s");
+}
 // Funzione per disegnare data e ora
 void drawDateTime(int x, int y) {
   time_t now = getNow();
@@ -812,6 +826,13 @@ void drawDateTime(int x, int y) {
   display.print(dateStr);
 }
 
+// Funzione per disegnare le informazioni della citt├á
+void drawCityInfo(int x, int y, const char* cityName) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print(cityName);
+}
+
 // Funzione per disegnare l'ultimo aggiornamento
 void drawLastUpdate(int x, int y, time_t lastUpdate) {
   display.setFont(&FreeSerif9pt7b);
@@ -826,10 +847,31 @@ void drawLastUpdate(int x, int y, time_t lastUpdate) {
 }
 
 // Funzione per disegnare l'umidit├á
+void drawHumidity(int x, int y, float humidity) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Umidit├á: ");
+  display.print(String(humidity, 0));
+  display.print("%");
+}
 
 // Funzione per disegnare la pressione
+void drawPressure(int x, int y, float pressure) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Pressione: ");
+  display.print(String(pressure, 0));
+  display.print(" hPa");
+}
 
 // Funzione per disegnare il vento
+void drawWind(int x, int y, float windSpeed) {
+  display.setFont(&FreeSerif9pt7b);
+  display.setCursor(x, y);
+  display.print("Vento: ");
+  display.print(String(windSpeed, 1));
+  display.print(" m/s");
+}
 
 // Funzione per disegnare una citazione nella parte inferiore del display
 void drawQuote(int x, int y, int maxWidth) {
@@ -912,10 +954,18 @@ void drawBattery(int x, int y, int percentage) {
   display.setCursor(x + width + 5, y + height - 3);
   display.print(String(percentage) + "%");
 }
-// Seconda definizione di drawProgress rimossa per evitare errori di ridefinizione
+// Funzione per disegnare una barra di progresso
+void drawProgress(int x, int y, int width, int progress) {
+  display.drawRect(x, y, width, 10, GxEPD_BLACK);
+  display.fillRect(x + 1, y + 1, map(progress, 0, 100, 0, width - 2), 8, GxEPD_BLACK);
+}
 
 
 
 // Second implementation of drawBattery removed to avoid redefinition error
 
-// Seconda definizione di drawProgress rimossa per evitare errori di ridefinizione
+// Funzione per disegnare una barra di progresso
+void drawProgress(int x, int y, int width, int progress) {
+  display.drawRect(x, y, width, 10, GxEPD_BLACK);
+  display.fillRect(x + 1, y + 1, map(progress, 0, 100, 0, width - 2), 8, GxEPD_BLACK);
+}

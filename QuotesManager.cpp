@@ -4,6 +4,26 @@
 // Percorso del file JSON contenente le citazioni sulla SD
 const char* QUOTES_FILE = "/quotes.json";
 
+// Inizializzazione dei membri statici
+bool QuotesManager::initialized = false;
+
+// Inizializza il gestore citazioni
+bool QuotesManager::begin() {
+  if (initialized) {
+    return true;
+  }
+  
+  // Verifica che il file delle citazioni esista sulla SD
+  if (!SD.exists(QUOTES_FILE)) {
+    Serial.print(F("[ERROR] File delle citazioni non trovato: "));
+    Serial.println(QUOTES_FILE);
+    return false;
+  }
+  
+  initialized = true;
+  return true;
+}
+
 // Ottiene la categoria temporale corrente
 TimeCategory getCurrentTimeCategory() {
   struct tm timeinfo;
@@ -132,7 +152,7 @@ bool loadRandomQuote(const String& category, Quote& quote) {
 }
 
 // Funzione principale per ottenere una citazione da visualizzare
-Quote getQuoteForDisplay() {
+Quote QuotesManager::getQuoteForDisplay() {
   Quote quote;
   
   // Determina la categoria appropriata in base al tempo e alle condizioni meteo

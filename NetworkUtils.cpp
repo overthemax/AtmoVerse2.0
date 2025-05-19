@@ -33,22 +33,22 @@ void startAccessPoint(bool forceStart) {
     // Rimozione stampe debug
     return;
   }
-  
+
   // Rimozione stampe debug
-  
+
   // Tenta di caricare la configurazione
   if (!loadConfig()) {
     // Rimozione stampe debug
   }
-  
+
   // Genera SSID con ultimi 4 caratteri del MAC
   String macAddress = WiFi.macAddress();
   String lastFourMac = macAddress.substring(macAddress.length() - 5);
   lastFourMac.replace(":", "");
-  
+
   String apSSID = String(ATMOVERSE_AP_SSID) + "_" + lastFourMac;
   // Rimozione stampe debug
-  
+
   // Configura la rete dell'AP (IP 192.168.4.1)
   IPAddress localIP(192, 168, 4, 1);
   IPAddress gateway(192, 168, 4, 1);
@@ -58,25 +58,25 @@ void startAccessPoint(bool forceStart) {
   WiFi.mode(WIFI_AP);
   delay(100);
   WiFi.softAPConfig(localIP, gateway, subnet);
-  
+
   // Avvia l'AP
   bool success = WiFi.softAP(apSSID.c_str(), ATMOVERSE_AP_PASSWORD);
   delay(500);  // Attesa per la stabilizzazione
-  
+
   if (!success) {
     // Rimozione stampe debug
     return;
   }
-  
+
   // Rimozione stampe debug
-  
+
   // Avvia il server DNS captive portal
   IPAddress apIP = WiFi.softAPIP();
   dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
   dnsServer.start(DNS_PORT, "*", apIP);
-  
+
   apMode = true;
-  
+
   // Mostra informazioni AP sul display
   displayAPInfo(apSSID.c_str(), ATMOVERSE_AP_PASSWORD);
 
@@ -107,32 +107,32 @@ bool reconnectToWiFi() {
     // Rimozione stampe debug
     return false;
   }
-  
+
   // Utilizzo della variabile globale config definita in Config.cpp
   return connectToWiFi(config.ssid, config.password);
 }
 
 // Connessione a una rete WiFi specifica - versione robusta con protezione anti-crash
-bool connectToWiFi(const char* ssid, const char* password) {
+bool connectToWiFi(const char* ssid, const char* password, uint32_t timeoutMs) {
   DEBUG_TRACE();
   if (strlen(ssid) == 0) {
     // Rimozione stampe debug
     return false;
   }
-  
+
   // Rimozione logging e debug seriale per risparmiare memoria
   // Rimozione riferimenti al watchdog
-  
+
   // Se siamo in modalità AP, cambia modalità con protezioni
   if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
     // Rimozione stampe debug
-    
+
     // Chiudi il server DNS se attivo
     if (apMode) {
       dnsServer.stop();
       apMode = false;
     }
-    
+
     // Passa da AP a STA con maggiori delay per evitare conflitti
     WiFi.softAPdisconnect(true);
     delay(200);
@@ -141,31 +141,31 @@ bool connectToWiFi(const char* ssid, const char* password) {
     WiFi.mode(WIFI_STA);
     delay(1000);  // Attesa più lunga per stabilizzare
   }
-  
+
   // Assicura di essere in modalità STA
   if (WiFi.getMode() != WIFI_STA) {
     // Rimozione stampe debug
     WiFi.mode(WIFI_STA);
     delay(1000);  // Attesa più lunga per stabilizzare
   }
-  
+
   // Configura il WiFi per connessione ottimizzata
   WiFi.setAutoReconnect(true);
   WiFi.setSleep(false);      // Disabilita power saving per connessione più stabile
   WiFi.persistent(false);   // Evita scritture flash che possono causare problemi
-  
+
   // Versione robusta senza messaggi di debug
   WiFi.begin(ssid, password);
-  
-  // Attendi fino a 30 secondi per la connessione
+
+  // Calcola il numero di tentativi in base al timeout specificato
   int attemptCount = 0;
-  const int maxAttempts = 60;  // 30 secondi (60 * 500ms)
-  
+  const int maxAttempts = timeoutMs / 500;  // Ogni ciclo dura 500ms
+
   while (WiFi.status() != WL_CONNECTED && attemptCount < maxAttempts) {
     delay(500);
     attemptCount++;
   }
-  
+
   if (WiFi.status() == WL_CONNECTED) {
     // Imposta il server NTP per ottenere l'ora
     setupTimeServer();
@@ -179,14 +179,14 @@ bool connectToWiFi(const char* ssid, const char* password) {
 bool setupWiFi() {
   DEBUG_TRACE();
   bool configLoaded = loadConfig();
-  
+
   // Se la configurazione non è valida, avvia l'Access Point
   if (!configLoaded || strlen(config.ssid) == 0) {
     Serial.println("[WIFI] Configurazione non valida o assente");
     startAccessPoint();
     return false;
   }
-  
+
   // Tenta di connettersi alla rete configurata
   return connectToWiFi(config.ssid, config.password);
 }
@@ -206,20 +206,20 @@ void checkWiFiConnection() {
   DEBUG_TRACE();
   static unsigned long lastCheck = 0;
   unsigned long currentMillis = millis();
-  
+
   // Controlla ogni WIFI_CHECK_INTERVAL millisecondi
   if (currentMillis - lastCheck >= WIFI_CHECK_INTERVAL) {
     lastCheck = currentMillis;
-    
+
     // Non controlliamo in modalità AP
     if (apMode) {
       return;
     }
-    
+
     // Se non connesso, tenta la riconnessione
     if (WiFi.status() != WL_CONNECTED) {
       // Rimozione stampe debug
-      
+
       // Tenta di riconnettersi utilizzando le credenziali salvate
       reconnectToWiFi();
     }

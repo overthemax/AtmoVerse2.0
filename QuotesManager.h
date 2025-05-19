@@ -20,8 +20,27 @@ enum TimeCategory {
   EVENING,   // 18:00 - 4:59
 };
 
-// Recupera una citazione basata sul momento del giorno e sulle condizioni meteo
-Quote getQuoteForDisplay();
+/**
+ * @brief Classe per la gestione delle citazioni
+ */
+class QuotesManager {
+public:
+  /**
+   * @brief Inizializza il gestore delle citazioni
+   * @return true se l'inizializzazione è riuscita, false altrimenti
+   */
+  static bool begin();
+  
+  /**
+   * @brief Recupera una citazione basata sul momento del giorno e sulle condizioni meteo
+   * @return Una citazione adatta
+   */
+  static Quote getQuoteForDisplay();
+  
+private:
+  // Indica se il gestore delle citazioni è stato inizializzato
+  static bool initialized;
+};
 
 // Ottiene la categoria temporale corrente
 TimeCategory getCurrentTimeCategory();

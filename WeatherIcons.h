@@ -14,7 +14,9 @@
 #include <SPIFFS.h>
 #include <PNGdec.h>
 #include <SD.h>
-#include "GxEPD.h"
+#include <GxEPD2_BW.h>
+
+// Forward declarations not needed as we've already included GxEPD2_BW.h
 
 /**
  * @brief Classe per la gestione delle icone meteo
@@ -44,14 +46,16 @@ class WeatherIcons {
     
     /**
      * @brief Disegna un'icona meteo sul display
+     * @tparam DisplayType Tipo del display (GxEPD2_BW o GxEPD2_3C)
      * @param display Riferimento all'oggetto display
      * @param iconCode Codice dell'icona da disegnare
-     * @param x Coordinata X di partenza
-     * @param y Coordinata Y di partenza
-     * @param size Dimensione dell'icona
+     * @param x Coordinata X di destinazione
+     * @param y Coordinata Y di destinazione
+     * @param size Dimensione dell'icona (larghezza e altezza)
      * @return true se il disegno è riuscito, false altrimenti
      */
-    static bool drawWeatherIcon(GxEPD_Class& display, const String& iconCode, int x, int y, int size);
+    template<typename DisplayType>
+    static bool drawWeatherIcon(DisplayType& display, const String& iconCode, int x, int y, int size);
     
     /**
      * @brief Ottiene il percorso completo del file dell'icona

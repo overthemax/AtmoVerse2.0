@@ -1,3 +1,4 @@
+#include "WebMinimal.h"
 #include "Config.h"
 
 // NOTA: Funzioni minimali per risparmiare spazio nel firmware.
