@@ -27,7 +27,29 @@ Sistema meteo avanzato basato su ESP32 con display e-ink, design minimalista e i
 
 ## Architettura del Software
 
-- **AtmoVerse_2.0.ino**: Loop principale e setup
+### Sistema Dual-Core
+
+AtmoVerse 2.0 sfrutta l'architettura dual-core dell'ESP32 per separare le operazioni critiche e migliorare le prestazioni complessive del sistema:
+
+- **Core 0**: Dedicato alle operazioni di rete e dati
+  - Gestione connessione WiFi e server web
+  - Aggiornamento dati meteo da OpenWeatherMap
+  - Sincronizzazione orario da server NTP
+  - Gestione richieste client
+
+- **Core 1**: Dedicato al display e debugging
+  - Gestione del display e-ink con controllo refresh
+  - Sistema di debug asincrono con code di messaggi
+  - Protezione del display con limitazione degli aggiornamenti
+  - Watchdog software per monitorare la salute del sistema
+
+Questa separazione garantisce che operazioni lente come l'aggiornamento del display e-ink non blocchino le comunicazioni di rete, e viceversa.
+
+### Componenti Software
+
+- **AtmoVerse_2.0.ino**: Loop principale, task manager e setup del sistema
+- **Debug.h/cpp**: Sistema di debug asincrono multi-core con supporto per categorie di messaggi
+- **Display.cpp**: Gestione del display e-ink con controllo degli aggiornamenti
 - **WeatherIcons.h/cpp**: Gestione e disegno icone meteo
 - **SVGHelper.h/cpp**: Parsing e rendering SVG
 - **Config.h/cpp**: Gestione configurazione utente
