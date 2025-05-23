@@ -1,4 +1,12 @@
 #include "Display.h"
+#include "Weather.h"
+#include "Config.h"
+#include "Debug.h"
+#include "WeatherUtils.h"
+#include "Calendar.h"
+#include "Debug.h" 
+#include "AtmoVerseConstants.h"  // Per utilizzare ATMOVERSE_AP_PASSWORD
+#include "QuotesManager.h"  // Per la gestione delle citazioni
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include <Fonts/FreeSerif9pt7b.h>
 #include <Fonts/FreeSerif12pt7b.h>
@@ -6,12 +14,6 @@
 #include <Fonts/FreeMonoBoldOblique9pt7b.h> // Font corsivo per l'autore
 #include <WiFi.h>
 #include <math.h>
-#include "Config.h"
-#include "WeatherUtils.h"
-#include "Calendar.h"
-#include "Debug.h" // added
-#include "AtmoVerseConstants.h"  // Per utilizzare ATMOVERSE_AP_PASSWORD
-#include "QuotesManager.h"  // Per la gestione delle citazioni
 #include "SVGHelper.h"  // Per il supporto ai file SVG
 #include "WeatherIcons.h"  // Per le icone OpenWeatherMap
 
@@ -29,21 +31,37 @@ time_t getNow() {
 // Visualizza un semplice box di testo centrale con il messaggio passato
 void showStatusOnDisplay(const char* msg) {
   DEBUG_TRACE("showStatusOnDisplay"); // added
-    display.setFullWindow();
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        // bordo
-        display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
-        // testo centrato
-        display.setTextColor(GxEPD_BLACK);
-        display.setFont(&FreeSerif12pt7b);
-        int16_t tbx, tby; uint16_t tbw, tbh;
-        display.getTextBounds(msg, 0, 0, &tbx, &tby, &tbw, &tbh);
-        display.setCursor((display.width() - tbw) / 2, (display.height() + tbh) / 2);
-        display.print(msg);
-    } while (display.nextPage());
-    Serial.println(msg);
+  
+  // Esecuzione immediata per i messaggi di stato importanti
+  // Aggiorna immediatamente il display senza passare per il sistema asincrono
+  Serial.println("[DISPLAY] Mostra messaggio di stato: " + String(msg));
+  
+  // Forziamo l'aggiornamento per i messaggi di stato importanti
+  lastDisplayPhysicalUpdate = 0; // Reset del timer per forzare l'aggiornamento
+  displayUpdateRequested = true;
+  displayRefreshInProgress = true;
+  
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    // bordo
+    display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
+    // testo centrato
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&FreeSerif12pt7b);
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds(msg, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display.setCursor((display.width() - tbw) / 2, (display.height() + tbh) / 2);
+    display.print(msg);
+  } while (display.nextPage());
+  
+  // Aggiorna i flag di stato
+  displayUpdateRequested = false;
+  displayRefreshInProgress = false;
+  lastDisplayPhysicalUpdate = millis();
+  
+  Serial.println("[DISPLAY] Messaggio di stato visualizzato: " + String(msg));
 }
 
 // Definizione pin per display e-ink gi├á dichiarati nel file principale
@@ -102,7 +120,18 @@ void displayStartupScreen() {
 // Funzione per visualizzare la schermata di configurazione
 void displaySetupScreen(String apName, String ipAddress) {
   DEBUG_TRACE("displaySetupScreen"); // added
-  Serial.println("Visualizzazione schermata di configurazione...");
+  
+  // La schermata di configurazione è importante e viene visualizzata immediatamente
+  // bypassando il sistema asincrono
+  Serial.println("[DISPLAY] Visualizzazione schermata di configurazione...");
+  
+  // Forziamo l'aggiornamento per la schermata di configurazione
+  lastDisplayPhysicalUpdate = 0; // Reset del timer per forzare l'aggiornamento
+  displayUpdateRequested = true;
+  displayRefreshInProgress = true;
+  
+  // Genera QR code con URL del portale captive
+  String url = String("http://") + ipAddress;
   
   display.setFullWindow();
   display.firstPage();
@@ -204,7 +233,7 @@ void displaySetupScreen(String apName, String ipAddress) {
     // Indirizzo IP con font ancora pi├╣ grande
     display.setFont(&FreeSerif12pt7b);
     display.setCursor(50, textY+35);
-    display.print("http://192.168.4.1");
+    display.print(url);
     
     // Spiegazione pi├╣ concisa del passo 3
     display.setFont(&FreeSerif9pt7b);
@@ -218,7 +247,12 @@ void displaySetupScreen(String apName, String ipAddress) {
     
   } while (display.nextPage());
   
-  Serial.println("Schermata di configurazione visualizzata");
+  // Aggiorna i flag di stato
+  displayUpdateRequested = false;
+  displayRefreshInProgress = false;
+  lastDisplayPhysicalUpdate = millis();
+  
+  Serial.println("[DISPLAY] Schermata di configurazione visualizzata");
 }
 
 // Versione aggiornata della funzione showAPModeInfo che utilizza displaySetupScreen
@@ -236,28 +270,13 @@ void showAPModeInfo() {
 
 // Funzione che aggiorna solo l'ora (minimale)
 void updateTimeOnly() {
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)) return;
+  DEBUG_TRACE("updateTimeOnly"); // added
   
-  char timeBuffer[10];
-  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
+  // Registra solo la richiesta di aggiornamento dell'orario
+  requestDisplayUpdate(false); // false = non è un aggiornamento completo
+  timeUpdatePending = true; // Segnala specificamente che è l'orario che deve essere aggiornato
   
-  int16_t tbx, tby; uint16_t tbw, tbh;
-  display.setFont(&FreeSerif12pt7b);
-  display.getTextBounds(timeBuffer, 0, 0, &tbx, &tby, &tbw, &tbh);
-  
-  int x = 20 - 5;
-  int y = 70 - tbh - 5;
-  int w = tbw + 10;
-  int h = tbh + 10;
-  
-  display.setPartialWindow(x, y, w, h);
-  display.firstPage();
-  do {
-    display.fillRect(x, y, w, h, GxEPD_WHITE);
-    display.setCursor(20, 70);
-    display.print(timeBuffer);
-  } while (display.nextPage());
+  Serial.println("[DISPLAY] Richiesto aggiornamento orario (in attesa intervallo minimo)");
 }
 
 // Funzione che aggiorna orario e citazioni
@@ -288,20 +307,229 @@ void updateTimeAndQuotes() {
 static bool isFirstBoot = true;
 
 // Variabile esterna per lo stato dell'ultimo aggiornamento
-extern bool lastWeatherUpdateSuccess;
-bool lastWeatherUpdateSuccess = false;
+extern bool lastWeatherUpdateSuccess; // Definita in AtmoVerse_2.0.ino
 
-// Funzione esterna per verificare se siamo in modalit├á risparmio energetico
-extern bool isPowerSavingMode();
+// Sistema globale di controllo della frequenza di aggiornamento
+unsigned long lastDisplayRefreshTime = 0;
+const unsigned long DISPLAY_MIN_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minuti
+bool displayRefreshInProgress = false;
+
+// Sistema di aggiornamento asincrono per display e-ink
+// Questo permette di desincronizzare gli aggiornamenti del display dal ciclo principale
+
+// Flag che indica se è stata richiesta una modifica dei contenuti
+bool displayUpdateRequested = false;
+
+// Timestamp dell'ultimo aggiornamento reale del display
+unsigned long lastDisplayPhysicalUpdate = 0;
+
+// Intervallo minimo tra aggiornamenti fisici del display (5 minuti)
+const unsigned long DISPLAY_MIN_PHYSICAL_INTERVAL = 300000; // 5 minuti
+
+// Buffer di stato per informazioni sul meteo e altri dati
+bool weatherUpdatePending = false;
+bool timeUpdatePending = false;
+bool fullUpdatePending = false;
+bool forceDisplayUpdate = false;
+
+// Accesso alla variabile mutex esterna
+extern SemaphoreHandle_t displayMutex;
+
+// Richiede un aggiornamento del display con controllo antirimbalzo
+void requestDisplayUpdate(bool isFullUpdate) {
+  displayUpdateRequested = true;
+  if (isFullUpdate) {
+    fullUpdatePending = true;
+  }
+  
+  // Debug logging della richiesta
+  DEBUG_DISP_F("Richiesto aggiornamento display (Full: %s)", isFullUpdate ? "Si" : "No");
+}
+
+// Funzione che esegue l'aggiornamento effettivo del display (chiamata solo dal task display)
+void execDisplayUpdate() {
+  if (displayRefreshInProgress) {
+    DEBUG_DISP("Già in corso un aggiornamento display, ignoro la richiesta");
+    return;
+  }
+  
+  DEBUG_DISP("Inizio aggiornamento fisico del display");
+  displayRefreshInProgress = true;
+  
+  // Prendi il mutex per l'accesso esclusivo al display
+  if (xSemaphoreTake(displayMutex, portMAX_DELAY) == pdTRUE) {
+    // Aggiornamento completo del display
+    display.setFullWindow();
+    display.firstPage();
+    do {
+      display.fillScreen(GxEPD_WHITE);
+      drawDisplayContent();
+    } while (display.nextPage());
+    
+    // Rilascia il mutex
+    xSemaphoreGive(displayMutex);
+    
+    // Aggiorna timestamp ultimo aggiornamento
+    lastDisplayRefreshTime = millis();
+    lastDisplayPhysicalUpdate = millis();
+    
+    // Resetta tutti i flag
+    displayUpdateRequested = false;
+    forceDisplayUpdate = false;
+    weatherUpdatePending = false;
+    timeUpdatePending = false;
+    fullUpdatePending = false;
+    
+    DEBUG_DISP("Aggiornamento display completato con successo");
+  } else {
+    DEBUG_DISP("ERRORE: Impossibile acquisire il mutex del display!");
+  }
+  
+  displayRefreshInProgress = false;
+}
+
+// Funzione per controllare se è necessario aggiornare il display
+// Questa viene chiamata periodicamente dal task display
+void checkAndUpdateDisplay() {
+  unsigned long currentMillis = millis();
+  
+  // Se non c'è una richiesta di aggiornamento e non è forzato, non fare nulla
+  if (!displayUpdateRequested && !forceDisplayUpdate) {
+    return;
+  }
+  
+  // Verifica se è trascorso l'intervallo minimo dall'ultimo aggiornamento fisico
+  if ((currentMillis - lastDisplayPhysicalUpdate >= DISPLAY_MIN_PHYSICAL_INTERVAL) || forceDisplayUpdate) {
+    // È possibile aggiornare il display
+    execDisplayUpdate();
+  } else {
+    // Non è ancora trascorso l'intervallo minimo
+    static unsigned long lastWarningTime = 0;
+    // Log ogni 30 secondi al massimo per evitare spam
+    if (currentMillis - lastWarningTime >= 30000) {
+      lastWarningTime = currentMillis;
+      DEBUG_DISP_F("Aggiornamento posticipato: intervallo minimo non trascorso (%d sec rimanenti)", 
+                 (DISPLAY_MIN_PHYSICAL_INTERVAL - (currentMillis - lastDisplayPhysicalUpdate)) / 1000);
+    }
+    
+    // Se il display non viene aggiornato per troppo tempo, forziamo l'aggiornamento
+    if (currentMillis - lastDisplayPhysicalUpdate >= 15 * 60 * 1000) { // 15 minuti
+      DEBUG_DISP("Forzo aggiornamento display dopo 15 minuti di inattività");
+      forceDisplayUpdate = true;
+    }
+  }
+}
+
+// Verifica se è possibile eseguire un aggiornamento fisico del display
+bool canUpdateDisplayPhysically() {
+  unsigned long currentMillis = millis();
+  
+  // Se non è stata richiesta nessuna modifica, non aggiornare
+  if (!displayUpdateRequested) {
+    return false;
+  }
+  
+  // Se è passato troppo poco tempo dall'ultimo aggiornamento fisico
+  if (currentMillis - lastDisplayPhysicalUpdate < DISPLAY_MIN_PHYSICAL_INTERVAL) {
+    static unsigned long lastLogTime = 0;
+    if (currentMillis - lastLogTime > 30000) { // Log ogni 30 secondi max
+      lastLogTime = currentMillis;
+      Serial.println("[DISPLAY] Aggiornamento fisico rinviato: intervallo minimo non rispettato");
+      Serial.print("[DISPLAY] Prossimo aggiornamento possibile tra: ");
+      Serial.print((DISPLAY_MIN_PHYSICAL_INTERVAL - (currentMillis - lastDisplayPhysicalUpdate)) / 1000);
+      Serial.println(" secondi");
+    }
+    return false;
+  }
+  
+  // Se è passato abbastanza tempo, consenti l'aggiornamento fisico
+  Serial.println("\n[DISPLAY] =================================================================");
+  Serial.println("[DISPLAY] AGGIORNAMENTO FISICO AUTORIZZATO - INTERVALLO MINIMO RISPETTATO");
+  Serial.print("[DISPLAY] Intervallo trascorso: "); 
+  Serial.print((currentMillis - lastDisplayPhysicalUpdate) / 1000);
+  Serial.println(" secondi");
+  Serial.println("[DISPLAY] =================================================================\n");
+  return true;
+}
+
+// Funzione per registrare l'avvenuto aggiornamento del display
+void markDisplayRefreshed() {
+  lastDisplayRefreshTime = millis();
+  displayRefreshInProgress = false;
+  Serial.println("[DISPLAY] Aggiornamento completato e registrato");
+}
+
+// Funzione per verificare se siamo in modalità risparmio energetico
 bool isPowerSavingMode() { return false; }
 
-// Implementazione completa della funzione di aggiornamento display
+// Implementazione del sistema di aggiornamento asincrono del display
+// Questa funzione ora registra solo la richiesta di aggiornamento invece di eseguirlo immediatamente
 void updateDisplay() {
+  // Registra solo la richiesta senza aggiornare immediatamente il display
+  requestDisplayUpdate(true);
+}
+
+// Funzione che verifica periodicamente se è necessario aggiornare il display
+// Questa funzione va chiamata nel loop principale
+void checkAndUpdateDisplay() {
+  static unsigned long lastDebugTime = 0;
+  unsigned long currentMillis = millis();
+  
+  // Debug avanzato - ogni 10 secondi mostra lo stato del sistema di aggiornamento
+  if (currentMillis - lastDebugTime > 10000) {
+    lastDebugTime = currentMillis;
+    Serial.println("\n[DISPLAY DEBUG] ----- STATO SISTEMA AGGIORNAMENTO -----");
+    Serial.print("[DISPLAY DEBUG] Richiesto aggiornamento: "); 
+    Serial.println(displayUpdateRequested ? "SI" : "NO");
+    Serial.print("[DISPLAY DEBUG] Tempo dall'ultimo aggiornamento fisico: "); 
+    Serial.print((currentMillis - lastDisplayPhysicalUpdate) / 1000); 
+    Serial.println(" secondi");
+    Serial.print("[DISPLAY DEBUG] Intervallo minimo (5 min): "); 
+    Serial.print(DISPLAY_MIN_PHYSICAL_INTERVAL / 1000);
+    Serial.println(" secondi");
+    Serial.print("[DISPLAY DEBUG] Aggiornamento orario pendente: ");
+    Serial.println(timeUpdatePending ? "SI" : "NO");
+    Serial.print("[DISPLAY DEBUG] Aggiornamento meteo pendente: ");
+    Serial.println(weatherUpdatePending ? "SI" : "NO");
+    Serial.print("[DISPLAY DEBUG] Aggiornamento completo pendente: ");
+    Serial.println(fullUpdatePending ? "SI" : "NO");
+    Serial.println("[DISPLAY DEBUG] --------------------------------\n");
+  }
+  
+  // Correzione per il problema del display bloccato sulla schermata di caricamento
+  // Se è passato un certo tempo e il display potrebbe essere bloccato, forziamo un aggiornamento
+  static unsigned long lastForcedUpdate = 0;
+  if (currentMillis - lastForcedUpdate > 5 * 60 * 1000) { // 5 minuti
+    if (!displayUpdateRequested) {
+      Serial.println("[DISPLAY] **** FORZO AGGIORNAMENTO DISPLAY - POTREBBE ESSERE BLOCCATO ****");
+      displayUpdateRequested = true;
+      fullUpdatePending = true;
+      lastForcedUpdate = currentMillis;
+      // Forziamo reset del timer per consentire l'aggiornamento
+      lastDisplayPhysicalUpdate = 0;
+    }
+  }
+  
+  // Se non è richiesto alcun aggiornamento o non è ancora possibile aggiornare fisicamente, esci
+  if (!displayUpdateRequested) {
+    return;
+  }
+  
+  if (!canUpdateDisplayPhysically()) {
+    return;
+  }
+  
+  Serial.println("\n[DISPLAY] *** ESECUZIONE AGGIORNAMENTO FISICO DEL DISPLAY ***");
+  Serial.print("[DISPLAY] Timestamp corrente: "); Serial.println(currentMillis);
+  
+  // Imposta il flag di aggiornamento in corso
+  displayRefreshInProgress = true;
+  
   // Ottieni l'ora corrente
   struct tm timeinfo;
   getLocalTime(&timeinfo);
   
-  // Metodo semplificato per aggiornamento display
+  // Esegue l'aggiornamento fisico del display
   display.setFullWindow();
   display.firstPage();
   do {
@@ -327,7 +555,7 @@ void updateDisplay() {
       display.fillRect(iconX + 9, iconY + 16, 2, 2, GxEPD_WHITE);
     }
     
-    // Se siamo in modalit├á risparmio energetico, mostra un'icona luna
+    // Se siamo in modalità risparmio energetico, mostra un'icona luna
     if (isPowerSavingMode()) {
       int iconX = display.width() - 30;
       int iconY = 40;
@@ -339,14 +567,46 @@ void updateDisplay() {
   } while (display.nextPage());
   
   if (isFirstBoot) isFirstBoot = false;
+  
+  // Registra il timestamp dell'aggiornamento fisico
+  lastDisplayPhysicalUpdate = millis();
+  
+  // Resetta tutti i flag di richiesta
+  displayUpdateRequested = false;
+  weatherUpdatePending = false;
+  timeUpdatePending = false;
+  fullUpdatePending = false;
+  displayRefreshInProgress = false;
+  
+  Serial.println("[DISPLAY] Aggiornamento fisico del display completato");
 }
 
 // Funzione che contiene tutto il codice per disegnare i contenuti
 // Separata per evitare duplicazione di codice
 void drawDisplayContent() {
   DEBUG_TRACE("drawDisplayContent"); // added
-  // Se non siamo connessi, mostra le informazioni in modalit├á AP
-  if (WiFi.status() != WL_CONNECTED) {
+  
+  // Debug sullo stato di connessione e dati meteo
+  Serial.println("\n[DISPLAY] === DEBUG CONTENUTI DISPLAY ===");
+  Serial.print("[DISPLAY] Stato WiFi: ");
+  Serial.println(WiFi.status() == WL_CONNECTED ? "CONNESSO" : "NON CONNESSO");
+  Serial.print("[DISPLAY] SSID WiFi: ");
+  Serial.println(WiFi.SSID());
+  Serial.print("[DISPLAY] First Boot Flag: ");
+  Serial.println(isFirstBoot ? "TRUE" : "FALSE");
+  Serial.print("[DISPLAY] Dati meteo validi: ");
+  Serial.println(currentWeather.valid ? "SI" : "NO");
+  Serial.print("[DISPLAY] Temperatura: ");
+  Serial.println(currentWeather.temp);
+  Serial.println("[DISPLAY] ==========================\n");
+  
+  // Forziamo la visualizzazione dei dati meteo anche se non connessi
+  // per risolvere il problema del display bloccato sulla schermata di caricamento
+  bool showWeatherData = true;
+  
+  // Se siamo in modalità AP e non ci sono dati meteo, mostra la schermata AP
+  if (WiFi.status() != WL_CONNECTED && !currentWeather.valid) {
+    Serial.println("[DISPLAY] Visualizzazione schermata AP mode");
     showAPModeInfo(); // This function handles its own paged drawing
     return;
   }
@@ -376,31 +636,62 @@ void drawDisplayContent() {
   // Disegna temperatura, umidit├á e vento subito sotto l'ora
   display.setFont(&FreeSerif9pt7b);
   
-  // Temperatura (con un decimale)
-  String tempStr = String(currentWeather.temp, 1) + "┬░C";
-  display.setCursor(20, 100);
-  display.print(tempStr);
+  // Controlla che ci siano dati meteo validi prima di mostrarli
+  bool hasValidWeatherData = (currentWeather.temp > -100);
   
-  // Umidit├á
-  String humidityStr = String(int(currentWeather.humidity)) + "%";
-  display.setCursor(20, 125);
-  display.print(humidityStr);
+  // Temperatura (con un decimale) - mostra solo se i dati sono disponibili
+  if (hasValidWeatherData) {
+    String tempStr = String(currentWeather.temp, 1) + "°C";
+    display.setCursor(20, 100);
+    display.print(tempStr);
+    
+    // Umidità
+    String humidityStr = String(int(currentWeather.humidity)) + "%";
+    display.setCursor(20, 125);
+    display.print(humidityStr);
+    
+    // Vento
+    String windStr = "Vento: " + String(currentWeather.wind_speed, 1) + " km/h";
+    display.setCursor(20, 150);
+    display.print(windStr);
+  } else {
+    // Messaggio quando non ci sono dati meteo disponibili
+    display.setCursor(20, 100);
+    display.print("Attesa dati meteo...");
+  }
   
-  // Vento
-  String windStr = "Vento: " + String(currentWeather.wind_speed, 1) + " km/h";
-  display.setCursor(20, 150);
-  display.print(windStr);
-  
-  // Disegna l'icona meteo molto pi├╣ grande e centrata
-  int iconSize = 140; // Dimensione significativamente maggiore dell'icona (considerando un raggio di 70)
-  int iconX = (display.width() - iconSize) / 2 - 10; // Centrata e leggermente spostata a sinistra
-  int iconY = 40; // Spostata ancora pi├╣ in alto per dare spazio al box citazione ingrandito
-  drawWeatherIcon(iconX, iconY, currentWeather.weather_id, isNightTime());
+  // Disegna l'icona meteo molto più grande e centrata - solo se ci sono dati meteo validi
+  if (hasValidWeatherData) {
+    int iconSize = 140; // Dimensione significativamente maggiore dell'icona (considerando un raggio di 70)
+    int iconX = (display.width() - iconSize) / 2 - 10; // Centrata e leggermente spostata a sinistra
+    int iconY = 40; // Spostata ancora più in alto per dare spazio al box citazione ingrandito
+    
+    // Determina se è notte
+    bool isNight = isNightTime();
+    
+    // Disegna l'icona meteo nel nuovo formato
+    drawWeatherIcon(iconX, iconY, currentWeather.weather_id, isNight);
+  } else {
+    // Se non ci sono dati meteo, disegna un'icona di attesa o un messaggio
+    int centerX = (display.width() - 140) / 2 - 10;
+    int centerY = 40;
+    
+    // Disegna un cerchio con un punto interrogativo
+    display.fillCircle(centerX, centerY, 40, GxEPD_BLACK);
+    display.fillCircle(centerX, centerY, 37, GxEPD_WHITE);
+    
+    // Disegna un punto interrogativo
+    display.setFont(&FreeSansBold12pt7b); 
+    display.setTextColor(GxEPD_BLACK);
+    display.setCursor(centerX - 8, centerY + 8);
+    display.print("?");
+  }
   
   // Disegna una citazione vicino al fondo del display
   int quoteY = display.height() - 150; // Posizionato relativamente al fondo del display invece che dall'alto
   drawQuote(20, quoteY, display.width() - 40);
   
+  // Rimossa la riga orizzontale separatrice per un aspetto più pulito
   // Rimossa la riga orizzontale separatrice per un aspetto pi├╣ pulito
   
   // Disegna l'ultimo aggiornamento a sinistra, significativamente spostato pi├╣ in basso 
@@ -754,17 +1045,35 @@ String getOpenWeatherIconCode(int weatherId, bool isNight) {
 
 // Funzione per visualizzare messaggi di errore
 void displayError(const char* message) {
+  DEBUG_TRACE("displayError"); // added
+  
+  // I messaggi di errore sono critici e vengono visualizzati immediatamente
+  // bypassando il sistema asincrono
+  Serial.println("[DISPLAY] Visualizzazione errore: " + String(message));
+  
+  // Forziamo l'aggiornamento per i messaggi di errore
+  lastDisplayPhysicalUpdate = 0; // Reset del timer per forzare l'aggiornamento
+  displayUpdateRequested = true;
+  displayRefreshInProgress = true;
+  
   display.setFullWindow();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setCursor(10, 30);
-    display.print("ERRORE:");
-    display.setCursor(10, 60);
+    display.drawRect(10, 10, display.width()-20, display.height()-20, GxEPD_BLACK);
+    display.setFont(&FreeSerif12pt7b);
+    display.setCursor(30, 60);
+    display.print("Errore:");
+    display.setCursor(30, 100);
     display.print(message);
   } while (display.nextPage());
+  
+  // Aggiorna i flag di stato
+  displayUpdateRequested = false;
+  displayRefreshInProgress = false;
+  lastDisplayPhysicalUpdate = millis();
+  
+  Serial.println("[DISPLAY] Messaggio di errore visualizzato");
 }
 
 // Funzione per disegnare la temperatura
@@ -914,8 +1223,34 @@ void drawBattery(int x, int y, int percentage) {
 }
 // Seconda definizione di drawProgress rimossa per evitare errori di ridefinizione
 
+/**
+ * @brief Funzione modificata per non visualizzare più le informazioni di connessione sul display
+ * @param ipAddress Indirizzo IP assegnato al dispositivo
+ */
+void displayConnectionInfo(const char* ipAddress) {
+  DEBUG_TRACE("displayConnectionInfo");
+  
+  // Logga le informazioni ma non visualizzarle sul display
+  Serial.println("[INFO] Connesso alla rete WiFi: " + String(config.ssid));
+  Serial.println("[INFO] Indirizzo IP: " + String(ipAddress));
+  Serial.println("[INFO] Interfaccia web disponibile su: http://" + String(ipAddress));
+  
+  // Non aggiornare il display - questo rimuove la schermata di connessione
+  Serial.println("[DISPLAY] Schermata di connessione disabilitata su richiesta dell'utente");
+}
 
-
-// Second implementation of drawBattery removed to avoid redefinition error
+/**
+ * @brief Visualizza le informazioni della modalità Access Point sul display
+ */
+void displayAPModeInfo() {
+  DEBUG_TRACE("displayAPModeInfo");
+  String apName = "AtmoVerse-Setup";
+  String ipAddress = "192.168.4.1";
+  
+  // Utilizziamo la funzione esistente displaySetupScreen per mostare le info AP
+  displaySetupScreen(apName, ipAddress);
+  
+  Serial.println("Display aggiornato in modalita AP");
+}
 
 // Seconda definizione di drawProgress rimossa per evitare errori di ridefinizione
