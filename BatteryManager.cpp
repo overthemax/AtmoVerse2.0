@@ -116,35 +116,48 @@ void BatteryManager::setADCAvailable(bool available) {
 }
 
 bool BatteryManager::testADC() {
-    // Leggi ADC più volte e verifica se valori sensati
-    int readings[5];
-    for (int i = 0; i < 5; i++) {
+    // Leggi ADC più volte per verificare stabilità e consistenza
+    const int numReadings = 10;
+    int readings[numReadings];
+    
+    for (int i = 0; i < numReadings; i++) {
         readings[i] = analogRead(adcPin);
-        delay(10);
+        delay(5);  // Delay ridotto per test più veloce ma efficace
     }
     
-    // Controlla se letture sono consistenti (varianza bassa)
-    int sum = 0;
-    for (int i = 0; i < 5; i++) {
+    // Calcola media
+    long sum = 0;
+    int minVal = adcMax, maxVal = 0;
+    for (int i = 0; i < numReadings; i++) {
         sum += readings[i];
+        if (readings[i] < minVal) minVal = readings[i];
+        if (readings[i] > maxVal) maxVal = readings[i];
     }
-    int avg = sum / 5;
+    int avg = sum / numReadings;
     
-    // Se tutte letture sono 0 o 4095, probabilmente ADC non connesso
-    if (avg == 0 || avg == adcMax) {
+    // Se tutte le letture sono identiche a 0 o adcMax per molte volte, 
+    // potrebbe indicare pin non connesso o cortocircuito
+    int identicalCount = 0;
+    for (int i = 0; i < numReadings; i++) {
+        if (readings[i] == readings[0]) identicalCount++;
+    }
+    
+    // Se tutte le letture sono identiche E sono 0 o max, probabilmente non connesso
+    if (identicalCount == numReadings && (readings[0] == 0 || readings[0] == adcMax)) {
         return false;
     }
     
-    // Controlla varianza
-    int variance = 0;
-    for (int i = 0; i < 5; i++) {
-        variance += abs(readings[i] - avg);
-    }
+    // Controlla range di variazione (max - min)
+    // Se il pin è floating, varierà molto; se è stabile, varierà poco
+    int range = maxVal - minVal;
     
-    // Se varianza troppo alta, probabilmente pin floating
-    if (variance > 500) {
+    // Se variazione troppo alta (>10% del range ADC), probabilmente floating
+    if (range > (adcMax / 10)) {
         return false;
     }
+    
+    // Se variazione è 0 per molte letture ma non ai limiti, potrebbe essere un segnale DC stabile (valido)
+    // quindi consideriamo l'ADC disponibile
     
     return true;
 }

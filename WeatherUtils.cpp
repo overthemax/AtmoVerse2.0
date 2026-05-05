@@ -1,6 +1,7 @@
 #include "WeatherUtils.h"
 #include "Config.h"
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <time.h>
@@ -28,30 +29,9 @@ bool getWeatherData() {
     return false;
   }
   
-  // Conserviamo le coordinate per futuri usi con API più avanzate
-  if (config.lat == 0 && config.lon == 0) {
-    // Serial.println("[WEATHER] Info: Coordinate non impostate per " + String(config.city));
-    // Inizializza coordinate di default in base alla città - Check ottimizzato con strstr
-    if (strstr(config.city, "Milano") != NULL) {
-      config.lat = 45.4642; 
-      config.lon = 9.1900;
-    } else if (strstr(config.city, "Roma") != NULL) {
-      config.lat = 41.9028;
-      config.lon = 12.4964;
-    } else if (strstr(config.city, "Napoli") != NULL) {
-      config.lat = 40.8518;
-      config.lon = 14.2681;
-    } else if (strstr(config.city, "Torino") != NULL) {
-      config.lat = 45.0703;
-      config.lon = 7.6869;
-    } else {
-      // Coordinate di default per l'Italia se la città non è riconosciuta
-      config.lat = 42.5;
-      config.lon = 12.5;
-    }
-    // Salva le coordinate per uso futuro
-    saveConfig();
-  }
+  // NOTA: L'API 2.5 di OpenWeatherMap accetta direttamente il nome città.
+  // Le coordinate (lat/lon) sono opzionali e possono essere configurate manualmente
+  // se si vuole usare l'API 3.0 OneCall in futuro.
   
   // Torniamo all'API gratuita 2.5 per i dati meteo base
   static const char base_url[] PROGMEM = "https://api.openweathermap.org/data/2.5/weather?q=";
@@ -67,8 +47,12 @@ bool getWeatherData() {
   // Serial.print("[WEATHER] URL richiesta: ");
   // Serial.println(url);
   
+  // Usa WiFiClientSecure per connessioni HTTPS
+  WiFiClientSecure client;
+  client.setInsecure();  // Per semplicità, disabilita verifica certificato (in produzione usare setCACert)
+  
   HTTPClient http;
-  http.begin(url);
+  http.begin(client, url);
   http.setTimeout(10000); // Timeout di 10 secondi
   
   // Effettua la richiesta GET
@@ -142,16 +126,24 @@ bool parseWeatherData(String& json) {
   strlcpy(currentWeather.icon, weather["icon"], sizeof(currentWeather.icon));
   strlcpy(currentWeather.description, weather["description"], sizeof(currentWeather.description));
   
-  // Calcola la fase lunare in base al giorno del mese (approssimazione)
-  // Dato che non abbiamo più l'API OneCall, usiamo un metodo approssimativo
+  // Calcola la fase lunare usando l'algoritmo corretto
+  // Basato su conteggio giorni dalla luna nuova del 6 gennaio 2000
+  // Il ciclo lunare è di circa 29.53059 giorni
   time_t now = time(NULL);
-  struct tm *timeinfo = localtime(&now);
   
-  // Converti il giorno del mese in un valore da 0 a 1 per la fase lunare
-  // Questa è solo un'approssimazione, non tiene conto del ciclo lunare reale
-  currentWeather.moon_phase = (float)(timeinfo->tm_mday - 1) / 29.5;
-  // Serial.print("[WEATHER] Fase lunare approssimata: ");
-  // Serial.println(currentWeather.moon_phase);
+  // Data di riferimento: 6 gennaio 2000 18:14 UTC (luna nuova conosciuta)
+  // In timestamp: 947182440 secondi dal 1/1/1970
+  const time_t referenceNewMoon = 947182440;
+  const float lunarCycle = 29.53059;  // Periodo orbitale lunare in giorni
+  
+  // Calcola giorni trascorsi dalla luna nuova di riferimento
+  float daysSinceRef = (float)(now - referenceNewMoon) / 86400.0f;
+  
+  // Calcola la fase (0.0 = luna nuova, 0.5 = luna piena, 1.0 = luna nuova)
+  float phase = fmod(daysSinceRef / lunarCycle, 1.0f);
+  if (phase < 0) phase += 1.0f;  // Normalizza valori negativi
+  
+  currentWeather.moon_phase = phase;
   
   // Aggiorna il timestamp
   currentWeather.last_update = time(NULL);

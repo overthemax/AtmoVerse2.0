@@ -61,35 +61,42 @@ static String mapUiCategoryToFirmware(const String& uiCat) {
   return "motivazione";
 }
 
+// Funzione helper per convertire carattere esadecimale in valore
+static int hexCharToValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+  if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+  return -1;  // Carattere non valido
+}
+
 // Funzione per decodificare l'URL (traduce caratteri come %20 in spazi)
-String urldecode(String str) {
-  String ret = "";
-  char ch;
-  int i, len = str.length();
+String urldecode(const String& str) {
+  String ret;
+  size_t len = str.length();
+  ret.reserve(len);  // Pre-alloca per massima dimensione possibile
   
-  for (i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     if (str[i] == '+') {
       ret += ' ';
-    } else if (str[i] == '%' && i + 2 < len) {
-      int code = 0;
-      if (str[i+1] >= '0' && str[i+1] <= '9') {
-        code = (str[i+1] - '0') << 4;
-      } else if (str[i+1] >= 'A' && str[i+1] <= 'F') {
-        code = (10 + str[i+1] - 'A') << 4;
-      } else if (str[i+1] >= 'a' && str[i+1] <= 'f') {
-        code = (10 + str[i+1] - 'a') << 4;
-      }
-
-      if (str[i+2] >= '0' && str[i+2] <= '9') {
-        code += (str[i+2] - '0');
-      } else if (str[i+2] >= 'A' && str[i+2] <= 'F') {
-        code += (10 + str[i+2] - 'A');
-      } else if (str[i+2] >= 'a' && str[i+2] <= 'f') {
-        code += (10 + str[i+2] - 'a');
+    } else if (str[i] == '%') {
+      // Verifica che ci siano almeno 2 caratteri dopo %
+      if (i + 2 >= len) {
+        // Sequenza % incompleta, tratta come carattere normale
+        ret += str[i];
+        continue;
       }
       
-      ret += (char)code;
-      i += 2;
+      int highNibble = hexCharToValue(str[i+1]);
+      int lowNibble = hexCharToValue(str[i+2]);
+      
+      // Verifica che entrambi i caratteri siano esadecimali validi
+      if (highNibble >= 0 && lowNibble >= 0) {
+        ret += (char)((highNibble << 4) | lowNibble);
+        i += 2;  // Salta i due caratteri esadecimali
+      } else {
+        // Sequenza % non valida, tratta % come carattere normale
+        ret += str[i];
+      }
     } else {
       ret += str[i];
     }
