@@ -413,23 +413,25 @@ bool loadRandomQuote(const String& category, Quote& quote) {
         }
       }
       if (eligibleCount == 0) {
-        quote.text = "citazione non trovata, controllare la sd ed il file quotes.json";
-        quote.author = "";
-        return true;
-      }
-      int target = random(eligibleCount);
-      int current = 0;
-      for (int i = 0; i < total; i++) {
-        JsonObject obj = categoryQuotes[i].as<JsonObject>();
-        const char* authorValue = obj["author"] | "";
-        if (!isCertainAuthor(authorValue)) {
-          continue;
+        // Nessuna citazione con autore "certo": accetta tutte
+        eligibleCount = total;
+        int target = random(eligibleCount);
+        selectedIndex = target < total ? target : 0;
+      } else {
+        int target = random(eligibleCount);
+        int current = 0;
+        for (int i = 0; i < total; i++) {
+          JsonObject obj = categoryQuotes[i].as<JsonObject>();
+          const char* authorValue = obj["author"] | "";
+          if (!isCertainAuthor(authorValue)) {
+            continue;
+          }
+          if (current == target) {
+            selectedIndex = i;
+            break;
+          }
+          current++;
         }
-        if (current == target) {
-          selectedIndex = i;
-          break;
-        }
-        current++;
       }
     }
   }
@@ -481,8 +483,17 @@ Quote getQuoteForDisplay() {
   String category = getWeatherCategory();
   
   // Tenta di caricare una citazione per la categoria
-  if (category.length() == 0 || !loadRandomQuote(category, quote)) {
-    // In caso di errore, mostra un messaggio esplicito di problema con SD/quotes.json
+  bool loaded = false;
+  if (category.length() > 0) {
+    loaded = loadRandomQuote(category, quote);
+  }
+  // Fallback: se categoria vuota o nessuna citazione trovata, usa "motivazione"
+  if (!loaded || quote.text == "citazione non trovata, controllare la sd ed il file quotes.json") {
+    if (category != "motivazione") {
+      loaded = loadRandomQuote("motivazione", quote);
+    }
+  }
+  if (!loaded) {
     quote.text = "citazione non trovata, controllare la sd ed il file quotes.json";
     quote.author = "";
   }
