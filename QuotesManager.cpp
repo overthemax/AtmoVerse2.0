@@ -127,10 +127,12 @@ String getWeatherCategory() {
   }
 
   // 5xx: Pioggia (distinguiamo leggera da intensa)
-  if (weatherId == 500 || weatherId == 501 || weatherId == 520) {
+  // 500=light rain, 520=light shower rain -> pioggia_leggera
+  // 501=moderate rain, 502-531=heavy/shower rain -> pioggia
+  if (weatherId == 500 || weatherId == 520) {
     return "pioggia_leggera";
   }
-  if ((weatherId >= 502 && weatherId <= 531) || weatherId == 521) {
+  if (weatherId == 501 || (weatherId >= 502 && weatherId <= 531)) {
     return "pioggia";
   }
 
@@ -177,9 +179,8 @@ bool loadRandomQuote(const String& category, Quote& quote) {
   
   // Verifica che il file quotes.json esista
   if (!SD.exists(QUOTES_FILE)) {
-    quote.text = "citazione non trovata, controllare la sd ed il file quotes.json";
-    quote.author = "";
-    return true; // Restituisci una citazione di default se il file non esiste
+    Serial.println("[QUOTES] loadRandomQuote - ERRORE: /quotes.json non trovato su SD");
+    return false;
   }
   
   File file = SD.open(QUOTES_FILE, FILE_READ);
@@ -212,20 +213,18 @@ bool loadRandomQuote(const String& category, Quote& quote) {
   
   // Verifica che la categoria richiesta esista
   if (!doc.containsKey(category) || doc[category].size() == 0) {
-    // Se la categoria non esiste o è vuota, usa una citazione di default interna
-    quote.text = "citazione non trovata, controllare la sd ed il file quotes.json";
-    quote.author = "";
-    return true;
+    Serial.print("[QUOTES] loadRandomQuote - categoria non trovata nel JSON: ");
+    Serial.println(category);
+    return false;
   }
   
   // Recupera citazioni per la categoria richiesta
   JsonArray categoryQuotes = doc[category].as<JsonArray>();
   int total = categoryQuotes.size();
   if (total == 0) {
-    // Caso di sicurezza: se l'array è vuoto, usa una citazione di default interna
-    quote.text = "citazione non trovata, controllare la sd ed il file quotes.json";
-    quote.author = "";
-    return true;
+    Serial.print("[QUOTES] loadRandomQuote - array vuoto per categoria: ");
+    Serial.println(category);
+    return false;
   }
 
   // Determina fascia oraria corrente (specifica e ampia)
@@ -482,19 +481,12 @@ Quote getQuoteForDisplay() {
   // Determina la categoria appropriata in base al tempo e alle condizioni meteo
   String category = getWeatherCategory();
   
-  // Tenta di caricare una citazione per la categoria
-  bool loaded = false;
-  if (category.length() > 0) {
-    loaded = loadRandomQuote(category, quote);
-  }
-  // Fallback: se categoria vuota o nessuna citazione trovata, usa "motivazione"
-  if (!loaded || quote.text == "citazione non trovata, controllare la sd ed il file quotes.json") {
-    if (category != "motivazione") {
-      loaded = loadRandomQuote("motivazione", quote);
-    }
-  }
+  // Tenta di caricare una citazione per la categoria meteo
+  bool loaded = (category.length() > 0) && loadRandomQuote(category, quote);
+
   if (!loaded) {
-    quote.text = "citazione non trovata, controllare la sd ed il file quotes.json";
+    // Nessun fallback: mostra la categoria non trovata sul display
+    quote.text = category.length() > 0 ? ("cat: " + category) : "meteo non disponibile";
     quote.author = "";
   }
   
