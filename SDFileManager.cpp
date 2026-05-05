@@ -129,10 +129,14 @@ void saveIconsToSD() {
   for (size_t i = 0; i < sizeof(icons) / sizeof(icons[0]); i++) {
     sprintf(filepath, "/www/icons/%s", icons[i].filename);
     if (!fileExists(filepath)) {
-      // Converti da PROGMEM a stringa
-      String iconStr = "";
+      // Converti da PROGMEM a stringa in modo ottimizzato
       const char* progmemStr = icons[i].icon;
-      for (int j = 0; j < strlen_P(progmemStr); j++) {
+      size_t progLen = strlen_P(progmemStr);  // Calcola lunghezza una sola volta
+      
+      String iconStr;
+      iconStr.reserve(progLen);  // Pre-alloca memoria per evitare riallocazioni
+      
+      for (size_t j = 0; j < progLen; j++) {
         iconStr += (char)pgm_read_byte(progmemStr + j);
       }
       
