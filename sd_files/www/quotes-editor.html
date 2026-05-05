@@ -303,9 +303,18 @@
     // Carica citazioni
     async function loadQuotes() {
       try {
-        const response = await fetch('/quotes.json');
+        const response = await fetch('/quotes.json?raw=1');
         if (response.ok) {
-          quotes = await response.json();
+          const data = await response.json();
+          quotes = Array.isArray(data) ? data : Object.entries(data).flatMap(([category, items]) =>
+            Array.isArray(items) ? items.map(item => ({
+              text: item.text || item.quote || '',
+              author: item.author || '',
+              category,
+              time: item.time || '',
+              season: item.season || ''
+            })) : []
+          );
           updateStats();
           updateCategoryFilter();
           renderQuotes();

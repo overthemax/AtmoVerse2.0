@@ -336,6 +336,38 @@ void handleClientRequests() {
     return;
   }
 
+  if (path == "/quotes.json" && method == "GET") {
+    if (!initSD()) {
+      sendJsonResponse(client, "{\"error\":\"SD non disponibile\"}", 503);
+      return;
+    }
+    if (!SD.exists(QUOTES_JSON_PATH)) {
+      sendJsonResponse(client, "{\"error\":\"quotes.json non trovato\"}", 404);
+      return;
+    }
+    File f = SD.open(QUOTES_JSON_PATH, FILE_READ);
+    if (!f) {
+      sendJsonResponse(client, "{\"error\":\"Impossibile aprire quotes.json\"}", 500);
+      return;
+    }
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Content-Length: " + String(f.size()));
+    client.println("Cache-Control: no-store");
+    client.println("Connection: close");
+    client.println();
+    uint8_t buffer[512];
+    while (f.available()) {
+      size_t n = f.read(buffer, sizeof(buffer));
+      client.write(buffer, n);
+    }
+    f.close();
+    client.flush();
+    delay(1);
+    client.stop();
+    return;
+  }
+
   // Microsoft/Windows captive portal detection
   if (path == "/connecttest.txt") {
     const char* text = "Microsoft Connect Test";
@@ -1350,6 +1382,39 @@ void handleClientRequests() {
   if (path == "/info" && method == "GET") {
     // Utilizziamo direttamente il percorso info.html per coerenza
     serveFileFromSD(client, "/info.html");
+    return;
+  }
+
+  if ((path == "/quotes-editor.html" || path == "/quotes-editor") && method == "GET") {
+    if (!initSD()) {
+      sendResponse(client, "text/plain", "SD non disponibile", 503);
+      return;
+    }
+    File f = SD.open("/www/quotes-editor.html", FILE_READ);
+    if (!f) {
+      sendResponse(client, "text/plain", "quotes-editor.html non trovato su SD", 404);
+      return;
+    }
+    String html = f.readString();
+    f.close();
+    html.replace(
+      "const response = await fetch('/quotes.json');\r\n        if (response.ok) {\r\n          quotes = await response.json();",
+      "const response = await fetch('/quotes.json?raw=1');\r\n        if (response.ok) {\r\n          const data = await response.json();\r\n          quotes = Array.isArray(data) ? data : Object.entries(data).flatMap(([category, items]) =>\r\n            Array.isArray(items) ? items.map(item => ({\r\n              text: item.text || item.quote || '',\r\n              author: item.author || '',\r\n              category,\r\n              time: item.time || '',\r\n              season: item.season || ''\r\n            })) : []\r\n          );"
+    );
+    html.replace(
+      "const response = await fetch('/quotes.json');\n        if (response.ok) {\n          quotes = await response.json();",
+      "const response = await fetch('/quotes.json?raw=1');\n        if (response.ok) {\n          const data = await response.json();\n          quotes = Array.isArray(data) ? data : Object.entries(data).flatMap(([category, items]) =>\n            Array.isArray(items) ? items.map(item => ({\n              text: item.text || item.quote || '',\n              author: item.author || '',\n              category,\n              time: item.time || '',\n              season: item.season || ''\n            })) : []\n          );"
+    );
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html; charset=utf-8");
+    client.println("Content-Length: " + String(html.length()));
+    client.println("Cache-Control: no-store");
+    client.println("Connection: close");
+    client.println();
+    client.print(html);
+    client.flush();
+    delay(1);
+    client.stop();
     return;
   }
   
