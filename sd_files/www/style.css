@@ -1,0 +1,454 @@
+/* AtmoVerse 2.0 - Stili interfaccia web */
+
+:root {
+  /* Palette classica beige/bronze */
+  --primary-color: #b08a4a;      /* bronze caldo */
+  --secondary-color: #8c7050;    /* marrone/bronze più scuro */
+  --danger-color: #c06055;       /* rosso attenuato più soft */
+  --background: #f4f0e8;         /* beige molto chiaro per lo sfondo globale */
+  --card-bg: #fcfaf5;            /* pannelli leggermente più chiari del background */
+  --text-primary: #3b3024;       /* testo principale marrone scuro */
+  --text-secondary: #8a7a65;     /* testo secondario grigio-marrone */
+  --border-color: #d8c9af;       /* bordi beige neutri */
+  --shadow: 0 2px 8px rgba(80, 60, 30, 0.12);
+  --shadow-hover: 0 4px 16px rgba(80, 60, 30, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--background);
+  color: var(--text-primary);
+  line-height: 1.6;
+  padding: 20px;
+}
+
+.container {
+  /* più ampia per dare spazio alla colonna centrale del Layout Editor */
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header */
+header {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Form elements */
+.form-group {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+  background: white;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* Buttons */
+button, .btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #9b7740;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(144, 112, 64, 0.35);
+}
+
+.btn-success {
+  background: var(--secondary-color);
+  color: white;
+}
+
+.btn-success:hover {
+  background: #72573a;
+}
+
+.btn-danger {
+  background: var(--danger-color);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #a04a3c;
+}
+
+.btn-secondary {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: #cdbb9e;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--secondary-color);
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+/* Grid layout */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Status messages */
+.message {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.message-success {
+  background: #e4f1e4;
+  color: #355034;
+  border: 1px solid #cedfcc;
+}
+
+.message-error {
+  background: #f6e0de;
+  color: #7f3a30;
+  border: 1px solid #ebc5c0;
+}
+
+.message-info {
+  background: #ece3d4;
+  color: #6a5432;
+  border: 1px solid #ddccb3;
+}
+
+/* Weather display */
+.weather-display {
+  text-align: center;
+  padding: 24px;
+}
+
+.weather-icon {
+  font-size: 64px;
+  margin: 16px 0;
+}
+
+.temperature {
+  font-size: 48px;
+  font-weight: 300;
+  color: var(--primary-color);
+}
+
+.weather-details {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Loading spinner */
+.spinner {
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Layout Editor specific styles */
+.editor-container {
+  display: grid;
+  /* colonna centrale più ampia per il canvas 648x480 */
+  grid-template-columns: 260px minmax(720px, 2fr) 300px;
+  gap: 20px;
+  height: calc(100vh - 180px);
+}
+
+.palette {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+
+.palette-item {
+  background: var(--background);
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  cursor: grab;
+  border: 2px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.palette-item:hover {
+  border-color: var(--primary-color);
+  transform: translateX(4px);
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.canvas-wrapper {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: auto;
+}
+
+.canvas {
+  width: 648px;
+  height: 480px;
+  background: white;
+  border: 2px solid var(--border-color);
+  position: relative;
+  margin: 0 auto;
+}
+
+.grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image: 
+    repeating-linear-gradient(0deg, #ddd, #ddd 1px, transparent 1px, transparent 20px),
+    repeating-linear-gradient(90deg, #ddd, #ddd 1px, transparent 1px, transparent 27px);
+}
+
+.canvas-element {
+  position: absolute;
+  border: 2px solid var(--primary-color);
+  background: rgba(74, 144, 226, 0.1);
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-primary);
+  transition: box-shadow 0.2s;
+}
+
+.canvas-element:hover {
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
+}
+
+.canvas-element.selected {
+  border-color: var(--secondary-color);
+  background: rgba(80, 200, 120, 0.15);
+  box-shadow: 0 0 0 3px rgba(80, 200, 120, 0.3);
+}
+
+.resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--primary-color);
+  border: 2px solid white;
+  border-radius: 50%;
+}
+
+.resize-handle.se {
+  bottom: -5px;
+  right: -5px;
+  cursor: se-resize;
+}
+
+.properties-panel {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .editor-container {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  
+  .canvas {
+    transform: scale(0.5);
+    transform-origin: top left;
+  }
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-between {
+  justify-content: space-between;
+}
+
+.flex-center {
+  justify-content: center;
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-4 {
+  gap: 16px;
+}

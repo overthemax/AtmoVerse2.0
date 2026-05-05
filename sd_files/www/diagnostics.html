@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnostica - AtmoVerse</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <script src="js/nav.js"></script>
+  <div class="quotes-manager" style="max-width: 800px;">
+    <h1>Diagnostica</h1>
+
+    <div class="add-quote-form">
+      <div class="section-title"><div class="section-icon">📶</div>Rete</div>
+      <div class="info-group"><strong>AP Mode:</strong> <span id="apMode">-</span></div>
+      <div class="info-group"><strong>IP:</strong> <span id="ip">-</span></div>
+      <div class="info-group"><strong>RSSI:</strong> <span id="rssi">-</span> dBm</div>
+    </div>
+
+    <div class="add-quote-form">
+      <div class="section-title"><div class="section-icon">💾</div>Sistema</div>
+      <div class="info-group"><strong>Uptime:</strong> <span id="uptime">-</span></div>
+      <div class="info-group"><strong>Free Heap:</strong> <span id="heap">-</span> B</div>
+      <div class="info-group"><strong>SD:</strong> <span id="sd">-</span></div>
+    </div>
+
+    <div class="add-quote-form">
+      <div class="section-title"><div class="section-icon">⚙️</div>Stato</div>
+      <div class="info-group"><strong>Status:</strong> <span id="status">-</span></div>
+    </div>
+  </div>
+
+  <script>
+    async function loadHealth() {
+      try {
+        const res = await fetch('/api/health');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        document.getElementById('status').textContent = data.status || 'n/a';
+        document.getElementById('ip').textContent = data.ip || 'n/a';
+        document.getElementById('rssi').textContent = (data.rssi !== undefined ? data.rssi : 'n/a');
+        document.getElementById('heap').textContent = data.free_heap !== undefined ? data.free_heap : 'n/a';
+        document.getElementById('apMode').textContent = data.apMode ? 'Sì' : 'No';
+        document.getElementById('sd').textContent = data.sd_ok ? 'OK' : 'Non disponibile';
+        // Uptime leggibile
+        const s = data.uptime_sec || 0;
+        const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+        document.getElementById('uptime').textContent = `${h}h ${m}m ${sec}s`;
+      } catch (e) {
+        document.getElementById('status').textContent = 'errore';
+      }
+    }
+    document.addEventListener('DOMContentLoaded', loadHealth);
+  </script>
+</body>
+</html>

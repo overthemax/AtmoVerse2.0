@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtmoVerse - Impostazioni</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div class="title-container">
+                    <div class="weather-icon">☁️</div>
+                    <h1 class="title">AtmoVerse</h1>
+                </div>
+                <div class="actions">
+                    <button class="action-button" onclick="location.href='/'" aria-label="Home">🏠</button>
+                </div>
+            </div>
+
+            <!-- Istruzioni di Configurazione -->
+            <div class="setup-instructions">
+                <h3>Modalità Configurazione</h3>
+                <ol>
+                    <li>Connettiti alla rete WiFi "atmoverse_setup"</li>
+                    <li>Seleziona la tua rete WiFi dall'elenco e inserisci la password</li>
+                    <li>Imposta la tua città per le previsioni meteo</li>
+                </ol>
+            </div>
+
+            <form id="settingsForm">
+                <!-- WiFi Settings -->
+                <div class="form-group">
+                    <label for="ssid">Rete WiFi:</label>
+                    <div class="wifi-field">
+                        <select id="ssid" name="ssid" required>
+                            <option value="">Seleziona una rete...</option>
+                        </select>
+                        <button type="button" class="wifi-scan-button" onclick="scanWiFi()">🔄 Cerca reti</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password WiFi:</label>
+                    <div class="password-field">
+                        <input type="password" id="password" name="password" placeholder="Inserisci la password della rete WiFi">
+                        <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Mostra/Nascondi password">👁️</button>
+                    </div>
+                </div>
+
+                <!-- Location Settings -->
+                <div class="form-group">
+                    <label for="city">Città:</label>
+                    <input type="text" id="city" name="city" required placeholder="Es: Roma, Milano, Torino">
+                </div>
+
+                <!-- Time Settings -->
+                <div class="form-group">
+                    <label for="timezone">Fuso Orario:</label>
+                    <select id="timezone" name="timezone" required>
+                        <option value="1" selected>GMT+1 (Roma, Parigi, Berlino)</option>
+                        <option value="2">GMT+2 (Atene, Istanbul)</option>
+                        <option value="0">GMT+0 (Londra, Dublino)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="daylightSaving" name="daylightSaving">
+                        Ora legale (attiva da marzo a ottobre)
+                    </label>
+                </div>
+
+                <!-- Hour format -->
+                <div class="form-group">
+                    <label for="hourFormat">Formato orario:</label>
+                    <select id="hourFormat" name="hourFormat" required>
+                        <option value="24">24 ore</option>
+                        <option value="12">12 ore (AM/PM)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ntpServer">Server Orario:</label>
+                    <select id="ntpServer" name="ntpServer" required>
+                        <option value="it.pool.ntp.org">Server Italiano (it.pool.ntp.org)</option>
+                        <option value="europe.pool.ntp.org">Server Europeo (europe.pool.ntp.org)</option>
+                        <option value="pool.ntp.org">Server Globale (pool.ntp.org)</option>
+                    </select>
+                </div>
+
+                <!-- OpenWeather API key -->
+                <div class="form-group">
+                    <label for="apiKey">API Key OpenWeather:</label>
+                    <input type="text" id="apiKey" name="api_key" placeholder="Inserisci la tua API key OpenWeather">
+                </div>
+
+                <!-- Weather Options -->
+                <div class="form-group">
+                    <label for="units">Unità meteo:</label>
+                    <select id="units" name="units" required>
+                        <option value="metric">Metriche (°C, m/s)</option>
+                        <option value="imperial">Imperiali (°F, mph)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="language">Lingua meteo:</label>
+                    <select id="language" name="language" required>
+                        <option value="it">Italiano</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+
+                <!-- Display Theme -->
+                <div class="form-group">
+                    <label for="theme">Tema display:</label>
+                    <select id="theme" name="theme">
+                        <option value="classic">Classic (default)</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="bold">Bold</option>
+                        <option value="mono">Mono</option>
+                        <option value="icon_quote">Solo icona meteo + citazione</option>
+                    </select>
+                </div>
+
+                <!-- Weather update intervals -->
+                <div class="form-group two-cols">
+                    <div>
+                        <label for="weatherUpdateInterval">Aggiornamento meteo (min):</label>
+                        <input type="number" id="weatherUpdateInterval" name="weatherUpdateInterval" min="5" max="1440" value="30">
+                    </div>
+                    <div>
+                        <label for="weatherPowerSavingUpdateInterval">Aggiornamento meteo risparmio (min):</label>
+                        <input type="number" id="weatherPowerSavingUpdateInterval" name="weatherPowerSavingUpdateInterval" min="10" max="1440" value="120">
+                    </div>
+                </div>
+
+                <!-- Power Saving -->
+                <hr>
+                <h3>Risparmio energetico</h3>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="powerSavingEnabled" name="powerSavingEnabled">
+                        Abilita risparmio energetico
+                    </label>
+                </div>
+
+                <div class="form-group two-cols">
+                    <div>
+                        <label for="powerSavingStartHour">Ora inizio (0-23):</label>
+                        <input type="number" id="powerSavingStartHour" name="powerSavingStartHour" min="0" max="23" value="22">
+                    </div>
+                    <div>
+                        <label for="powerSavingEndHour">Ora fine (0-23):</label>
+                        <input type="number" id="powerSavingEndHour" name="powerSavingEndHour" min="0" max="23" value="7">
+                    </div>
+                </div>
+
+                <div class="form-group two-cols">
+                    <div>
+                        <label for="normalUpdateInterval">Intervallo normale (min):</label>
+                        <input type="number" id="normalUpdateInterval" name="normalUpdateInterval" min="5" max="720" value="30">
+                    </div>
+                    <div>
+                        <label for="powerSavingUpdateInterval">Intervallo in risparmio (min):</label>
+                        <input type="number" id="powerSavingUpdateInterval" name="powerSavingUpdateInterval" min="10" max="1440" value="120">
+                    </div>
+                </div>
+
+                <!-- Reliability -->
+                <div class="form-group">
+                    <label for="maxNetworkRetries">Tentativi massimi rete:</label>
+                    <input type="number" id="maxNetworkRetries" name="maxNetworkRetries" min="0" max="20" value="3">
+                </div>
+
+                <button type="submit" class="submit-button" onclick="saveSettings(event)">💾 Salva Impostazioni</button>
+            </form>
+        </div>
+
+        <!-- Device Info Card -->
+        <div class="card">
+            <h3>Stato Dispositivo</h3>
+            <div class="data-row">
+                <div class="data-label">
+                    <i class="fas fa-broadcast-tower data-icon"></i>
+                    Modalità
+                </div>
+                <div class="data-value" id="deviceMode">--</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label">
+                    <i class="fas fa-network-wired data-icon"></i>
+                    Indirizzo IP
+                </div>
+                <div class="data-value" id="ipAddress">--</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status-message" class="status-message hidden"></div>
+    <script src="script.js"></script>
+</body>
+</html>

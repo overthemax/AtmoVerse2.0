@@ -1,0 +1,56 @@
+# AtmoVerse 2.0 - Git Ignore File
+
+# File di backup
+*.bak
+*.backup
+*.old
+*.tmp
+*~
+
+# Log files
+*.log
+build.log
+debug.log
+
+# IDE specifici
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+
+# Arduino IDE
+*.elf
+*.eep
+*.hex
+*.bin
+*.map
+
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+
+# OS specifici
+Thumbs.db
+desktop.ini
+.Spotlight-V100
+.Trashes
+
+# Documentazione temporanea
+*.swp
+*.swo
+
+# File di configurazione personali (mantenere template)
+# conf.json su SD card non è nel repo
+
+# File temporanei di compilazione
+__pycache__/
+*.py[cod]
+
+# Node modules se presente web UI
+node_modules/
+
+# Cartelle temporanee
+temp/
+tmp/

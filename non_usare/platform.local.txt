@@ -1,0 +1,5 @@
+compiler.c.extra_flags=-Os -flto -ffunction-sections -fdata-sections -DESP32 -DCORE_DEBUG_LEVEL=0 -DCONFIG_ESP32_DEFAULT_CPU_FREQ_80 -DPSRAM_HACK=1 -DOPTIMIZE_SIZE=1 -DENABLE_SVG_SUPPORT=0 -DENABLE_OWM_ICONS=0 -fno-exceptions -fomit-frame-pointer -DDISABLE_ALL_DEBUG=1 -DNO_GLOBAL_SERIAL=1
+compiler.cpp.extra_flags=-Os -flto -ffunction-sections -fdata-sections -DESP32 -DCORE_DEBUG_LEVEL=0 -DCONFIG_ESP32_DEFAULT_CPU_FREQ_80 -DPSRAM_HACK=1 -DOPTIMIZE_SIZE=1 -DENABLE_SVG_SUPPORT=0 -DENABLE_OWM_ICONS=0 -fno-exceptions -fno-rtti -fomit-frame-pointer -DDISABLE_ALL_DEBUG=1 -DNO_GLOBAL_SERIAL=1
+compiler.c.elf.extra_flags=-Os -flto -Wl,--gc-sections -Wl,--strip-all -Wl,-z,norelro
+compiler.libraries.ldflags=-fno-exceptions -fno-rtti
+compiler.optimization_flags=-Os -g0

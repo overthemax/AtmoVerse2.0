@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor Citazioni - AtmoVerse 2.0</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>💬 Editor Citazioni</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="location.href='index.html'">🏠 Home</button>
+        <button class="btn btn-primary" onclick="saveQuotes()">💾 Salva Tutte</button>
+        <button class="btn btn-success" onclick="addNewQuote()">➕ Nuova Citazione</button>
+      </div>
+    </header>
+
+    <div id="message-container"></div>
+
+    <!-- Statistiche -->
+    <div class="card">
+      <h2 class="card-title">📊 Statistiche</h2>
+      <div class="grid-2" id="stats-container">
+        <div><strong>Totale citazioni:</strong> <span id="total-quotes">0</span></div>
+        <div><strong>Categorie:</strong> <span id="total-categories">0</span></div>
+      </div>
+    </div>
+
+    <!-- Filtri -->
+    <div class="card">
+      <h2 class="card-title">🔍 Filtra Citazioni</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="filter-category">Categoria</label>
+          <select id="filter-category" onchange="filterQuotes()">
+            <option value="">Tutte le categorie</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="filter-search">Cerca nel testo</label>
+          <input type="text" id="filter-search" placeholder="Cerca..." oninput="filterQuotes()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista Citazioni -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 class="card-title" style="margin: 0;">📝 Citazioni</h2>
+        <button class="btn btn-danger" onclick="deleteAllQuotes()">🗑️ Elimina Tutte</button>
+      </div>
+      <div id="quotes-list"></div>
+    </div>
+  </div>
+
+  <!-- Modal Modifica Citazione -->
+  <div id="edit-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>✏️ Modifica Citazione</h2>
+      
+      <div class="form-group">
+        <label for="edit-text">Testo Citazione *</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <button class="btn-format" onclick="insertFormat('**', '**')" title="Grassetto">𝐁</button>
+          <button class="btn-format" onclick="insertFormat('*', '*')" title="Corsivo"><i>I</i></button>
+          <button class="btn-format" onclick="insertFormat('\\n', '')" title="A capo">↵</button>
+        </div>
+        <textarea id="edit-text" rows="5" required oninput="updatePreview()"></textarea>
+        <small style="color: var(--text-secondary);">
+          Usa **grassetto**, *corsivo*, \n per andare a capo
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label>📝 Anteprima Live</label>
+        <div id="preview-box" class="preview-box">
+          La tua citazione apparirà qui...
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="edit-author">Autore *</label>
+          <input type="text" id="edit-author" required oninput="updatePreview()">
+        </div>
+        <div class="form-group">
+          <label for="edit-author-note">Note Autore</label>
+          <input type="text" id="edit-author-note" placeholder="es: filosofo, scrittore" oninput="updatePreview()">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="edit-category">Categoria</label>
+        <input type="text" id="edit-category" placeholder="es: motivazione, pioggia, mattina">
+        <small style="color: var(--text-secondary);">
+          Categorie suggerite: motivazione, pioggia, pioggia_leggera, cielo_sereno, poche_nuvole, 
+          nuvole_sparse, nuvole_abbondanti, temporale, neve, nebbia, vento, mattina, pomeriggio, sera
+        </small>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="edit-font-size">Dimensione Font</label>
+          <select id="edit-font-size" onchange="updatePreview()">
+            <option value="small">Piccolo</option>
+            <option value="medium" selected>Medio</option>
+            <option value="large">Grande</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-align">Allineamento</label>
+          <select id="edit-align" onchange="updatePreview()">
+            <option value="left">Sinistra</option>
+            <option value="center" selected>Centro</option>
+            <option value="right">Destra</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="edit-author-style">Stile Autore</label>
+          <select id="edit-author-style" onchange="updatePreview()">
+            <option value="normal">Normale</option>
+            <option value="italic" selected>Corsivo</option>
+            <option value="bold">Grassetto</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="edit-author-same-line" onchange="updatePreview()">
+            Autore sulla stessa riga
+          </label>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 24px;">
+        <button class="btn btn-primary" onclick="saveEditedQuote()">💾 Salva</button>
+        <button class="btn btn-secondary" onclick="closeEditModal()">❌ Annulla</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* Stili aggiuntivi per editor citazioni */
+    .quote-item {
+      background: var(--background);
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 4px solid var(--primary-color);
+      transition: all 0.3s ease;
+    }
+
+    .quote-item:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transform: translateX(4px);
+    }
+
+    .quote-text {
+      font-size: 16px;
+      font-style: italic;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .quote-meta {
+      font-size: 13px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .quote-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .quote-category {
+      background: var(--primary-color);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      display: inline-block;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      padding: 32px;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal.hidden {
+      display: none;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state h3 {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .btn-format {
+      padding: 6px 12px;
+      border: 2px solid var(--border-color);
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .btn-format:hover {
+      border-color: var(--primary-color);
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .preview-box {
+      background: var(--background);
+      padding: 20px;
+      border-radius: 8px;
+      border: 2px solid var(--border-color);
+      min-height: 100px;
+      font-style: italic;
+    }
+
+    .preview-text {
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+
+    .preview-author {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .preview-author.italic {
+      font-style: italic;
+    }
+
+    .preview-author.bold {
+      font-weight: bold;
+    }
+
+    .size-small { font-size: 14px; }
+    .size-medium { font-size: 16px; }
+    .size-large { font-size: 20px; }
+
+    .align-left { text-align: left; }
+    .align-center { text-align: center; }
+    .align-right { text-align: right; }
+  </style>
+
+  <script>
+    let quotes = [];
+    let editingIndex = -1;
+
+    // Carica citazioni
+    async function loadQuotes() {
+      try {
+        const response = await fetch('/quotes.json');
+        if (response.ok) {
+          quotes = await response.json();
+          updateStats();
+          updateCategoryFilter();
+          renderQuotes();
+          showMessage('✅ Citazioni caricate: ' + quotes.length, 'success');
+        } else {
+          quotes = [];
+          renderQuotes();
+          showMessage('⚠️ Nessun file quotes.json trovato. Inizia creando nuove citazioni.', 'info');
+        }
+      } catch (error) {
+        quotes = [];
+        renderQuotes();
+        showMessage('⚠️ Impossibile caricare le citazioni. File non presente sulla SD.', 'info');
+      }
+    }
+
+    // Aggiorna statistiche
+    function updateStats() {
+      document.getElementById('total-quotes').textContent = quotes.length;
+      const categories = [...new Set(quotes.map(q => q.category))];
+      document.getElementById('total-categories').textContent = categories.length;
+    }
+
+    // Aggiorna filtro categorie
+    function updateCategoryFilter() {
+      const select = document.getElementById('filter-category');
+      const categories = [...new Set(quotes.map(q => q.category))].sort();
+      
+      select.innerHTML = '<option value="">Tutte le categorie</option>';
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+    }
+
+    // Filtra citazioni
+    function filterQuotes() {
+      const category = document.getElementById('filter-category').value;
+      const search = document.getElementById('filter-search').value.toLowerCase();
+      
+      let filtered = quotes;
+      
+      if (category) {
+        filtered = filtered.filter(q => q.category === category);
+      }
+      
+      if (search) {
+        filtered = filtered.filter(q => 
+          q.text.toLowerCase().includes(search) || 
+          q.author.toLowerCase().includes(search)
+        );
+      }
+      
+      renderQuotes(filtered);
+    }
+
+    // Render citazioni
+    function renderQuotes(quotesToRender = quotes) {
+      const container = document.getElementById('quotes-list');
+      
+      if (quotesToRender.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <h3>📭 Nessuna citazione</h3>
+            <p>Inizia aggiungendo la tua prima citazione!</p>
+            <button class="btn btn-primary" onclick="addNewQuote()">➕ Aggiungi Citazione</button>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = '';
+      quotesToRender.forEach((quote, index) => {
+        const realIndex = quotes.indexOf(quote);
+        const div = document.createElement('div');
+        div.className = 'quote-item';
+        
+        // Formattazione preview del testo
+        let displayText = quote.text
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+          .replace(/\\n/g, '<br>');
+        
+        const authorInfo = quote.authorNote ? `${quote.author} (${quote.authorNote})` : quote.author;
+        const sizeLabel = quote.fontSize ? `📏 ${quote.fontSize}` : '';
+        const alignLabel = quote.align ? `⬅️ ${quote.align}` : '';
+        
+        div.innerHTML = `
+          <div class="quote-text">"${displayText}"</div>
+          <div class="quote-meta">
+            <div>
+              <strong>— ${authorInfo}</strong>
+              ${quote.category ? `<span class="quote-category">${quote.category}</span>` : ''}
+              ${sizeLabel ? `<small style="margin-left: 8px; color: var(--text-secondary);">${sizeLabel} ${alignLabel}</small>` : ''}
+            </div>
+          </div>
+          <div class="quote-actions">
+            <button class="btn btn-primary" onclick="editQuote(${realIndex})">✏️ Modifica</button>
+            <button class="btn btn-danger" onclick="deleteQuote(${realIndex})">🗑️ Elimina</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // Inserisci formattazione
+    function insertFormat(before, after) {
+      const textarea = document.getElementById('edit-text');
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      const selectedText = text.substring(start, end);
+      
+      const newText = text.substring(0, start) + before + selectedText + after + text.substring(end);
+      textarea.value = newText;
+      
+      // Riposiziona cursore
+      const newPos = start + before.length + selectedText.length + after.length;
+      textarea.setSelectionRange(newPos, newPos);
+      textarea.focus();
+      updatePreview();
+    }
+
+    // Aggiorna preview live
+    function updatePreview() {
+      const text = document.getElementById('edit-text').value;
+      const author = document.getElementById('edit-author').value;
+      const authorNote = document.getElementById('edit-author-note').value;
+      const fontSize = document.getElementById('edit-font-size').value;
+      const align = document.getElementById('edit-align').value;
+      const authorStyle = document.getElementById('edit-author-style').value;
+      const sameLine = document.getElementById('edit-author-same-line').checked;
+      
+      // Converti markdown in HTML
+      let formattedText = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // grassetto
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')              // corsivo
+        .replace(/\\n/g, '<br>');                          // a capo
+      
+      const previewBox = document.getElementById('preview-box');
+      previewBox.className = `preview-box size-${fontSize} align-${align}`;
+      
+      let authorHtml = '';
+      if (author) {
+        const fullAuthor = authorNote ? `${author} (${authorNote})` : author;
+        const separator = sameLine ? ' — ' : '<br>';
+        authorHtml = `${separator}<span class="preview-author ${authorStyle}">— ${fullAuthor}</span>`;
+      }
+      
+      previewBox.innerHTML = `
+        <div class="preview-text">"${formattedText}"${authorHtml}</div>
+      `;
+    }
+
+    // Aggiungi nuova citazione
+    function addNewQuote() {
+      editingIndex = -1;
+      document.getElementById('edit-text').value = '';
+      document.getElementById('edit-author').value = '';
+      document.getElementById('edit-author-note').value = '';
+      document.getElementById('edit-category').value = '';
+      document.getElementById('edit-font-size').value = 'medium';
+      document.getElementById('edit-align').value = 'center';
+      document.getElementById('edit-author-style').value = 'italic';
+      document.getElementById('edit-author-same-line').checked = false;
+      updatePreview();
+      document.getElementById('edit-modal').classList.remove('hidden');
+    }
+
+    // Modifica citazione
+    function editQuote(index) {
+      editingIndex = index;
+      const quote = quotes[index];
+      document.getElementById('edit-text').value = quote.text;
+      document.getElementById('edit-author').value = quote.author;
+      document.getElementById('edit-author-note').value = quote.authorNote || '';
+      document.getElementById('edit-category').value = quote.category || '';
+      document.getElementById('edit-font-size').value = quote.fontSize || 'medium';
+      document.getElementById('edit-align').value = quote.align || 'center';
+      document.getElementById('edit-author-style').value = quote.authorStyle || 'italic';
+      document.getElementById('edit-author-same-line').checked = quote.authorSameLine || false;
+      updatePreview();
+      document.getElementById('edit-modal').classList.remove('hidden');
+    }
+
+    // Salva citazione modificata
+    function saveEditedQuote() {
+      const text = document.getElementById('edit-text').value.trim();
+      const author = document.getElementById('edit-author').value.trim();
+      const authorNote = document.getElementById('edit-author-note').value.trim();
+      const category = document.getElementById('edit-category').value.trim();
+      const fontSize = document.getElementById('edit-font-size').value;
+      const align = document.getElementById('edit-align').value;
+      const authorStyle = document.getElementById('edit-author-style').value;
+      const authorSameLine = document.getElementById('edit-author-same-line').checked;
+      
+      if (!text || !author) {
+        showMessage('❌ Testo e autore sono obbligatori', 'error');
+        return;
+      }
+      
+      const quote = { 
+        text, 
+        author, 
+        category: category || 'motivazione',
+        authorNote,
+        fontSize,
+        align,
+        authorStyle,
+        authorSameLine
+      };
+      
+      if (editingIndex === -1) {
+        // Nuova citazione
+        quotes.push(quote);
+        showMessage('✅ Citazione aggiunta', 'success');
+      } else {
+        // Modifica esistente
+        quotes[editingIndex] = quote;
+        showMessage('✅ Citazione modificata', 'success');
+      }
+      
+      updateStats();
+      updateCategoryFilter();
+      filterQuotes();
+      closeEditModal();
+    }
+
+    // Chiudi modal
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.add('hidden');
+      editingIndex = -1;
+    }
+
+    // Elimina citazione
+    function deleteQuote(index) {
+      if (confirm('Eliminare questa citazione?')) {
+        quotes.splice(index, 1);
+        updateStats();
+        updateCategoryFilter();
+        filterQuotes();
+        showMessage('✅ Citazione eliminata', 'success');
+      }
+    }
+
+    // Elimina tutte
+    function deleteAllQuotes() {
+      if (confirm('⚠️ ATTENZIONE: Eliminare TUTTE le citazioni? Questa azione non può essere annullata!')) {
+        if (confirm('Sei assolutamente sicuro? Verranno eliminate ' + quotes.length + ' citazioni!')) {
+          quotes = [];
+          updateStats();
+          updateCategoryFilter();
+          renderQuotes();
+          showMessage('✅ Tutte le citazioni sono state eliminate', 'success');
+        }
+      }
+    }
+
+    // Salva tutte le citazioni
+    async function saveQuotes() {
+      if (quotes.length === 0) {
+        showMessage('⚠️ Nessuna citazione da salvare', 'info');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/quotes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(quotes)
+        });
+        
+        if (response.ok) {
+          showMessage(`✅ Salvate ${quotes.length} citazioni su /quotes.json`, 'success');
+        } else {
+          showMessage('❌ Errore durante il salvataggio', 'error');
+        }
+      } catch (error) {
+        showMessage('❌ Errore: ' + error.message, 'error');
+      }
+    }
+
+    // Mostra messaggio
+    function showMessage(text, type) {
+      const container = document.getElementById('message-container');
+      container.innerHTML = `<div class="message message-${type}">${text}</div>`;
+      setTimeout(() => {
+        if (container.innerHTML.includes(text)) {
+          container.innerHTML = '';
+        }
+      }, 5000);
+    }
+
+    // Chiudi modal con ESC
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        closeEditModal();
+      }
+    });
+
+    // Click fuori dal modal per chiudere
+    document.getElementById('edit-modal').addEventListener('click', e => {
+      if (e.target.id === 'edit-modal') {
+        closeEditModal();
+      }
+    });
+
+    // Inizializza
+    loadQuotes();
+  </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "motivazione": [
+    {"text": "Il successo è la somma di piccoli sforzi ripetuti giorno dopo giorno.", "author": "Robert Collier"},
+    {"text": "La vita è ciò che accade mentre sei impegnato a fare altri piani.", "author": "John Lennon"},
+    {"text": "Non conta quante volte cadi, ma quante volte ti rialzi.", "author": "Confucio"},
+    {"text": "Il tempo è il miglior insegnante, ma sfortunatamente uccide tutti i suoi studenti.", "author": "Louis Hector Berlioz"},
+    {"text": "La felicità non è qualcosa di già pronto. Viene dalle tue azioni.", "author": "Dalai Lama"},
+    {"text": "Il modo migliore per predire il futuro è crearlo.", "author": "Peter Drucker"},
+    {"text": "Credi in te stesso e tutto sarà possibile.", "author": "AtmoVerse"}
+  ],
+  "pioggia": [
+    {"text": "Dopo la pioggia, viene sempre il sole.", "author": "Proverbio"}
+  ],
+  "pioggia_leggera": [
+    {"text": "Le piccole gocce formano grandi oceani.", "author": "Proverbio"}
+  ],
+  "nuvole_sparse": [
+    {"text": "Ogni nuvola ha un lato luminoso.", "author": "Proverbio"}
+  ],
+  "nuvole_abbondanti": [
+    {"text": "Non lasciarti intimidire dal cielo grigio, il sole è sempre lì.", "author": "Proverbio"}
+  ],
+  "temporale": [
+    {"text": "Anche la tempesta più forte finisce.", "author": "Proverbio"}
+  ],
+  "cielo_sereno": [
+    {"text": "Una bella giornata inizia sempre con un sorriso.", "author": "Proverbio"}
+  ],
+  "poche_nuvole": [
+    {"text": "Il cielo ha sempre spazio per nuove nuvole e nuove opportunità.", "author": "AtmoVerse"}
+  ],
+  "nebbia": [
+    {"text": "Anche nella nebbia più fitta, c'è sempre una via d'uscita.", "author": "Proverbio"}
+  ],
+  "vento": [
+    {"text": "Il vento del cambiamento soffia sempre per chi è pronto.", "author": "Proverbio"}
+  ],
+  "neve": [
+    {"text": "Ogni fiocco di neve è unico, proprio come te.", "author": "Proverbio"}
+  ],
+  "mattina": [
+    {"text": "Buongiorno! Oggi è un nuovo inizio.", "author": "AtmoVerse", "time": "mattina"}
+  ],
+  "pomeriggio": [
+    {"text": "Il pomeriggio è il momento perfetto per una pausa.", "author": "AtmoVerse", "time": "pomeriggio"}
+  ],
+  "sera": [
+    {"text": "Buona sera! Goditi questo momento di tranquillità.", "author": "AtmoVerse", "time": "sera"}
+  ]
+}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Informazioni - AtmoVerse</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .info-card { margin-bottom: 24px; }
+    .section-title { display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:10px; }
+    .kv { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #eee; }
+    .kv:last-child { border-bottom:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div class="title-container">
+          <div class="weather-icon">ℹ️</div>
+          <h1 class="title">Informazioni</h1>
+        </div>
+        <div class="actions">
+          <button class="action-button" onclick="location.href='/'" aria-label="Home">🏠</button>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <div class="section-title">⚙️ Sistema</div>
+        <div class="kv"><div>Firmware</div><div><strong>AtmoVerse</strong> <span id="fwVer">2.1.08.2025</span></div></div>
+        <div class="kv"><div>Hardware</div><div>ESP32</div></div>
+        <div class="kv"><div>Display</div><div id="displaySize">E‑Ink 5,8"</div></div>
+      </div>
+
+      <div class="info-card">
+        <div class="section-title">🌤 Meteo</div>
+        <div class="kv"><div>Provider</div><div>OpenWeatherMap</div></div>
+        <div class="kv"><div>Aggiornamento</div><div>Config. da impostazioni</div></div>
+        <div class="kv"><div>Parametri</div><div>Temperatura, Umidità, Pressione, Condizioni</div></div>
+      </div>
+
+      <div class="info-card">
+        <div class="section-title">👤 Crediti</div>
+        <div class="kv"><div>Autore</div><div>Marco Fabio</div></div>
+        <div class="kv"><div>Progetto</div><div>AtmoVerse 2.0</div></div>
+        <div class="kv"><div>Periodo</div><div>2024–2025</div></div>
+        <div class="kv"><div>Licenza</div><div>Open Source</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

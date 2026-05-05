@@ -1,0 +1,41 @@
+{
+  "grid": {
+    "cols": 24,
+    "row_height": 20,
+    "margin": 4
+  },
+  "items": [
+    {
+      "id": "weather_icon_main",
+      "type": "weather_icon",
+      "x": 2,
+      "y": 0,
+      "w": 20,
+      "h": 8,
+      "z": 1,
+      "visible": true,
+      "icon_size": 140
+    },
+    {
+      "id": "quote_box",
+      "type": "quote",
+      "x": 2,
+      "y": 8,
+      "w": 20,
+      "h": 6,
+      "z": 1,
+      "visible": true,
+      "font_size": 14
+    },
+    {
+      "id": "footer",
+      "type": "footer_bar",
+      "x": 0,
+      "y": 15,
+      "w": 24,
+      "h": 3,
+      "z": 1,
+      "visible": true
+    }
+  ]
+}

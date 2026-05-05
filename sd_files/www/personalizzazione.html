@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AtmoVerse - Personalizzazione</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .personalizza-wrap { display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px; }
+    .editor { position: relative; background: var(--bg, #f7f7f7); border: 1px solid #ccc; border-radius: 8px; padding: 12px; }
+    .editor .stage { position: relative; width: 100%; aspect-ratio: 800 / 480; background: #fff; border: 1px solid #bbb; }
+    .editor canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+    .overlay { position: absolute; inset: 0; pointer-events: none; }
+    .handle { position: absolute; border: 1px dashed #6b5940; background: rgba(107,89,64,0.08); border-radius: 4px; cursor: move; pointer-events: auto; }
+    .sidebar { background: var(--bg, #fafafa); border: 1px solid #ccc; border-radius: 8px; padding: 12px; }
+    .sidebar h3 { margin: 6px 0 10px; }
+    .controls { display: grid; gap: 8px; }
+    .controls .row { display: flex; gap: 8px; align-items: center; }
+    .controls label { min-width: 120px; font-size: 14px; color: #333; }
+    .controls input[type="number"], .controls select { width: 100%; padding: 6px; }
+    .btns { display: flex; gap: 8px; margin-top: 12px; }
+    .btn { padding: 8px 12px; border: 1px solid #6b5940; background: #fff; color: #6b5940; border-radius: 6px; cursor: pointer; }
+    .btn.primary { background: #6b5940; color: #fff; }
+    .legend { font-size: 12px; color: #666; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <script src="js/nav.js"></script>
+  <div id="main-content" class="personalizza-wrap">
+    <div class="editor">
+      <div class="stage" id="stage">
+        <canvas id="previewCanvas" width="800" height="480" aria-label="Anteprima display"></canvas>
+        <div class="overlay" id="overlay"></div>
+      </div>
+      <div class="legend">Griglia 24 colonne, pannello 800×480. Trascina i riquadri per riposizionare i widget. Lo snap alla griglia è automatico.</div>
+    </div>
+    <div class="sidebar">
+      <h3>Personalizzazione layout</h3>
+      <div class="controls">
+        <div class="row">
+          <label for="zoom">Zoom anteprima</label>
+          <input id="zoom" type="range" min="50" max="150" value="100" />
+        </div>
+        <div class="row">
+          <label for="themeSel">Tema anteprima</label>
+          <select id="themeSel">
+            <option value="default">Default</option>
+            <option value="eink">E‑ink</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="timeSel">Ora</label>
+          <select id="timeSel">
+            <option value="day">Giorno</option>
+            <option value="night">Notte</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="gridCols">Colonne</label>
+          <input id="gridCols" type="number" value="24" min="6" max="48" />
+        </div>
+      </div>
+      <div class="btns">
+        <button id="btnSave" class="btn primary">Salva layout</button>
+        <button id="btnReset" class="btn">Ripristina</button>
+        <button id="btnRefresh" class="btn">Aggiorna Display</button>
+      </div>
+      <p class="legend">Il layout viene salvato sul dispositivo (se supportato). In caso contrario, verrà mantenuto in locale.</p>
+    </div>
+  </div>
+  <script src="js/personalizzazione.js"></script>
+</body>
+</html>
