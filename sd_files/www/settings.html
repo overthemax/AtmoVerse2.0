@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impostazioni - AtmoVerse 2.0</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚙️ Impostazioni</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="location.href='index.html'">🏠 Home</button>
+        <button class="btn btn-primary" onclick="saveSettings()">💾 Salva</button>
+      </div>
+    </header>
+
+    <div id="message-container"></div>
+
+    <!-- WiFi Configuration -->
+    <div class="card">
+      <h2 class="card-title">📡 Configurazione WiFi</h2>
+      <div class="form-group">
+        <label for="ssid">SSID WiFi *</label>
+        <input type="text" id="ssid" placeholder="Nome della rete WiFi" required>
+        <button class="btn btn-secondary mt-4" onclick="scanWiFi()">🔍 Scansiona Reti</button>
+      </div>
+      <div id="wifi-list" class="hidden"></div>
+      <div class="form-group">
+        <label for="password">Password WiFi *</label>
+        <input type="password" id="password" placeholder="Lascia vuoto per non modificare">
+        <small style="color: var(--text-secondary);">
+          ⚠️ Lascia vuoto per mantenere la password attuale
+        </small>
+      </div>
+    </div>
+
+    <!-- Weather Configuration -->
+    <div class="card">
+      <h2 class="card-title">🌤️ Configurazione Meteo</h2>
+      <div class="form-group">
+        <label for="city">Città *</label>
+        <input type="text" id="city" placeholder="Es: Rome, Milan, Naples" required>
+      </div>
+      <div class="form-group">
+        <label for="api_key">API Key OpenWeatherMap *</label>
+        <input type="text" id="api_key" placeholder="Inserisci la tua API key">
+        <small style="color: var(--text-secondary);">
+          Ottieni una chiave gratuita su <a href="https://openweathermap.org/api" target="_blank">openweathermap.org</a>
+        </small>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="units">Unità di Misura</label>
+          <select id="units">
+            <option value="metric">Metrico (°C, km/h)</option>
+            <option value="imperial">Imperiale (°F, mph)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="language">Lingua</label>
+          <select id="language">
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time Configuration -->
+    <div class="card">
+      <h2 class="card-title">🕐 Configurazione Ora</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="timezone">Fuso Orario (GMT offset)</label>
+          <select id="timezone">
+            <option value="-12">GMT-12</option>
+            <option value="-11">GMT-11</option>
+            <option value="-10">GMT-10</option>
+            <option value="-9">GMT-9</option>
+            <option value="-8">GMT-8</option>
+            <option value="-7">GMT-7</option>
+            <option value="-6">GMT-6</option>
+            <option value="-5">GMT-5</option>
+            <option value="-4">GMT-4</option>
+            <option value="-3">GMT-3</option>
+            <option value="-2">GMT-2</option>
+            <option value="-1">GMT-1</option>
+            <option value="0">GMT+0</option>
+            <option value="1" selected>GMT+1 (Italia)</option>
+            <option value="2">GMT+2</option>
+            <option value="3">GMT+3</option>
+            <option value="4">GMT+4</option>
+            <option value="5">GMT+5</option>
+            <option value="6">GMT+6</option>
+            <option value="7">GMT+7</option>
+            <option value="8">GMT+8</option>
+            <option value="9">GMT+9</option>
+            <option value="10">GMT+10</option>
+            <option value="11">GMT+11</option>
+            <option value="12">GMT+12</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="use24hFormat">Formato Orario</label>
+          <select id="use24hFormat">
+            <option value="true">24 ore (14:30)</option>
+            <option value="false">12 ore (2:30 PM)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Update Intervals -->
+    <div class="card">
+      <h2 class="card-title">🔄 Intervalli Aggiornamento</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="normalUpdateInterval">Intervallo Normale (minuti)</label>
+          <input type="number" id="normalUpdateInterval" min="5" max="120" value="30">
+        </div>
+        <div class="form-group">
+          <label for="powerSavingUpdateInterval">Intervallo Risparmio (minuti)</label>
+          <input type="number" id="powerSavingUpdateInterval" min="30" max="240" value="120">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="displayRefreshIntervalSec">Refresh Display (secondi)</label>
+          <input type="number" id="displayRefreshIntervalSec" min="30" max="300" value="60">
+        </div>
+        <div class="form-group">
+          <label for="maxNetworkRetries">Tentativi Massimi Rete</label>
+          <input type="number" id="maxNetworkRetries" min="1" max="10" value="3">
+        </div>
+      </div>
+    </div>
+
+    <!-- Power Saving -->
+    <div class="card">
+      <h2 class="card-title">🔋 Risparmio Energetico</h2>
+      <div class="form-group">
+        <label class="flex flex-between">
+          <span>Abilita Risparmio Energetico</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="powerSavingEnabled">
+            <span class="slider"></span>
+          </label>
+        </label>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="powerSavingStartHour">Ora Inizio (0-23)</label>
+          <input type="number" id="powerSavingStartHour" min="0" max="23" value="22">
+        </div>
+        <div class="form-group">
+          <label for="powerSavingEndHour">Ora Fine (0-23)</label>
+          <input type="number" id="powerSavingEndHour" min="0" max="23" value="7">
+        </div>
+      </div>
+    </div>
+
+    <!-- Battery Monitor -->
+    <div class="card">
+      <h2 class="card-title">🔌 Monitoraggio Batteria</h2>
+      <div class="form-group">
+        <label class="flex flex-between">
+          <span>Abilita Monitor Batteria</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="batteryMonitorEnabled">
+            <span class="slider"></span>
+          </label>
+        </label>
+        <small style="color: var(--text-secondary);">
+          Richiede un voltage divider esterno collegato al pin ADC
+        </small>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="batteryADCPin">Pin ADC</label>
+          <input type="number" id="batteryADCPin" min="0" max="39" value="35">
+        </div>
+        <div class="form-group">
+          <label for="batteryVoltageDivider">Voltage Divider Ratio</label>
+          <input type="number" id="batteryVoltageDivider" step="0.1" value="2.0">
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card text-center">
+      <button class="btn btn-success" onclick="saveSettings()">💾 Salva Configurazione</button>
+      <button class="btn btn-danger" onclick="if(confirm('Riavviare il dispositivo?')) restartDevice()">🔄 Riavvia</button>
+      <button class="btn btn-secondary" onclick="location.href='index.html'">❌ Annulla</button>
+    </div>
+  </div>
+
+  <script>
+    // Carica impostazioni correnti
+    async function loadSettings() {
+      try {
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+        
+        // Popola i campi del form
+        document.getElementById('ssid').value = data.ssid || '';
+        document.getElementById('city').value = data.city || '';
+        document.getElementById('api_key').value = data.api_key || '';
+        document.getElementById('units').value = data.units || 'metric';
+        document.getElementById('language').value = data.language || 'it';
+        document.getElementById('timezone').value = data.timezone || 1;
+        document.getElementById('use24hFormat').value = data.use24hFormat ? 'true' : 'false';
+        document.getElementById('normalUpdateInterval').value = data.normalUpdateInterval || 30;
+        document.getElementById('powerSavingUpdateInterval').value = data.powerSavingUpdateInterval || 120;
+        document.getElementById('displayRefreshIntervalSec').value = data.displayRefreshIntervalSec || 60;
+        document.getElementById('maxNetworkRetries').value = data.maxNetworkRetries || 3;
+        document.getElementById('powerSavingEnabled').checked = data.powerSavingEnabled || false;
+        document.getElementById('powerSavingStartHour').value = data.powerSavingStartHour || 22;
+        document.getElementById('powerSavingEndHour').value = data.powerSavingEndHour || 7;
+        document.getElementById('batteryMonitorEnabled').checked = data.batteryMonitorEnabled || false;
+        document.getElementById('batteryADCPin').value = data.batteryADCPin || 35;
+        document.getElementById('batteryVoltageDivider').value = data.batteryVoltageDivider || 2.0;
+        
+        showMessage('Impostazioni caricate', 'success');
+      } catch (error) {
+        showMessage('Errore caricamento impostazioni: ' + error.message, 'error');
+      }
+    }
+
+    // Salva impostazioni
+    async function saveSettings() {
+      const password = document.getElementById('password').value;
+      const ssid = document.getElementById('ssid').value;
+      
+      const settings = {
+        city: document.getElementById('city').value,
+        api_key: document.getElementById('api_key').value,
+        units: document.getElementById('units').value,
+        language: document.getElementById('language').value,
+        timezone: parseInt(document.getElementById('timezone').value),
+        use24hFormat: document.getElementById('use24hFormat').value === 'true',
+        normalUpdateInterval: parseInt(document.getElementById('normalUpdateInterval').value),
+        powerSavingUpdateInterval: parseInt(document.getElementById('powerSavingUpdateInterval').value),
+        displayRefreshIntervalSec: parseInt(document.getElementById('displayRefreshIntervalSec').value),
+        maxNetworkRetries: parseInt(document.getElementById('maxNetworkRetries').value),
+        powerSavingEnabled: document.getElementById('powerSavingEnabled').checked,
+        powerSavingStartHour: parseInt(document.getElementById('powerSavingStartHour').value),
+        powerSavingEndHour: parseInt(document.getElementById('powerSavingEndHour').value),
+        batteryMonitorEnabled: document.getElementById('batteryMonitorEnabled').checked,
+        batteryADCPin: parseInt(document.getElementById('batteryADCPin').value),
+        batteryVoltageDivider: parseFloat(document.getElementById('batteryVoltageDivider').value)
+      };
+      
+      // Includi SSID e password SOLO se la password è stata modificata (non vuota)
+      if (password && password.trim() !== '') {
+        settings.ssid = ssid;
+        settings.password = password;
+      }
+
+      try {
+        const response = await fetch('/api/config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(settings)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showMessage('✅ Configurazione salvata! Il dispositivo si riavvierà...', 'success');
+          setTimeout(() => location.href = 'index.html', 3000);
+        } else {
+          showMessage('❌ Errore: ' + (result.message || 'Salvataggio fallito'), 'error');
+        }
+      } catch (error) {
+        showMessage('❌ Errore salvataggio: ' + error.message, 'error');
+      }
+    }
+
+    // Scansiona reti WiFi
+    async function scanWiFi() {
+      showMessage('🔍 Scansione reti WiFi in corso...', 'info');
+      try {
+        const response = await fetch('/api/wifi/scan');
+        const networks = await response.json();
+        
+        const listDiv = document.getElementById('wifi-list');
+        listDiv.className = '';
+        listDiv.innerHTML = '<h3 style="margin-top: 16px;">Reti Disponibili:</h3>';
+        
+        networks.forEach(net => {
+          const item = document.createElement('div');
+          item.className = 'palette-item';
+          item.style.cursor = 'pointer';
+          item.innerHTML = `
+            <strong>${net.ssid}</strong> 
+            <span style="float: right;">${net.secure ? '🔒' : '🔓'} ${net.rssi} dBm</span>
+          `;
+          item.onclick = () => {
+            document.getElementById('ssid').value = net.ssid;
+            listDiv.className = 'hidden';
+          };
+          listDiv.appendChild(item);
+        });
+        
+        showMessage(`✅ Trovate ${networks.length} reti`, 'success');
+      } catch (error) {
+        showMessage('❌ Errore scansione: ' + error.message, 'error');
+      }
+    }
+
+    // Riavvia dispositivo
+    async function restartDevice() {
+      showMessage('🔄 Riavvio in corso...', 'info');
+      try {
+        await fetch('/api/restart', {method: 'POST'});
+        showMessage('✅ Dispositivo in riavvio...', 'success');
+      } catch (error) {
+        showMessage('⚠️ Riavvio iniziato (connessione persa)', 'info');
+      }
+    }
+
+    // Mostra messaggio
+    function showMessage(text, type) {
+      const container = document.getElementById('message-container');
+      container.innerHTML = `<div class="message message-${type}">${text}</div>`;
+      setTimeout(() => {
+        if (container.innerHTML.includes(text)) {
+          container.innerHTML = '';
+        }
+      }, 5000);
+    }
+
+    // Inizializza
+    loadSettings();
+  </script>
+</body>
+</html>

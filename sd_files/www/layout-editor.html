@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Editor - AtmoVerse 2.0</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎨 Layout Editor</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="location.href='index.html'">🏠 Home</button>
+        <button class="btn btn-primary" onclick="saveLayout()">💾 Salva Layout</button>
+        <button class="btn btn-success" onclick="loadLayout()">📂 Carica Layout</button>
+      </div>
+    </header>
+
+    <div id="message-container"></div>
+
+    <div class="editor-container">
+      <!-- Palette Elementi -->
+      <div class="palette">
+        <h3>Elementi</h3>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+          Trascina gli elementi sul canvas
+        </p>
+        
+        <div class="palette-item" draggable="true" data-type="city">
+          <strong>🏙️ Città</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Nome della città</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="weather_icon">
+          <strong>☁️ Icona Meteo</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Icona meteo 140x140</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="quote">
+          <strong>💬 Citazione</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Box citazione</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="footer_bar">
+          <strong>ℹ️ Footer Bar</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Barra informazioni</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="temperature">
+          <strong>🌡️ Temperatura</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Temperatura corrente</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="humidity">
+          <strong>💧 Umidità</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Umidità %</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="pressure">
+          <strong>🔽 Pressione</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Pressione hPa</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="wind">
+          <strong>🌬️ Vento</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Velocità vento</p>
+        </div>
+        
+        <div class="palette-item" draggable="true" data-type="calendar">
+          <strong>📅 Calendario</strong>
+          <p style="font-size: 11px; margin: 4px 0 0 0;">Calendario mensile</p>
+        </div>
+
+        <!-- Pannello Griglia nascosto - le impostazioni rimangono nel codice JS -->
+        <div style="display: none;">
+          <input type="number" id="grid-cols" value="24">
+          <input type="number" id="grid-row-height" value="20">
+          <input type="number" id="grid-margin" value="4">
+        </div>
+
+        <div style="margin-top: 24px;">
+          <button class="btn btn-danger" onclick="clearCanvas()" style="width: 100%;">
+            🗑️ Pulisci Canvas
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas -->
+      <div class="canvas-wrapper">
+        <div style="text-align: center; margin-bottom: 12px;">
+          <strong>Display: 648 x 480 pixel</strong>
+        </div>
+        <div class="canvas" id="canvas">
+          <!-- Grid overlay rimossa per visualizzazione più pulita -->
+        </div>
+      </div>
+
+      <!-- Proprietà Elemento -->
+      <div class="properties-panel">
+        <h3>Proprietà</h3>
+        <div id="properties-content">
+          <p style="color: var(--text-secondary); text-align: center; margin-top: 40px;">
+            Seleziona un elemento<br>per modificarne le proprietà
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Stato globale
+    let gridSettings = {
+      cols: 24,
+      rowHeight: 20,
+      margin: 4
+    };
+    let elements = [];
+    let selectedElement = null;
+    let draggedElement = null;
+    let nextId = 1;
+
+    // Inizializza drag & drop dalla palette
+    document.querySelectorAll('.palette-item').forEach(item => {
+      item.addEventListener('dragstart', e => {
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('text/plain', item.dataset.type);
+      });
+    });
+
+    // Canvas drop zone
+    const canvas = document.getElementById('canvas');
+    
+    canvas.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    canvas.addEventListener('drop', e => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('text/plain');
+      
+      // Calcola posizione nella griglia
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const cellW = (648 - (gridSettings.cols + 1) * gridSettings.margin) / gridSettings.cols;
+      const gridX = Math.floor((x - gridSettings.margin) / (cellW + gridSettings.margin));
+      const gridY = Math.floor((y - gridSettings.margin) / (gridSettings.rowHeight + gridSettings.margin));
+      
+      addElement(type, gridX, gridY);
+    });
+
+    // Aggiungi elemento
+    function addElement(type, gridX, gridY) {
+      const element = {
+        id: `element_${nextId++}`,
+        type: type,
+        x: gridX,
+        y: gridY,
+        z: 1,
+        align: 'left',
+        visible: true
+      };
+      
+      // Imposta font_size in base al tipo
+      if (type === 'city') {
+        element.font_size = 16;
+      } else if (type === 'quote') {
+        element.font_size = 12;
+      } else if (type === 'footer_bar') {
+        element.font_size = 10;
+      } else if (type === 'temperature' || type === 'humidity' || type === 'pressure' || type === 'wind') {
+        element.font_size = 14;
+      } else if (type === 'calendar') {
+        element.font_size = 10;
+      }
+      
+      // dimensione icona di default (in pixel) per le icone meteo
+      if (type === 'weather_icon') {
+        element.icon_size = 160;
+      }
+      
+      elements.push(element);
+      renderCanvas();
+      selectElement(element);
+    }
+
+    // Render canvas
+    function renderCanvas() {
+      // Rimuovi elementi esistenti
+      document.querySelectorAll('.canvas-element').forEach(el => el.remove());
+      
+      // Ordina per z-index
+      elements.sort((a, b) => a.z - b.z);
+      
+      // Disegna elementi
+      elements.forEach(el => {
+        const div = document.createElement('div');
+        div.className = 'canvas-element';
+        div.dataset.id = el.id;
+        if (selectedElement && selectedElement.id === el.id) {
+          div.classList.add('selected');
+        }
+        
+        // Calcola posizione pixel (usa griglia solo per posizionamento)
+        const cellW = (648 - (gridSettings.cols + 1) * gridSettings.margin) / gridSettings.cols;
+        const x = gridSettings.margin + el.x * (cellW + gridSettings.margin);
+        const y = gridSettings.margin + el.y * (gridSettings.rowHeight + gridSettings.margin);
+        
+        // Dimensione basata SOLO sul contenuto (font_size o icon_size)
+        let contentW, contentH;
+        if (el.type === 'weather_icon') {
+          contentW = contentH = el.icon_size || 160;
+        } else if (el.type === 'quote') {
+          const fs = el.font_size || 12;
+          contentW = fs * 35;  // Larghezza proporzionale (circa 35 caratteri)
+          contentH = fs * 5;   // Altezza per circa 3-4 righe
+        } else if (el.type === 'footer_bar') {
+          const fs = el.font_size || 10;
+          contentW = 600;      // Footer larghezza fissa
+          contentH = fs * 3;
+        } else if (el.type === 'calendar') {
+          const fs = el.font_size || 10;
+          contentW = fs * 16;  // Larghezza calendario (circa 160px)
+          contentH = fs * 18;  // Altezza calendario (circa 180px)
+        } else {
+          const fs = el.font_size || 14;
+          contentW = fs * 10;  // Larghezza basata su font
+          contentH = fs * 2;   // Altezza per 1-2 righe
+        }
+        
+        div.style.left = x + 'px';
+        div.style.top = y + 'px';
+        div.style.width = contentW + 'px';  // Dimensione reale contenuto
+        div.style.height = contentH + 'px'; // Dimensione reale contenuto
+        div.style.zIndex = el.z;
+        div.style.border = '2px solid rgba(100,100,100,0.5)';
+        div.style.background = 'rgba(255,255,255,0.7)';
+        
+        const contentInfo = el.type === 'weather_icon' ? 
+          `Icon: ${el.icon_size || 160}px` : 
+          `Font: ${el.font_size || 12}pt`;
+        div.title = contentInfo;
+        
+        // Icona tipo - solo emoji senza testo per chiarezza visiva
+        const icons = {
+          city: '🏙️',
+          weather_icon: '🌤️',
+          quote: '💬',
+          footer_bar: '📊',
+          temperature: '🌡️',
+          humidity: '💧',
+          pressure: '⏲️',
+          wind: '🌬️',
+          calendar: '📅',
+          citazione: '💭'
+        };
+        const iconEmoji = icons[el.type] || '📦';
+        const typeLabel = el.type.replace('_', ' ').toUpperCase();
+        const contentSize = el.type === 'weather_icon' ? `${el.icon_size || 160}px` : `${el.font_size || 12}pt`;
+        div.innerHTML = `<div style="text-align:center;font-size:24px;line-height:1;">${iconEmoji}</div><div style="font-size:9px;text-align:center;margin-top:2px;">${typeLabel}<br>${contentSize}</div>`;
+        
+        // Eventi
+        div.addEventListener('click', () => selectElement(el));
+        div.addEventListener('mousedown', startDrag);
+        
+        // Handle ridimensionamento
+        const handle = document.createElement('div');
+        handle.className = 'resize-handle se';
+        handle.addEventListener('mousedown', startResize);
+        div.appendChild(handle);
+        
+        canvas.appendChild(div);
+      });
+    }
+
+    // Drag elemento
+    let dragOffset = {x: 0, y: 0};
+    
+    function startDrag(e) {
+      if (e.target.classList.contains('resize-handle')) return;
+      
+      const div = e.currentTarget;
+      const id = div.dataset.id;
+      draggedElement = elements.find(el => el.id === id);
+      
+      const rect = div.getBoundingClientRect();
+      dragOffset = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+      
+      document.addEventListener('mousemove', doDrag);
+      document.addEventListener('mouseup', stopDrag);
+    }
+
+    function doDrag(e) {
+      if (!draggedElement) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left - dragOffset.x;
+      const y = e.clientY - rect.top - dragOffset.y;
+      
+      const cellW = (648 - (gridSettings.cols + 1) * gridSettings.margin) / gridSettings.cols;
+      const gridX = Math.max(0, Math.round((x - gridSettings.margin) / (cellW + gridSettings.margin)));
+      const gridY = Math.max(0, Math.round((y - gridSettings.margin) / (gridSettings.rowHeight + gridSettings.margin)));
+      
+      draggedElement.x = Math.min(gridX, gridSettings.cols - 1);
+      draggedElement.y = gridY;
+      
+      renderCanvas();
+    }
+
+    function stopDrag() {
+      draggedElement = null;
+      document.removeEventListener('mousemove', doDrag);
+      document.removeEventListener('mouseup', stopDrag);
+    }
+
+    // Resize elemento
+    let resizingElement = null;
+    let resizeStart = {x: 0, y: 0};
+    
+    function startResize(e) {
+      e.stopPropagation();
+      const div = e.target.closest('.canvas-element');
+      const id = div.dataset.id;
+      resizingElement = elements.find(el => el.id === id);
+      
+      resizeStart = {
+        x: e.clientX,
+        y: e.clientY,
+        fontSize: resizingElement.font_size || 12,
+        iconSize: resizingElement.icon_size || 160
+      };
+      
+      document.addEventListener('mousemove', doResize);
+      document.addEventListener('mouseup', stopResize);
+    }
+
+    function doResize(e) {
+      if (!resizingElement) return;
+      
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      
+      // Usa la distanza maggiore tra X e Y per determinare lo scaling
+      const delta = Math.max(Math.abs(deltaX), Math.abs(deltaY)) * (deltaX < 0 || deltaY < 0 ? -1 : 1);
+      
+      // Scala il font_size per elementi testuali o icon_size per icone meteo
+      if (resizingElement.type === 'weather_icon') {
+        // Scala icon_size: ogni 10px di movimento = 10px di icon_size
+        const iconDelta = Math.round(delta / 10) * 10;
+        resizingElement.icon_size = Math.max(80, Math.min(400, (resizeStart.iconSize || 160) + iconDelta));
+      } else if (resizingElement.type === 'quote' || resizingElement.type === 'city' || 
+                 resizingElement.type === 'temperature' || resizingElement.type === 'humidity' || 
+                 resizingElement.type === 'pressure' || resizingElement.type === 'wind' ||
+                 resizingElement.type === 'footer_bar' || resizingElement.type === 'calendar') {
+        // Scala font_size: ogni 20px di movimento = 1pt di font
+        const fontDelta = Math.round(delta / 20);
+        const minFont = resizingElement.type === 'footer_bar' ? 6 : (resizingElement.type === 'quote' ? 8 : 10);
+        const maxFont = resizingElement.type === 'quote' ? 20 : (resizingElement.type === 'footer_bar' ? 16 : 300);
+        resizingElement.font_size = Math.max(minFont, Math.min(maxFont, (resizeStart.fontSize || 12) + fontDelta));
+      }
+      
+      renderCanvas();
+      updatePropertiesPanel();
+    }
+
+    function stopResize() {
+      resizingElement = null;
+      document.removeEventListener('mousemove', doResize);
+      document.removeEventListener('mouseup', stopResize);
+    }
+
+    // Seleziona elemento
+    function selectElement(el) {
+      selectedElement = el;
+      renderCanvas();
+      updatePropertiesPanel();
+    }
+
+    // Pannello proprietà
+    function updatePropertiesPanel() {
+      if (!selectedElement) {
+        document.getElementById('properties-content').innerHTML = 
+          '<p style="color: var(--text-secondary); text-align: center; margin-top: 40px;">Seleziona un elemento</p>';
+        return;
+      }
+      
+      const el = selectedElement;
+      document.getElementById('properties-content').innerHTML = `
+        <div class="form-group">
+          <label>ID</label>
+          <input type="text" value="${el.id}" disabled>
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <input type="text" value="${el.type}" disabled>
+        </div>
+        <div class="form-group">
+          <label>X (colonna)</label>
+          <input type="number" value="${el.x}" min="0" max="${gridSettings.cols-1}" 
+                 onchange="updateProperty('x', parseInt(this.value))">
+        </div>
+        <div class="form-group">
+          <label>Y (riga)</label>
+          <input type="number" value="${el.y}" min="0" 
+                 onchange="updateProperty('y', parseInt(this.value))">
+        </div>
+        <!-- Box w/h rimosso - dimensione determinata da contenuto -->
+        <div class="form-group">
+          <label>Z-Index (layer)</label>
+          <input type="number" value="${el.z}" min="0" max="10" 
+                 onchange="updateProperty('z', parseInt(this.value))">
+        </div>
+        ${el.type === 'city' ? `
+          <div class="form-group">
+            <label>Allineamento</label>
+            <select onchange="updateProperty('align', this.value)">
+              <option value="left" ${el.align === 'left' ? 'selected' : ''}>Sinistra</option>
+              <option value="center" ${el.align === 'center' ? 'selected' : ''}>Centro</option>
+              <option value="right" ${el.align === 'right' ? 'selected' : ''}>Destra</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Dimensione Font</label>
+            <input type="number" value="${el.font_size}" min="8" max="32" 
+                   onchange="updateProperty('font_size', parseInt(this.value))">
+          </div>
+        ` : ''}
+        ${el.type === 'weather_icon' ? `
+          <div class="form-group">
+            <label>Dimensione icona (px)</label>
+            <input type="number" value="${el.icon_size || 160}" min="80" max="400"
+                   onchange="updateProperty('icon_size', parseInt(this.value))">
+          </div>
+        ` : ''}
+        ${el.type === 'quote' ? `
+          <div class="form-group">
+            <label>Dimensione Font</label>
+            <input type="number" value="${el.font_size || 12}" min="8" max="20"
+                   onchange="updateProperty('font_size', parseInt(this.value))">
+          </div>
+        ` : ''}
+        ${el.type === 'footer_bar' ? `
+          <div class="form-group">
+            <label>Dimensione Font</label>
+            <input type="number" value="${el.font_size || 10}" min="6" max="16"
+                   onchange="updateProperty('font_size', parseInt(this.value))">
+          </div>
+        ` : ''}
+        ${(el.type === 'temperature' || el.type === 'humidity' || el.type === 'pressure' || el.type === 'wind') ? `
+          <div class="form-group">
+            <label>Dimensione Font</label>
+            <input type="number" value="${el.font_size || 14}" min="10" max="300"
+                   onchange="updateProperty('font_size', parseInt(this.value))">
+            <small style="color: #666; font-size: 11px;">Oltre 40pt usa grafica vettoriale</small>
+          </div>
+          <div class="form-group">
+            <label>Allineamento</label>
+            <select onchange="updateProperty('align', this.value)">
+              <option value="left" ${el.align === 'left' ? 'selected' : ''}>Sinistra</option>
+              <option value="center" ${el.align === 'center' ? 'selected' : ''}>Centro</option>
+              <option value="right" ${el.align === 'right' ? 'selected' : ''}>Destra</option>
+            </select>
+          </div>
+        ` : ''}
+        ${el.type === 'calendar' ? `
+          <div class="form-group">
+            <label>Dimensione Font</label>
+            <input type="number" value="${el.font_size || 10}" min="6" max="16"
+                   onchange="updateProperty('font_size', parseInt(this.value))">
+          </div>
+        ` : ''}
+        <div class="form-group">
+          <label>
+            <input type="checkbox" ${el.visible ? 'checked' : ''} 
+                   onchange="updateProperty('visible', this.checked)">
+            Visibile
+          </label>
+        </div>
+        <button class="btn btn-danger" onclick="deleteElement()" style="width: 100%; margin-top: 16px;">
+          🗑️ Elimina Elemento
+        </button>
+      `;
+    }
+
+    // Aggiorna proprietà
+    function updateProperty(prop, value) {
+      if (selectedElement) {
+        selectedElement[prop] = value;
+        renderCanvas();
+      }
+    }
+
+    // Elimina elemento
+    function deleteElement() {
+      if (selectedElement && confirm('Eliminare questo elemento?')) {
+        elements = elements.filter(el => el.id !== selectedElement.id);
+        selectedElement = null;
+        renderCanvas();
+        updatePropertiesPanel();
+      }
+    }
+
+    // Aggiorna griglia
+    function updateGridSettings() {
+      gridSettings.cols = parseInt(document.getElementById('grid-cols').value);
+      gridSettings.rowHeight = parseInt(document.getElementById('grid-row-height').value);
+      gridSettings.margin = parseInt(document.getElementById('grid-margin').value);
+      renderCanvas();
+    }
+
+    // Pulisci canvas
+    function clearCanvas() {
+      if (confirm('Eliminare tutti gli elementi?')) {
+        elements = [];
+        selectedElement = null;
+        renderCanvas();
+        updatePropertiesPanel();
+      }
+    }
+
+    // Salva layout
+    async function saveLayout() {
+      const layout = {
+        grid: gridSettings,
+        items: elements
+      };
+      
+      try {
+        const response = await fetch('/api/layout', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(layout)
+        });
+        
+        if (response.ok) {
+          showMessage('✅ Layout salvato su /layout.json', 'success');
+        } else {
+          showMessage('❌ Errore salvataggio layout', 'error');
+        }
+      } catch (error) {
+        showMessage('❌ Errore: ' + error.message, 'error');
+      }
+    }
+
+    // Carica layout
+    async function loadLayout() {
+      try {
+        const response = await fetch('/api/layout');
+        const layout = await response.json();
+        
+        if (layout.grid) {
+          // Normalizza row_height a rowHeight per compatibilità PRIMA di assegnare
+          if (layout.grid.row_height && !layout.grid.rowHeight) {
+            layout.grid.rowHeight = layout.grid.row_height;
+            delete layout.grid.row_height;
+          }
+          
+          // Assicura che tutti i campi siano presenti con valori di default
+          gridSettings = {
+            cols: layout.grid.cols || 24,
+            rowHeight: layout.grid.rowHeight || 20,
+            margin: layout.grid.margin || 4
+          };
+          
+          document.getElementById('grid-cols').value = gridSettings.cols;
+          document.getElementById('grid-row-height').value = gridSettings.rowHeight;
+          document.getElementById('grid-margin').value = gridSettings.margin;
+          
+          console.log('Grid settings caricati:', gridSettings);
+        }
+        
+        if (layout.items) {
+          elements = layout.items;
+          // Assicura che tutti gli elementi abbiano i campi necessari
+          elements.forEach(el => {
+            if (!el.font_size) {
+              if (el.type === 'city') el.font_size = 16;
+              else if (el.type === 'quote') el.font_size = 12;
+              else if (el.type === 'footer_bar') el.font_size = 10;
+              else if (el.type === 'calendar') el.font_size = 10;
+              else if (el.type === 'temperature' || el.type === 'humidity' || el.type === 'pressure' || el.type === 'wind') {
+                el.font_size = 14;
+              }
+            }
+            if (el.type === 'weather_icon' && !el.icon_size) {
+              el.icon_size = 160;
+            }
+            if (!el.hasOwnProperty('visible')) {
+              el.visible = true;
+            }
+            if (!el.z) el.z = 1;
+            if (!el.align) el.align = 'left';
+          });
+          nextId = Math.max(...elements.map(el => parseInt(el.id.split('_')[1]) || 0)) + 1;
+        }
+        
+        renderCanvas();
+        showMessage('✅ Layout caricato', 'success');
+      } catch (error) {
+        showMessage('⚠️ Nessun layout trovato, inizia da zero', 'info');
+      }
+    }
+
+    // Mostra messaggio
+    function showMessage(text, type) {
+      const container = document.getElementById('message-container');
+      container.innerHTML = `<div class="message message-${type}">${text}</div>`;
+      setTimeout(() => container.innerHTML = '', 5000);
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if (selectedElement) {
+        if (e.key === 'Delete') deleteElement();
+        if (e.key === 'ArrowUp') { selectedElement.y = Math.max(0, selectedElement.y - 1); renderCanvas(); }
+        if (e.key === 'ArrowDown') { selectedElement.y++; renderCanvas(); }
+        if (e.key === 'ArrowLeft') { selectedElement.x = Math.max(0, selectedElement.x - 1); renderCanvas(); }
+        if (e.key === 'ArrowRight') { renderCanvas(); }
+      }
+      
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        saveLayout();
+      }
+    });
+
+    // Inizializza
+    loadLayout();
+  </script>
+</body>
+</html>

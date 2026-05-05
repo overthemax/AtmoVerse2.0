@@ -1,0 +1,21 @@
+# Build artifacts
+build/
+*.bin
+*.elf
+*.map
+
+# Arduino/CLI cache and temp
+.arduino*
+arduino_cache/
+.gradle/
+
+# Logs
+*.log
+compile_log.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local settings
+sdkconfig

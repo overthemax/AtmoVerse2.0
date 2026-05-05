@@ -1,0 +1,335 @@
+:root {
+  --primary-color: #8B7355;
+  --secondary-color: #F5E6D3;
+  --text-color: #4A4A4A;
+  --border-radius: 15px;
+  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --icon-color: #8B7355;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  line-height: 1.6;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.container {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.card {
+  background: white;
+  border-radius: var(--border-radius);
+  padding: 30px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.title-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.title {
+  color: var(--primary-color);
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.weather-icon {
+  font-size: 32px;
+  color: var(--primary-color);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.action-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 24px;
+  color: var(--icon-color);
+  transition: opacity 0.2s;
+}
+
+.action-button:hover {
+  opacity: 0.8;
+}
+
+.weather-description {
+  text-align: center;
+  color: var(--text-color);
+  font-size: 24px;
+  margin: 30px 0;
+}
+
+.weather-data {
+  display: grid;
+  gap: 20px;
+}
+
+.data-row {
+  display: flex;
+  align-items: center;
+  padding: 15px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 18px;
+}
+
+.data-row:last-child {
+  border-bottom: none;
+}
+
+.data-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: var(--text-color);
+}
+
+.data-icon {
+  font-size: 20px;
+  color: var(--icon-color);
+  width: 24px;
+  text-align: center;
+}
+
+.data-value {
+  color: var(--primary-color);
+  font-weight: 500;
+  font-size: 20px;
+}
+
+.refresh-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  margin: 30px auto 0;
+  transition: background-color 0.2s;
+}
+
+.refresh-button:hover {
+  background-color: #7A6347;
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 25px;
+}
+
+/* Sezioni nel form */
+form h3 {
+  margin: 20px 0 10px;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+form hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 20px 0;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text-color);
+  font-size: 18px;
+}
+
+.setup-instructions {
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 20px 0;
+  padding: 20px;
+  background: #FFF8F0;
+  border-radius: 8px;
+  border-left: 4px solid var(--primary-color);
+}
+
+.setup-instructions h3 {
+  color: var(--primary-color);
+  margin-bottom: 15px;
+  font-size: 22px;
+}
+
+.setup-instructions ol {
+  padding-left: 20px;
+}
+
+.setup-instructions li {
+  margin-bottom: 12px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+/* Layout a due colonne per gruppi correlati */
+.two-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+input[type="checkbox"] {
+  margin-right: 10px;
+  transform: scale(1.2);
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--icon-color);
+  font-size: 20px;
+}
+
+.wifi-scan-button {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 12px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+
+.wifi-scan-button:hover {
+  background-color: #7A6347;
+}
+
+.status-message {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  color: white;
+  font-size: 16px;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.status-message.success {
+  background-color: #4CAF50;
+}
+
+.status-message.error {
+  background-color: #f44336;
+}
+
+.status-message.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Gruppo WiFi (select + bottone) */
+.wifi-field {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.wifi-field select {
+  flex: 1;
+}
+
+/* Pulsante Salva */
+.submit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.submit-button:hover {
+  background: #7A6347;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+  .two-cols {
+    grid-template-columns: 1fr;
+  }
+  
+  .title {
+    font-size: 28px;
+  }
+  
+  .weather-icon {
+    font-size: 28px;
+  }
+  
+  .data-row {
+    font-size: 16px;
+  }
+  
+  .data-value {
+    font-size: 18px;
+  }
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AtmoVerse 2.0</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⛅ AtmoVerse 2.0</h1>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="location.href='settings.html'">⚙️ Impostazioni</button>
+        <button class="btn btn-secondary" onclick="location.href='layout-editor.html'">🎨 Layout</button>
+        <button class="btn btn-secondary" onclick="location.href='quotes-editor.html'">💬 Citazioni</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2 class="card-title">📊 Dashboard</h2>
+      <div id="weather-container" class="weather-display">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">ℹ️ Stato Sistema</h2>
+      <div id="system-status">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Carica dati meteo
+    async function loadWeather() {
+      try {
+        const response = await fetch('/api/weather');
+        const data = await response.json();
+        
+        const container = document.getElementById('weather-container');
+        container.innerHTML = `
+          <h3>${data.location?.city || 'N/A'}</h3>
+          <div class="weather-icon">☁️</div>
+          <div class="temperature">${data.weather?.temp || '--'}°C</div>
+          <div class="weather-details">
+            <div>💧 ${data.weather?.humidity || '--'}%</div>
+            <div>🌬️ ${data.weather?.wind_speed || '--'} km/h</div>
+            <div>🔽 ${data.weather?.pressure || '--'} hPa</div>
+          </div>
+        `;
+      } catch (error) {
+        document.getElementById('weather-container').innerHTML = 
+          '<p class="message message-error">Errore caricamento dati meteo</p>';
+      }
+    }
+
+    // Carica stato sistema
+    async function loadSystemStatus() {
+      try {
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+        
+        const container = document.getElementById('system-status');
+        container.innerHTML = `
+          <div class="grid-2">
+            <div>
+              <strong>WiFi:</strong> ${data.ssid || 'Non configurato'}
+            </div>
+            <div>
+              <strong>Città:</strong> ${data.city || 'N/A'}
+            </div>
+            <div>
+              <strong>Risparmio Energetico:</strong> ${data.powerSavingEnabled ? '✅ Attivo' : '❌ Disattivo'}
+            </div>
+            <div>
+              <strong>Intervallo Aggiornamento:</strong> ${data.normalUpdateInterval || 30} min
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        document.getElementById('system-status').innerHTML = 
+          '<p class="message message-error">Errore caricamento stato sistema</p>';
+      }
+    }
+
+    // Inizializza
+    loadWeather();
+    loadSystemStatus();
+    
+    // Aggiorna ogni 60 secondi
+    setInterval(() => {
+      loadWeather();
+      loadSystemStatus();
+    }, 60000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+esp32.menu.PartitionScheme.huge=Huge APP (3MB No OTA/1MB SPIFFS)
+esp32.menu.PartitionScheme.huge.build.partitions=huge_app
+esp32.menu.PartitionScheme.huge.upload.maximum_size=3145728
+esp32.menu.CPUFreq.80=80MHz
+esp32.menu.CPUFreq.80.build.f_cpu=80000000L
+esp32.menu.FlashFreq.40=40MHz
+esp32.menu.FlashFreq.40.build.flash_freq=40m
