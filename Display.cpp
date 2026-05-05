@@ -788,7 +788,7 @@ void drawDisplayContent() {
   display.print(footerIpString);
   if (config.batteryMonitorEnabled && config.batteryShowOnDisplay) {
     int batteryPercentage = battery.getPercentage();
-    drawBattery(display.width() - 60, display.height() - 55, batteryPercentage);
+    drawBattery(display.width() - 60, display.height() - 32, batteryPercentage);
   }
 }
 
@@ -885,7 +885,7 @@ void drawDefaultLayout() {
   
   // Disegna sempre la batteria nel layout di default, indipendentemente dai flag di configurazione
   int batteryPercentage = battery.getPercentage();
-  drawBattery(display.width() - 60, display.height() - 55, batteryPercentage);
+  drawBattery(display.width() - 60, display.height() - 32, batteryPercentage);
 }
 
 // ============================================================================
@@ -926,7 +926,7 @@ void drawFocusLayout() {
     display.print(ipString);
     if (config.batteryMonitorEnabled && config.batteryShowOnDisplay) {
       int batteryPercentage = battery.getPercentage();
-      drawBattery(display.width() - 60, display.height() - 55, batteryPercentage);
+      drawBattery(display.width() - 60, display.height() - 32, batteryPercentage);
     }
   }
 }
@@ -1658,7 +1658,7 @@ void drawQuote(int x, int y, int maxWidth, int fontSize) {
   display.getTextBounds(authorLine.c_str(), 0, 0, &abx, &aby, &abw, &abh);
 
   // Se troppo lunga per lo schermo, tronca con "..." per evitare overflow
-  int maxAuthorWidth = display.width() - 12; // margine complessivo leggermente ridotto
+  int maxAuthorWidth = maxWidth - 6;
   if ((int)abw > maxAuthorWidth) {
     const String ellipsis = "...";
     String base = authorLine;
@@ -1676,10 +1676,10 @@ void drawQuote(int x, int y, int maxWidth, int fontSize) {
   }
   
   // Allinea a DESTRA: calcola la X in modo che il testo finisca a 3px dal bordo destro
-  int authorX = display.width() - (int)abw - 3;
+  int authorX = x + maxWidth - (int)abw - 3;
   
   // Assicura margine minimo da sinistra (non far partire troppo a sinistra)
-  if (authorX < 6) authorX = 6;
+  if (authorX < x + 3) authorX = x + 3;
   
   display.setCursor(authorX, cursorY);
   display.print(authorLine);
@@ -1696,7 +1696,7 @@ void drawBattery(int x, int y, int percentage) {
   
   // Assicura margini di sicurezza (min 10px da destra, max 30px dal fondo)
   if (x > display.width() - width - 10) x = display.width() - width - 10;
-  if (y > display.height() - height - 30) y = display.height() - height - 30;
+  if (y > display.height() - height - 8) y = display.height() - height - 8;
   if (x < 0) x = 0;
   if (y < 0) y = 0;
 
