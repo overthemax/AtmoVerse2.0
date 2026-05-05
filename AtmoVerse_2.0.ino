@@ -209,6 +209,9 @@ void setup() {
     saveConfig();
   }
 
+  // Inizializza il generatore casuale con rumore ADC + hardware RNG
+  randomSeed(analogRead(0) ^ (esp_random() & 0xFFFF));
+
   // Inizializzazione hardware
   initHardware();
 

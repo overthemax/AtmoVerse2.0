@@ -251,189 +251,64 @@ bool loadRandomQuote(const String& category, Quote& quote) {
 
   int selectedIndex = -1;
 
-  // 1) Tenta prima con corrispondenza esatta della fascia specifica (mattina/pomeriggio/sera)
-  if (specificTime.length() > 0) {
-    int matchCount = 0;
-    for (int i = 0; i < total; i++) {
+  // Selezione a pool cumulativo: aggiungi candidati da step progressivamente
+  // più permissivi finché il pool raggiunge MIN_POOL o si esauriscono gli step.
+  const int MAX_CANDIDATES = 50;
+  const int MIN_POOL = 3;
+  int candidates[MAX_CANDIDATES];
+  int candidateCount = 0;
+
+  auto alreadyIn = [&](int idx) -> bool {
+    for (int j = 0; j < candidateCount; j++) if (candidates[j] == idx) return true;
+    return false;
+  };
+  auto seasonOkFor = [&](const char* s) -> bool {
+    if (seasonTag.length() == 0) return true;
+    String sv = String(s); sv.trim();
+    return (sv.length() == 0 || timeMatches(s, seasonTag));
+  };
+
+  // Step 1: time specifico (mattina/pomeriggio/sera) + stagione + autore certo
+  if (candidateCount < MIN_POOL && specificTime.length() > 0) {
+    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
+      if (alreadyIn(i)) continue;
       JsonObject obj = categoryQuotes[i].as<JsonObject>();
-      const char* t = obj["time"] | "";
-      const char* s = obj["season"] | "";
-      const char* authorValue = obj["author"] | "";
-      if (!isCertainAuthor(authorValue)) {
-        continue;
-      }
-      bool seasonOk = true;
-      if (seasonTag.length() > 0) {
-        String seasonValue = String(s);
-        seasonValue.trim();
-        if (seasonValue.length() > 0 && !timeMatches(s, seasonTag)) {
-          seasonOk = false;
-        }
-      }
-      if (seasonOk && timeMatches(t, specificTime)) {
-        matchCount++;
-      }
-    }
-
-    if (matchCount > 0) {
-      int target = random(matchCount);
-      int current = 0;
-      for (int i = 0; i < total; i++) {
-        JsonObject obj = categoryQuotes[i].as<JsonObject>();
-        const char* t = obj["time"] | "";
-        const char* s = obj["season"] | "";
-        const char* authorValue = obj["author"] | "";
-        if (!isCertainAuthor(authorValue)) {
-          continue;
-        }
-        bool seasonOk = true;
-        if (seasonTag.length() > 0) {
-          String seasonValue = String(s);
-          seasonValue.trim();
-          if (seasonValue.length() > 0 && !timeMatches(s, seasonTag)) {
-            seasonOk = false;
-          }
-        }
-        if (seasonOk && timeMatches(t, specificTime)) {
-          if (current == target) {
-            selectedIndex = i;
-            break;
-          }
-          current++;
-        }
-      }
+      if (!isCertainAuthor(obj["author"] | "")) continue;
+      if (seasonOkFor(obj["season"] | "") && timeMatches(obj["time"] | "", specificTime))
+        candidates[candidateCount++] = i;
     }
   }
 
-  // 2) Se non trovata, prova con la fascia ampia (giorno/notte)
-  if (selectedIndex < 0 && broadTime.length() > 0) {
-    int matchCount = 0;
-    for (int i = 0; i < total; i++) {
+  // Step 2: time ampio (giorno/notte) + stagione + autore certo
+  if (candidateCount < MIN_POOL && broadTime.length() > 0) {
+    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
+      if (alreadyIn(i)) continue;
       JsonObject obj = categoryQuotes[i].as<JsonObject>();
-      const char* t = obj["time"] | "";
-      const char* s = obj["season"] | "";
-      const char* authorValue = obj["author"] | "";
-      if (!isCertainAuthor(authorValue)) {
-        continue;
-      }
-      bool seasonOk = true;
-      if (seasonTag.length() > 0) {
-        String seasonValue = String(s);
-        seasonValue.trim();
-        if (seasonValue.length() > 0 && !timeMatches(s, seasonTag)) {
-          seasonOk = false;
-        }
-      }
-      if (seasonOk && timeMatches(t, broadTime)) {
-        matchCount++;
-      }
-    }
-
-    if (matchCount > 0) {
-      int target = random(matchCount);
-      int current = 0;
-      for (int i = 0; i < total; i++) {
-        JsonObject obj = categoryQuotes[i].as<JsonObject>();
-        const char* t = obj["time"] | "";
-        const char* s = obj["season"] | "";
-        bool seasonOk = true;
-        if (seasonTag.length() > 0) {
-          String seasonValue = String(s);
-          seasonValue.trim();
-          if (seasonValue.length() > 0 && !timeMatches(s, seasonTag)) {
-            seasonOk = false;
-          }
-        }
-        if (seasonOk && timeMatches(t, broadTime)) {
-          if (current == target) {
-            selectedIndex = i;
-            break;
-          }
-          current++;
-        }
-      }
+      if (!isCertainAuthor(obj["author"] | "")) continue;
+      if (seasonOkFor(obj["season"] | "") && timeMatches(obj["time"] | "", broadTime))
+        candidates[candidateCount++] = i;
     }
   }
 
-  // 3) Se ancora nulla, scegli a caso tra tutte le citazioni della categoria
-  if (selectedIndex < 0) {
-    if (seasonTag.length() > 0) {
-      int matchCount = 0;
-      for (int i = 0; i < total; i++) {
-        JsonObject obj = categoryQuotes[i].as<JsonObject>();
-        const char* s = obj["season"] | "";
-        const char* authorValue = obj["author"] | "";
-        if (!isCertainAuthor(authorValue)) {
-          continue;
-        }
-        bool seasonOk = true;
-        String seasonValue = String(s);
-        seasonValue.trim();
-        if (seasonValue.length() > 0 && !timeMatches(s, seasonTag)) {
-          seasonOk = false;
-        }
-        if (seasonOk) {
-          matchCount++;
-        }
-      }
-      if (matchCount > 0) {
-        int target = random(matchCount);
-        int current = 0;
-        for (int i = 0; i < total; i++) {
-          JsonObject obj = categoryQuotes[i].as<JsonObject>();
-          const char* s = obj["season"] | "";
-          const char* authorValue = obj["author"] | "";
-          if (!isCertainAuthor(authorValue)) {
-            continue;
-          }
-          bool seasonOk = true;
-          String seasonValue = String(s);
-          seasonValue.trim();
-          if (seasonValue.length() > 0 && !timeMatches(s, seasonTag)) {
-            seasonOk = false;
-          }
-          if (seasonOk) {
-            if (current == target) {
-              selectedIndex = i;
-              break;
-            }
-            current++;
-          }
-        }
-      }
-    }
-    if (selectedIndex < 0) {
-      int eligibleCount = 0;
-      for (int i = 0; i < total; i++) {
-        JsonObject obj = categoryQuotes[i].as<JsonObject>();
-        const char* authorValue = obj["author"] | "";
-        if (isCertainAuthor(authorValue)) {
-          eligibleCount++;
-        }
-      }
-      if (eligibleCount == 0) {
-        // Nessuna citazione con autore "certo": accetta tutte
-        eligibleCount = total;
-        int target = random(eligibleCount);
-        selectedIndex = target < total ? target : 0;
-      } else {
-        int target = random(eligibleCount);
-        int current = 0;
-        for (int i = 0; i < total; i++) {
-          JsonObject obj = categoryQuotes[i].as<JsonObject>();
-          const char* authorValue = obj["author"] | "";
-          if (!isCertainAuthor(authorValue)) {
-            continue;
-          }
-          if (current == target) {
-            selectedIndex = i;
-            break;
-          }
-          current++;
-        }
-      }
+  // Step 3: stagione only + autore certo (qualsiasi orario)
+  if (candidateCount < MIN_POOL) {
+    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
+      if (alreadyIn(i)) continue;
+      JsonObject obj = categoryQuotes[i].as<JsonObject>();
+      if (!isCertainAuthor(obj["author"] | "")) continue;
+      if (seasonOkFor(obj["season"] | ""))
+        candidates[candidateCount++] = i;
     }
   }
+
+  // Step 4: nessun filtro, accetta tutti (anche senza autore certo)
+  if (candidateCount == 0) {
+    for (int i = 0; i < total && i < MAX_CANDIDATES; i++)
+      candidates[i] = i;
+    candidateCount = min(total, MAX_CANDIDATES);
+  }
+
+  selectedIndex = candidates[random(candidateCount)];
 
   JsonObject selected = categoryQuotes[selectedIndex].as<JsonObject>();
 
