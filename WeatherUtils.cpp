@@ -1,7 +1,7 @@
 #include "WeatherUtils.h"
 #include "Config.h"
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <time.h>
@@ -11,21 +11,19 @@ WeatherData currentWeather;
 
 // Funzione per ottenere i dati meteo da OpenWeatherMap (versione 2.5, gratuita)
 bool getWeatherData() {
-  // Serial.println("[WEATHER] Richiesta dati meteo in corso...");
+  Serial.println("[WEATHER] Richiesta dati meteo in corso...");
   
   // Verifica se abbiamo una configurazione valida
   if (!loadConfig()) {
-    // Serial.println("[WEATHER] Errore: Configurazione non valida");
+    Serial.println("[WEATHER] Errore: Configurazione non valida");
     return false;
   }
   
   // Verifica se API key e città sono configurate
   if (strlen(config.api_key) == 0 || strlen(config.city) == 0) {
-    // Serial.println("[WEATHER] Errore: API key o città non configurate");
-    // Serial.print("[WEATHER] API key: ");
-    // Serial.println(config.api_key);
-    // Serial.print("[WEATHER] Città: ");
-    // Serial.println(config.city);
+    Serial.println("[WEATHER] Errore: API key o città non configurate");
+    Serial.print("[WEATHER] API key: "); Serial.println(config.api_key);
+    Serial.print("[WEATHER] Citta: "); Serial.println(config.city);
     return false;
   }
   
@@ -34,7 +32,7 @@ bool getWeatherData() {
   // se si vuole usare l'API 3.0 OneCall in futuro.
   
   // Torniamo all'API gratuita 2.5 per i dati meteo base
-  static const char base_url[] PROGMEM = "https://api.openweathermap.org/data/2.5/weather?q=";
+  static const char base_url[] PROGMEM = "http://api.openweathermap.org/data/2.5/weather?q=";
   String url = FPSTR(base_url);
   url += config.city;
   url += "&units=";
@@ -47,10 +45,7 @@ bool getWeatherData() {
   // Serial.print("[WEATHER] URL richiesta: ");
   // Serial.println(url);
   
-  // Usa WiFiClientSecure per connessioni HTTPS
-  WiFiClientSecure client;
-  client.setInsecure();  // Per semplicità, disabilita verifica certificato (in produzione usare setCACert)
-  
+  WiFiClient client;
   HTTPClient http;
   http.begin(client, url);
   http.setTimeout(10000); // Timeout di 10 secondi
@@ -69,25 +64,29 @@ bool getWeatherData() {
       // Serial.print("[WEATHER] Payload: ");
       // Serial.println(payload);
       http.end();
+      client.stop();
       
       // Parsing dei dati JSON
       bool success = parseWeatherData(payload);
-      // if (success) {
-      //   Serial.println("[WEATHER] Dati meteo aggiornati con successo!");
-      // } else {
-      //   Serial.println("[WEATHER] Errore nel parsing dei dati meteo");
-      // }
+      if (success) {
+        Serial.print("[WEATHER] OK - id:"); Serial.print(currentWeather.weather_id);
+        Serial.print(" temp:"); Serial.print(currentWeather.temp);
+        Serial.print(" city:"); Serial.println(config.city);
+      } else {
+        Serial.println("[WEATHER] Errore nel parsing dei dati meteo");
+      }
       return success;
     } else {
-      // Serial.print("[WEATHER] Errore HTTP: ");
-      // Serial.println(httpCode);
+      Serial.print("[WEATHER] Errore HTTP: ");
+      Serial.println(httpCode);
     }
   } else {
-    // Serial.print("[WEATHER] Errore connessione: ");
-    // Serial.println(http.errorToString(httpCode));
+    Serial.print("[WEATHER] Errore connessione: ");
+    Serial.println(http.errorToString(httpCode));
   }
   
   http.end();
+  client.stop();
   return false;
 }
 
@@ -101,8 +100,8 @@ bool parseWeatherData(String& json) {
   
   // Verifica errori di parsing
   if (error) {
-    // Serial.print("[WEATHER] Errore deserializeJson: ");
-    // Serial.println(error.c_str());
+    Serial.print("[WEATHER] Errore deserializeJson: ");
+    Serial.println(error.c_str());
     return false;
   }
   

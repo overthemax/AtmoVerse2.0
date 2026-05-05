@@ -212,6 +212,9 @@ void setup() {
   // Inizializza il generatore casuale con rumore ADC + hardware RNG
   randomSeed(analogRead(0) ^ (esp_random() & 0xFFFF));
 
+  // DEBUG TEMPORANEO: forza aggiornamento meteo ogni 2 minuti
+  config.normalUpdateInterval = 2;
+
   // Inizializzazione hardware
   initHardware();
 
