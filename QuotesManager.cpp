@@ -188,13 +188,15 @@ bool loadRandomQuote(const String& category, Quote& quote) {
     return false;
   }
   
-  // Usa una DynamicJsonDocument per analizzare il file JSON
+  // Usa una DynamicJsonDocument filtrata per analizzare solo la categoria richiesta
 #if defined(ESP32)
   Serial.print("[QUOTES] loadRandomQuote - heap prima JSON: ");
   Serial.println(ESP.getFreeHeap());
 #endif
-  DynamicJsonDocument doc(JSON_BUFFER_LARGE); // Dimensione adeguata definita in costanti
-  DeserializationError error = deserializeJson(doc, file);
+  DynamicJsonDocument doc(JSON_BUFFER_LARGE);
+  DynamicJsonDocument filter(JSON_BUFFER_SMALL);
+  filter[category] = true;
+  DeserializationError error = deserializeJson(doc, file, DeserializationOption::Filter(filter));
   file.close();
   
   if (error) {
