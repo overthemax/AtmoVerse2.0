@@ -330,5 +330,9 @@
     {"text": "Era una notte buia e tempestosa...", "author": "Edward Bulwer-Lytton, Paul Clifford", "time": "sera,notte"},
     {"text": "I fulmini strappavano il cielo nero e il tuono scuoteva la casa come una nave in balia delle onde.", "author": "Emily Brontë, Cime tempestose", "time": "sera,notte"},
     {"text": "Il vento ululava come una bestia ferita, e gli alberi si piegavano fino a toccare terra sotto la furia della burrasca.", "author": "Joseph Conrad, Tifone", "season": "primavera,estate,autunno,inverno"}
+  ],
+  "programmate": [
+    {"text": "Buongiorno! Ogni mattina è una pagina bianca.", "author": "Anonimo", "ora": "07:00", "durata": 90, "giorni": "lun,mar,mer,gio,ven"},
+    {"text": "Buone feste! La felicità è reale solo se condivisa.", "author": "Christopher McCandless", "data": "12-25"}
   ]
 }

@@ -8,8 +8,9 @@ BatteryManager::BatteryManager() {
     adcAvailable = false;  // Assume non disponibile finché non testato
     ina219Available = false;
     voltageRatio = VOLTAGE_DIVIDER_RATIO;
-    
+
     voltage = 0.0;
+    restVoltage = 0.0;
     percentage = 0;
     state = BATTERY_UNKNOWN;
     isCharging = false;
@@ -125,17 +126,22 @@ void BatteryManager::readINA219() {
     // Leggi tutti i valori dall'INA219
     float busVoltage = ina219.getBusVoltage_V();
     shuntVoltage_mV = ina219.getShuntVoltage_mV();
-    voltage = busVoltage + (shuntVoltage_mV / 1000.0); // Tensione totale batteria
-    current_mA = ina219.getCurrent_mA();
+    float rawCurrent = ina219.getCurrent_mA();
     power_mW = ina219.getPower_mW();
-    
-    // Debug: log RAW values
-    Serial.printf("[BATTERY] RAW bus=%.2fV shunt=%.2fmV cur=%.1fmA\n", 
-                  busVoltage, shuntVoltage_mV, current_mA);
-    
-    // Nota: INA219 montato con VIN+/VIN- invertiti:
-    // - Corrente POSITIVA = batteria IN CARICA (corrente da USB verso batteria)
-    // - Corrente NEGATIVA = batteria in SCARICA (corrente verso ESP32)
+
+#if INA219_REVERSED
+    // VIN- (dove si misura la tensione di bus) è lato batteria
+    voltage = busVoltage;
+    // Letta positiva in carica: riportata a "positiva = scarica"
+    current_mA = -rawCurrent;
+#else
+    // Montaggio standard: VIN+ lato batteria = bus + caduta sullo shunt
+    voltage = busVoltage + (shuntVoltage_mV / 1000.0f);
+    current_mA = rawCurrent;
+#endif
+
+    Serial.printf("[BATTERY] RAW bus=%.3fV shunt=%.2fmV cur=%.1fmA -> V=%.3fV I=%.1fmA (positiva = scarica)\n",
+                  busVoltage, shuntVoltage_mV, rawCurrent, voltage, current_mA);
 }
 
 void BatteryManager::setADCAvailable(bool available) {
@@ -233,17 +239,35 @@ void BatteryManager::update() {
     
     // Aggiorna history
     updateHistory(voltage);
-    
+
+    // Tensione a vuoto stimata: mentre scorre corrente la tensione ai morsetti
+    // è più alta (carica) o più bassa (scarica) per la resistenza interna.
+    // Con l'INA219 si compensa con la corrente misurata (positiva = scarica).
+    float vRest = voltage;
+    if (ina219Available) {
+        vRest += (current_mA / 1000.0f) * BATTERY_INTERNAL_RESISTANCE;
+    }
+
+    // Filtro esponenziale: la percentuale non salta con i picchi del WiFi
+    if (restVoltage <= 0.0f) {
+        restVoltage = vRest;
+    } else {
+        restVoltage = 0.7f * restVoltage + 0.3f * vRest;
+    }
+
     // Calcola percentuale
-    percentage = voltageToPercentage(voltage);
-    
+    percentage = voltageToPercentage(restVoltage);
+
     // Rileva stato carica
     detectChargingState();
-    
+
     // Determina stato batteria
     if (isCharging) {
-        if (percentage >= 95) {
+        // Fine carica: il caricatore riduce la corrente quasi a zero a 4,2 V
+        bool chargeDone = voltage >= 4.15f && fabsf(current_mA) < BATTERY_CURRENT_THRESHOLD_MA;
+        if (percentage >= 95 || chargeDone) {
             state = BATTERY_FULL;
+            if (chargeDone) percentage = 100;
         } else {
             state = BATTERY_CHARGING;
         }
@@ -316,14 +340,14 @@ float BatteryManager::getVoltageTrend() {
 void BatteryManager::detectChargingState() {
     // Se abbiamo INA219, usiamo la corrente (molto più affidabile!)
     if (ina219Available) {
-        // Corrente positiva = carica (INA219 montato con VIN+/VIN- invertiti)
-        // Soglia di 50mA per evitare rumore
-        if (current_mA > 50.0) {
+        // current_mA è positiva in scarica e negativa in carica (vedi readINA219)
+        if (current_mA < -BATTERY_CURRENT_THRESHOLD_MA) {
             isCharging = true;
-        } else if (current_mA < -50.0) {
+        } else if (current_mA > BATTERY_CURRENT_THRESHOLD_MA) {
             isCharging = false;
         }
-        // Se corrente tra -10 e +10 mA, mantieni stato precedente
+        // Corrente vicina a zero: si mantiene lo stato precedente
+        // (a fine carica la corrente scende quasi a zero ma il caricatore è collegato)
         return;
     }
     
@@ -399,10 +423,9 @@ int BatteryManager::getEstimatedTimeRemaining() {
         return -1;  // Nessun sensore
     }
     
-    const float BATTERY_CAPACITY_MAH = 7000.0;
     float currentDraw;
-    
-    // Se abbiamo INA219, usa corrente reale!
+
+    // Se abbiamo INA219, usa la corrente di scarica reale (positiva = scarica)
     if (ina219Available && current_mA > 5.0) {
         currentDraw = current_mA;
     } else {

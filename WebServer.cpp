@@ -7,10 +7,31 @@
 #include "Hardware.h"
 #include "QuotesManager.h"
 #include "Display.h"
+#include "Updater.h"
+#include "Version.h"
 #include "AtmoVerseConstants.h" // Aggiunto per costanti JSON se necessarie
 #include <SD.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
+
+// Legge il corpo di una richiesta POST fino a Content-Length (il corpo può
+// arrivare dopo le intestazioni, in un pacchetto successivo). Max 3 s.
+static String readRequestBody(WiFiClient& client, int contentLength, int maxBody = 16384) {
+  const int MAX_BODY = maxBody;
+  String body;
+  if (contentLength > MAX_BODY) contentLength = MAX_BODY;
+  unsigned long deadline = millis() + 3000;
+  while (client.connected() && millis() < deadline) {
+    while (client.available()) {
+      body += (char)client.read();
+      if (contentLength > 0 && (int)body.length() >= contentLength) return body;
+      if ((int)body.length() >= MAX_BODY) return body;
+    }
+    if (contentLength <= 0 && body.length() > 0) break;
+    delay(5);
+  }
+  return body;
+}
 
 // Variabile definita nel file principale per il controllo del refresh display
 extern unsigned long lastDisplayUpdate;
@@ -35,7 +56,8 @@ static String mapUiCategoryToFirmware(const String& uiCat) {
       lc == "neve" || lc == "cielo_sereno" || lc == "poche_nuvole" ||
       lc == "nuvole_sparse" || lc == "nuvole_abbondanti" || lc == "nebbia" ||
       lc == "tempesta" || lc == "vento" || lc == "motivazione" ||
-      lc == "mattina" || lc == "pomeriggio" || lc == "sera") {
+      lc == "mattina" || lc == "pomeriggio" || lc == "sera" ||
+      lc == "programmate") {  // Citazioni a orario/data (vedi QuotesManager.cpp)
     return lc;
   }
 
@@ -198,41 +220,11 @@ bool serveFileFromSD(WiFiClient& client, String path) {
   return true;
 }
 
-// Pagina di avviso quando mancano i file web o la SD non è disponibile
+// Pagine web assenti (SD nuova, vuota o non inserita): si mostra la pagina di
+// configurazione minima del firmware. Dopo la configurazione le pagine
+// complete vengono scaricate da GitHub (vedi Updater.cpp), se c'è la SD.
 static void sendMissingAssetsPage(WiFiClient& client, bool sdOk, bool wwwExists) {
-  String reason;
-  if (!sdOk) {
-    reason = "<p><strong>SD non inizializzata o non inserita.</strong></p>";
-  } else if (!wwwExists) {
-    reason = "<p><strong>Cartella /www assente sulla SD.</strong></p>";
-  } else {
-    reason = "<p><strong>File richiesto non trovato.</strong></p>";
-  }
-
-  String html =
-    String("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">")+
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"+
-    "<title>AtmoVerse 2.0 - File Web Mancanti</title>"+
-    "<style>body{font-family:Arial,Helvetica,sans-serif;background:#f8f9fa;color:#333;margin:0;padding:40px;}"+
-    ".card{max-width:720px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.08);padding:28px;}"+
-    "h1{font-size:22px;margin:0 0 12px} p{line-height:1.5} code{background:#f1f3f5;padding:2px 6px;border-radius:6px}"+
-    ".hint{background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:8px;padding:12px;margin-top:16px}"+
-    ".list{margin:12px 0 0 18px} a{color:#0d6efd;text-decoration:none}</style></head><body>"+
-    "<div class=\"card\">"+
-    "<h1>Interfaccia web non disponibile</h1>"+
-    reason+
-    "<div class=\"hint\"><strong>Cosa fare:</strong> "+
-      (sdOk ? "Copia la cartella <code>/www</code> nella root della SD con i file essenziali:" : "Inserisci e inizializza una scheda SD compatibile, poi copia i file web come indicato qui sotto:")+
-    "</div>"+
-    "<ul class=\"list\">"+
-    "<li><code>/www/settings.html</code></li>"+
-    "<li><code>/www/settings.js</code></li>"+
-    "<li><code>/www/style.css</code></li>"+
-    "<li><code>/www/app.js</code> (se usato)</li>"+
-    "</ul>"+
-    "<p>Percorso sorgente nel progetto: <code>data/www/</code>. Dopo aver copiato i file, riavvia il dispositivo oppure ricarica questa pagina.</p>"+
-    "</div></body></html>";
-  sendResponse(client, "text/html", html, 200);
+  sendFallbackSetupPage(client);
 }
 
 // Gestione delle richieste dei client
@@ -279,10 +271,14 @@ void handleClientRequests() {
   
   // Leggi le altre intestazioni e il corpo della richiesta
   String header = "";
+  int contentLength = 0;
   while (client.available()) {
     String line = client.readStringUntil('\r');
     client.readStringUntil('\n');
     if (line.length() == 0) break;
+    if (line.length() > 15 && line.substring(0, 15).equalsIgnoreCase("Content-Length:")) {
+      contentLength = line.substring(15).toInt();
+    }
     header += line + "\n";
   }
   
@@ -402,6 +398,13 @@ void handleClientRequests() {
   }
 
   // Health check semplice con info di diagnostica
+  // Controllo aggiornamenti richiesto dalla pagina web (eseguito dal loop)
+  if (path == "/api/update/check" && method == "POST") {
+    requestUpdateCheck();
+    sendJsonResponse(client, "{\"success\":true,\"message\":\"Controllo aggiornamenti avviato\"}");
+    return;
+  }
+  
   if (path == "/api/health" && method == "GET") {
     DynamicJsonDocument doc(1024);
     doc["status"] = "ok";
@@ -433,7 +436,8 @@ void handleClientRequests() {
     doc["timezone"] = (int)(config.gmtOffset_sec / 3600);
     doc["daylightSaving"] = (config.daylightOffset_sec != 0);
     doc["ntpServer"] = config.ntpServer;
-    doc["api_key"] = config.api_key;
+    // L API key non viene mai restituita: la pagina sa solo se è impostata
+    doc["api_key_set"] = strlen(config.api_key) > 0;
     doc["use24hFormat"] = config.use24hFormat;
     doc["units"] = config.units;
     doc["language"] = config.language;
@@ -496,10 +500,7 @@ void handleClientRequests() {
 
   // Alias compatibilità: POST /api/config (accetta i campi previsti dallo script)
   if (path == "/api/config" && method == "POST") {
-    String body = "";
-    while (client.available()) {
-      body += client.readString();
-    }
+    String body = readRequestBody(client, contentLength);
     if (body.length() == 0) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
       return;
@@ -516,13 +517,19 @@ void handleClientRequests() {
     loadConfig();
 
     // Applica aggiornamenti
-    if (doc.containsKey("ssid")) strlcpy(config.ssid, doc["ssid"].as<String>().c_str(), sizeof(config.ssid));
-    if (doc.containsKey("password")) strlcpy(config.password, doc["password"].as<String>().c_str(), sizeof(config.password));
+    // Password vuota = mantieni quella salvata, tranne quando cambia la rete
+    // (allora vuota significa rete aperta)
+    String newSsid = doc["ssid"] | "";
+    String newPassword = doc["password"] | "";
+    bool ssidChanged = newSsid.length() > 0 && newSsid != config.ssid;
+    if (newSsid.length() > 0) strlcpy(config.ssid, newSsid.c_str(), sizeof(config.ssid));
+    if (newPassword.length() > 0 || ssidChanged) strlcpy(config.password, newPassword.c_str(), sizeof(config.password));
     if (doc.containsKey("city")) strlcpy(config.city, doc["city"].as<String>().c_str(), sizeof(config.city));
     if (doc.containsKey("timezone")) config.gmtOffset_sec = doc["timezone"].as<int>() * 3600;
     if (doc.containsKey("daylightSaving")) config.daylightOffset_sec = doc["daylightSaving"].as<bool>() ? 3600 : 0;
     if (doc.containsKey("ntpServer")) strlcpy(config.ntpServer, doc["ntpServer"].as<String>().c_str(), sizeof(config.ntpServer));
-    if (doc.containsKey("api_key")) strlcpy(config.api_key, doc["api_key"].as<String>().c_str(), sizeof(config.api_key));
+    // API key vuota = mantieni quella salvata (non viene più inviata alle pagine)
+    if ((doc["api_key"] | "")[0] != '\0') strlcpy(config.api_key, doc["api_key"].as<String>().c_str(), sizeof(config.api_key));
     if (doc.containsKey("use24hFormat")) config.use24hFormat = doc["use24hFormat"].as<bool>();
     if (doc.containsKey("units")) strlcpy(config.units, doc["units"].as<String>().c_str(), sizeof(config.units));
     if (doc.containsKey("language")) strlcpy(config.language, doc["language"].as<String>().c_str(), sizeof(config.language));
@@ -587,6 +594,8 @@ void handleClientRequests() {
       WiFi.disconnect(true);
       if (apMode) { WiFi.softAPdisconnect(true); }
       delay(1000);
+      // Riavvio voluto: il firmware funziona, niente rollback
+      markFirmwareHealthy();
       ESP.restart();
     } else {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel salvataggio della configurazione\"}");
@@ -649,7 +658,10 @@ void handleClientRequests() {
     // Inserisci tutte le impostazioni nel documento JSON
     doc["ssid"] = config.ssid;
     doc["city"] = config.city;
-    doc["api_key"] = config.api_key;
+    // L API key non viene mai restituita: la pagina sa solo se è impostata
+    doc["api_key_set"] = strlen(config.api_key) > 0;
+    doc["version"] = ATMOVERSE_VERSION;
+    doc["updateStatus"] = getUpdateStatusText();
     doc["timezone"] = config.gmtOffset_sec / 3600;
     doc["dst"] = config.daylightOffset_sec / 3600;
     // theme rimosso - usa /layout.json per personalizzare
@@ -874,65 +886,68 @@ void handleClientRequests() {
   
   // API citazioni - POST salva tutte le citazioni (da formato array Web GUI a formato oggetto firmware)
   if (path == "/api/quotes" && method == "POST") {
-    String body = "";
-    while (client.available()) {
-      body += client.readString();
-    }
+    // L'editor invia tutte le citazioni: quotes.json può superare i 48 KB
+    String body = readRequestBody(client, contentLength, 98304);
     
     if (body.length() == 0) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
       return;
     }
+    if (contentLength > 0 && (int)body.length() < contentLength) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Dati incompleti o troppo grandi\"}");
+      return;
+    }
     
-    DynamicJsonDocument* src = new DynamicJsonDocument(16384);
-    DeserializationError err = deserializeJson(*src, body);
+    JsonDocument src;
+    DeserializationError err = deserializeJson(src, body);
+    body = String();  // Libera memoria prima di costruire il file
     if (err) {
-      delete src;
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore parsing JSON\"}");
       return;
     }
     
     if (!initSD()) {
-      delete src;
       sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
       return;
     }
     
-    // Converti da formato array [{text, author, category}] a formato oggetto {categoria: [{text, author}]}
-    DynamicJsonDocument* out = new DynamicJsonDocument(16384);
-    
-    JsonArray srcArr = src->as<JsonArray>();
-    for (JsonVariant v : srcArr) {
+    // Da array [{category, text, author, ...}] a oggetto {categoria: [{text, author, ...}]}.
+    // Si conservano TUTTI i campi di ogni citazione (time, season, e per le
+    // programmate ora, durata, giorni, data), tranne "category" e i valori vuoti.
+    JsonDocument out;
+    for (JsonObject v : src.as<JsonArray>()) {
       String cat = v["category"] | "motivazione";
       cat = mapUiCategoryToFirmware(cat);
       
-      // Crea categoria se non esiste
-      if (!out->containsKey(cat)) {
-        out->createNestedArray(cat);
-      }
-      
-      JsonArray catArr = (*out)[cat].as<JsonArray>();
-      JsonObject quoteObj = catArr.createNestedObject();
-      quoteObj["text"] = v["text"] | "";
-      if (v.containsKey("author") && strlen(v["author"] | "") > 0) {
-        quoteObj["author"] = v["author"];
-      }
-      if (v.containsKey("time") && strlen(v["time"] | "") > 0) {
-        quoteObj["time"] = v["time"];
+      JsonArray catArr = out[cat].is<JsonArray>() ? out[cat].as<JsonArray>() : out[cat].to<JsonArray>();
+      JsonObject quoteObj = catArr.add<JsonObject>();
+      for (JsonPair kv : v) {
+        if (strcmp(kv.key().c_str(), "category") == 0) continue;
+        if (kv.value().is<const char*>() && strlen(kv.value().as<const char*>()) == 0) continue;
+        quoteObj[kv.key()] = kv.value();
       }
     }
-    delete src;
     
-    // Salva su file
-    File f = SD.open(QUOTES_JSON_PATH, FILE_WRITE);
+    // Scrittura su file temporaneo e sostituzione: se si interrompe, quotes.json resta integro
+    const char* tmpPath = "/quotes.tmp";
+    SD.remove(tmpPath);
+    File f = SD.open(tmpPath, FILE_WRITE);
     if (!f) {
-      delete out;
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere quotes.json\"}");
       return;
     }
-    serializeJson(*out, f);
+    size_t written = serializeJson(out, f);
     f.close();
-    delete out;
+    if (written == 0) {
+      SD.remove(tmpPath);
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore di scrittura\"}");
+      return;
+    }
+    SD.remove(QUOTES_JSON_PATH);
+    if (!SD.rename(tmpPath, QUOTES_JSON_PATH)) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile sostituire quotes.json\"}");
+      return;
+    }
     
     Serial.println("[WEB] Citazioni salvate su /quotes.json (convertite in formato firmware)");
     sendJsonResponse(client, "{\"success\":true}");
@@ -945,10 +960,7 @@ void handleClientRequests() {
     int lastSlash = path.lastIndexOf('/');
     int index = path.substring(lastSlash + 1).toInt();
     
-    String body = "";
-    while (client.available()) {
-      body += client.readString();
-    }
+    String body = readRequestBody(client, contentLength);
     if (body.length() == 0) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
       return;
@@ -1117,10 +1129,7 @@ void handleClientRequests() {
 
   // API citazioni - elimina una citazione per indice (OLD endpoint - mantienilo per compatibilità)
   if (path == "/api/quotes/delete" && method == "POST") {
-    String body = "";
-    while (client.available()) {
-      body += client.readString();
-    }
+    String body = readRequestBody(client, contentLength);
     if (body.length() == 0) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
       return;
@@ -1199,10 +1208,7 @@ void handleClientRequests() {
   // Gestione configurazioni
   if (path == "/api/settings" && method == "POST") {
     // Leggi il corpo della richiesta
-    String jsonBody = "";
-    while (client.available()) {
-      jsonBody += client.readString();
-    }
+    String jsonBody = readRequestBody(client, contentLength);
     
     // Verifica che il body non sia vuoto
     if (jsonBody.length() == 0) {
@@ -1273,14 +1279,17 @@ void handleClientRequests() {
     loadConfig();
     
     // Aggiorna le impostazioni in base ai parametri ricevuti
-    if (doc.containsKey("ssid")) {
-      String ssid = doc["ssid"].as<String>();
-      strlcpy(config.ssid, ssid.c_str(), sizeof(config.ssid));
+    // Password vuota = mantieni quella salvata, tranne quando cambia la rete
+    // (allora vuota significa rete aperta)
+    String newSsid = doc["ssid"] | "";
+    String newPassword = doc["password"] | "";
+    bool ssidChanged = newSsid.length() > 0 && newSsid != config.ssid;
+    if (newSsid.length() > 0) {
+      strlcpy(config.ssid, newSsid.c_str(), sizeof(config.ssid));
     }
 
-    if (doc.containsKey("password")) {
-      String password = doc["password"].as<String>();
-      strlcpy(config.password, password.c_str(), sizeof(config.password));
+    if (newPassword.length() > 0 || ssidChanged) {
+      strlcpy(config.password, newPassword.c_str(), sizeof(config.password));
     }
 
     if (doc.containsKey("api_key") && doc["api_key"].as<String>().length() > 0) {
@@ -1371,6 +1380,8 @@ void handleClientRequests() {
       
       // Riavvia ESP32
       delay(1000);
+      // Riavvio voluto: il firmware funziona, niente rollback
+      markFirmwareHealthy();
       ESP.restart();
     } else {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel salvataggio della configurazione\"}");
@@ -1558,8 +1569,7 @@ void handleClientRequests() {
 
   // API Layout: POST (Salva)
   if (path == "/api/layout" && method == "POST") {
-      String body = "";
-      while (client.available()) body += client.readString();
+      String body = readRequestBody(client, contentLength);
       
       if (body.length() == 0) {
           sendJsonResponse(client, "{\"success\":false,\"message\":\"Empty body\"}");

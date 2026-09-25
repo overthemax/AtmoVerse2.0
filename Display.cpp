@@ -26,6 +26,7 @@
 #include "SVGHelper.h"  // Per il supporto ai file SVG (fallback)
 #include "WeatherIcons.h"  // Per le icone OpenWeatherMap (fallback)
 #include "BatteryManager.h"  // Per accesso stato batteria
+extern bool apMode;           // Definita in NetworkUtils.cpp (header non incluso: conflitto su WIFI_CHECK_INTERVAL)
 #include <string.h>
 
 // Visualizza un semplice box di testo centrale con il messaggio passato
@@ -52,6 +53,31 @@ void showStatusOnDisplay(const char* msg) {
         display.print(msg);
     } while (display.nextPage());
     // Serial.println(msg);
+}
+
+// Schermata mostrata mentre si scarica un aggiornamento da GitHub
+// (provvisoria: verrà ridisegnata insieme al nuovo aspetto del display)
+void showUpdateScreen() {
+  const char* lines[] = {
+    "Aggiornamento in corso",
+    "Non spegnere il dispositivo:",
+    "si riavviera' da solo al termine."
+  };
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    int y = display.height() / 2 - 30;
+    for (int i = 0; i < 3; i++) {
+      display.setFont(i == 0 ? &FreeSerif12pt7b : &FreeSerif9pt7b);
+      int16_t tbx, tby; uint16_t tbw, tbh;
+      display.getTextBounds(lines[i], 0, 0, &tbx, &tby, &tbw, &tbh);
+      display.setCursor((display.width() - tbw) / 2, y);
+      display.print(lines[i]);
+      y += (i == 0) ? 40 : 26;
+    }
+  } while (display.nextPage());
 }
 
 // Definizione pin per display e-ink già dichiarati nel file principale
@@ -341,12 +367,10 @@ extern bool isPowerSavingMode();
 
 // Implementazione completa della funzione di aggiornamento display
 void updateDisplay() {
-  // Ottieni l'ora corrente
-  struct tm timeinfo;
-  getLocalTime(&timeinfo);
-  
-  // Se non siamo connessi al WiFi, mostra la schermata AP
-  if (WiFi.status() != WL_CONNECTED) {
+  // La schermata di configurazione solo quando l'AP è davvero attivo: se il
+  // WiFi cade per un momento si continua a mostrare il meteo (ultimi dati).
+  // (Rimossa la lettura dell'ora: getLocalTime() senza ora valida attende 5 s)
+  if (apMode) {
     showAPModeInfo();
     return;
   }

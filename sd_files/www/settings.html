@@ -209,7 +209,9 @@
         // Popola i campi del form
         document.getElementById('ssid').value = data.ssid || '';
         document.getElementById('city').value = data.city || '';
-        document.getElementById('api_key').value = data.api_key || '';
+        // L'API key non viene inviata dal dispositivo: campo vuoto = mantieni quella salvata
+        document.getElementById('api_key').value = '';
+        if (data.api_key_set) document.getElementById('api_key').placeholder = 'Già configurata (lascia vuoto per mantenerla)';
         document.getElementById('units').value = data.units || 'metric';
         document.getElementById('language').value = data.language || 'it';
         document.getElementById('timezone').value = data.timezone || 1;
