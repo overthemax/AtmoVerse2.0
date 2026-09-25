@@ -158,7 +158,7 @@ bool createDefaultConfig() {
   
   // Battery (disabilitato di default - richiede voltage divider esterno)
   doc["batteryMonitorEnabled"] = false;
-  doc["batteryADCPin"] = 35;  // GPIO35 per WEMOS Lolin32 Lite
+  doc["batteryADCPin"] = 34;  // GPIO34 per WEMOS Lolin32 Lite (evita conflitto con RESET_BUTTON_PIN=35)
   doc["batteryVoltageDivider"] = 2.0;
   doc["batteryShowOnDisplay"] = true;
   

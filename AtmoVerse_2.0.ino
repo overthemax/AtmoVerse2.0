@@ -41,6 +41,7 @@
 #include "AtmoSerialLogger.h"  // Nuovo sistema di logging
 #include "QuotesManager.h"    // Modulo per la gestione delle citazioni
 #include "BatteryManager.h"
+#include "RTCManager.h"
 
 // Pin per il pulsante di reset configurazione e contatore di pressioni
 #define RESET_BUTTON_PIN 35  // Pin del pulsante di RESET esterno
@@ -115,6 +116,9 @@ void resetConfigAndEnterAP() {
 
 // Setup iniziale
 void setup() {
+  // Riduce frequenza CPU a 80MHz per risparmio energetico (WiFi funziona fino a 80MHz)
+  setCpuFrequencyMhz(80);
+
   // Inizializza Serial per debug
   Serial.begin(115200);
   delay(1000);
@@ -222,6 +226,9 @@ void setup() {
     battery.begin(config.batteryADCPin, config.batteryVoltageDivider);
   }
 
+  // Inizializza RTC DS3231 - imposta subito il clock interno se disponibile
+  rtcBegin();
+
   displayStartupScreen();
 
   // --- Resto ---
@@ -235,6 +242,17 @@ void setup() {
     ArduinoCloud.begin(*cloudConnection);
   }
   configTime(config.gmtOffset_sec, config.daylightOffset_sec, config.ntpServer);
+  // Attendi sincronizzazione NTP (max 5s) poi aggiorna il DS3231
+  if (!apMode && isWiFiConnected()) {
+    struct tm ntpTime;
+    if (getLocalTime(&ntpTime, 5000)) {
+      syncToRTC();
+    }
+  }
+  // Se NTP non disponibile e RTC presente, usa ora RTC come fallback
+  if (rtcAvailable() && !rtcLostPower()) {
+    syncFromRTC();
+  }
   setupServer();
   getWeatherData();
   updateDisplay();
@@ -288,9 +306,25 @@ unsigned long getDisplayRefreshIntervalMs() {
 void loop() {
   unsigned long currentMillis = millis();
   ArduinoOTA.handle();
-  ArduinoCloud.update();
+  if (!apMode) ArduinoCloud.update();
   if (config.batteryMonitorEnabled) {
     battery.update();
+  }
+  
+  // Sincronizzazione NTP periodica ogni 30 minuti per calibrare il DS3231
+  static unsigned long lastNTPSync = 0;
+  const unsigned long NTP_SYNC_INTERVAL_MS = 30UL * 60UL * 1000UL; // 30 minuti
+  if (!apMode && WiFi.status() == WL_CONNECTED) {
+    if ((unsigned long)(currentMillis - lastNTPSync) >= NTP_SYNC_INTERVAL_MS) {
+      lastNTPSync = currentMillis;
+      struct tm timeinfo;
+      if (getLocalTime(&timeinfo, 5000)) { // 5 secondi timeout
+        syncToRTC();
+        Serial.println("[RTC] NTP sync periodico OK, RTC aggiornato");
+      } else {
+        Serial.println("[RTC] NTP sync periodico fallito");
+      }
+    }
   }
   
   // Esegui aggiornamenti solo quando non siamo in modalità AP
@@ -331,11 +365,8 @@ void loop() {
       updateDisplay(); // Aggiornamento completo del display una volta al minuto
     }
   } else {
-    // In modalità AP, aggiorna solo l'orario in base all'intervallo configurato
-    if ((unsigned long)(currentMillis - lastDisplayUpdate) >= (unsigned long)config.apTimeRefreshIntervalSec * 1000UL) {
-      lastDisplayUpdate = currentMillis;
-      updateTimeOnly();
-    }
+    // In modalità AP il display mostra la schermata statica di configurazione
+    // Non aggiorniamo l'orario: senza NTP non è affidabile e setPartialWindow causa crash
   }
   
   

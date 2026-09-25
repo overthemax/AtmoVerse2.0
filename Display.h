@@ -28,7 +28,7 @@ void drawPressure(int x, int y, float pressure);
 void drawWind(int x, int y, float windSpeed);
 void drawDateTime(int x, int y);
 void drawLastUpdate(int x, int y, time_t lastUpdate);
-void drawQuote(int x, int y, int maxWidth, int fontSize = 12);
+void drawQuote(int x, int y, int maxWidth, int fontSize = 14);
 void showStatusOnDisplay(const char* msg);
 
 // Funzioni per layout personalizzabili
