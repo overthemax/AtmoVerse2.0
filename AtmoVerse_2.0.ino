@@ -13,13 +13,8 @@
 #include <HTTPClient.h>
 #include <WiFiServer.h>
 #include <DNSServer.h>
-#include <ArduinoOTA.h>
 #include <ArduinoJson.h>
 #include <time.h>
-
-#include <ArduinoIoTCloud.h>
-#include <Arduino_ConnectionHandler.h>
-#include "CloudSecrets.h"
 
 // Librerie per E-Ink Display (GxEPD2)
 #include <GxEPD2_BW.h>
@@ -42,10 +37,20 @@
 #include "QuotesManager.h"    // Modulo per la gestione delle citazioni
 #include "BatteryManager.h"
 #include "RTCManager.h"
+#include "Updater.h"
+#include "Version.h"
 
-// Pin per il pulsante di reset configurazione e contatore di pressioni
-#define RESET_BUTTON_PIN 35  // Pin del pulsante di RESET esterno
-#define RESET_HOLD_TIME 5000      // Tempo di pressione continua per il reset (5 secondi)
+// Aggiornamenti automatici da GitHub (vedi Updater.h)
+const unsigned long UPDATE_CHECK_MS     = 6UL * 60 * 60 * 1000;  // Controllo ogni 6 ore
+const unsigned long UPDATE_RETRY_MS     = 10UL * 60 * 1000;      // Nuovo tentativo dopo un errore
+const unsigned long FIRMWARE_HEALTHY_MS = 60UL * 1000;           // Dopo 60 s il firmware è confermato
+const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP: nuovo tentativo sulla rete configurata
+
+// Richiesta di controllo aggiornamenti dalla pagina web (vedi WebServer.cpp)
+volatile bool updateCheckRequested = false;
+void requestUpdateCheck() {
+  updateCheckRequested = true;
+}
 
 // Timestamp dell'ultimo aggiornamento meteo
 unsigned long lastWeatherUpdate = 0;
@@ -61,25 +66,6 @@ bool lastWeatherUpdateSuccess = true;
 
 // Istanza del logger
 AtmoSerialLogger Logger(sdSPI, SD_CS);
-
-// Variabili per il rilevamento delle pressioni multiple e reset lungo
-unsigned long lastResetPressTime = 0;
-unsigned long resetPressStartTime = 0;
-bool resetButtonPressed = false;
-
-WiFiConnectionHandler* cloudConnection = nullptr;
-
-void initCloudProperties() {
-  ArduinoCloud.setBoardId(CLOUD_DEVICE_ID);
-  ArduinoCloud.setSecretDeviceKey(CLOUD_DEVICE_SECRET);
-}
-
-// Mostra un messaggio sul display e-ink
-
-void setupOTA() {
-  ArduinoOTA.setHostname("AtmoVerse");
-  ArduinoOTA.begin();
-}
 
 // Funzione per resettare la configurazione e entrare in modalità AP
 void resetConfigAndEnterAP() {
@@ -195,6 +181,15 @@ void setup() {
     }
   }
 
+  // Rileva un eventuale rollback del firmware e completa l'aggiornamento dei
+  // file della SD se era stato interrotto
+  initUpdater();
+  Serial.println("[SETUP] AtmoVerse " ATMOVERSE_VERSION);
+
+  // Fuso orario subito: l'ora dell'RTC (UTC) viene mostrata correttamente
+  // anche se non c'è internet
+  applyTimezone();
+
   // Verifica finale di validità della configurazione
   if (!checkConfigValidity()) {
     // Configurazione non valida, avvio AP
@@ -216,9 +211,6 @@ void setup() {
   // Inizializza il generatore casuale con rumore ADC + hardware RNG
   randomSeed(analogRead(0) ^ (esp_random() & 0xFFFF));
 
-  // DEBUG TEMPORANEO: forza aggiornamento meteo ogni 2 minuti
-  config.normalUpdateInterval = 2;
-
   // Inizializzazione hardware
   initHardware();
 
@@ -232,17 +224,14 @@ void setup() {
   displayStartupScreen();
 
   // --- Resto ---
-  setupWiFi();
-  if (!apMode && isWiFiConnected()) {
-    setupOTA();
-    if (cloudConnection == nullptr) {
-      cloudConnection = new WiFiConnectionHandler(config.ssid, config.password);
-    }
-    initCloudProperties();
-    ArduinoCloud.begin(*cloudConnection);
+  // Rete configurata ma non raggiungibile: modalità AP per la configurazione.
+  // In AP il loop riprova la rete ogni 5 minuti (se nessuno è collegato all'AP).
+  if (!setupWiFi()) {
+    startAccessPoint(true);
+    showAPModeInfo();
   }
-  configTime(config.gmtOffset_sec, config.daylightOffset_sec, config.ntpServer);
   // Attendi sincronizzazione NTP (max 5s) poi aggiorna il DS3231
+  // (il server NTP e il fuso orario sono impostati da connectToWiFi)
   if (!apMode && isWiFiConnected()) {
     struct tm ntpTime;
     if (getLocalTime(&ntpTime, 5000)) {
@@ -305,8 +294,6 @@ unsigned long getDisplayRefreshIntervalMs() {
 // Loop principale
 void loop() {
   unsigned long currentMillis = millis();
-  ArduinoOTA.handle();
-  if (!apMode) ArduinoCloud.update();
   if (config.batteryMonitorEnabled) {
     battery.update();
   }
@@ -327,6 +314,52 @@ void loop() {
     }
   }
   
+  // Dopo 60 secondi senza crash il firmware è confermato: se una versione
+  // appena installata va in crash prima, il bootloader torna alla precedente
+  static bool firmwareConfirmed = false;
+  if (!firmwareConfirmed && currentMillis >= FIRMWARE_HEALTHY_MS) {
+    markFirmwareHealthy();
+    firmwareConfirmed = true;
+  }
+
+  static bool updateDue = true;  // Primo controllo aggiornamenti appena possibile
+  static unsigned long lastUpdateCheck = 0;
+  static unsigned long updateWaitMs = UPDATE_CHECK_MS;
+
+  // In AP con una rete configurata: nuovo tentativo ogni 5 minuti, solo se
+  // nessun telefono è collegato all'AP (per non interrompere la configurazione)
+  static unsigned long apSince = 0;
+  if (apMode) {
+    if (apSince == 0) apSince = currentMillis;
+    if (strlen(config.ssid) > 0 && WiFi.softAPgetStationNum() == 0 &&
+        currentMillis - apSince >= AP_RETRY_MS) {
+      Serial.println("[WIFI] Modalità AP: nuovo tentativo sulla rete configurata");
+      if (connectToWiFi(config.ssid, config.password)) {
+        setupServer();
+        getWeatherData();
+        updateDisplay();
+        updateDue = true;
+      } else {
+        startAccessPoint(true);
+      }
+      apSince = millis();
+    }
+  } else {
+    apSince = 0;
+  }
+
+  // Aggiornamenti da GitHub: all'avvio (quindi anche subito dopo la prima
+  // configurazione), poi ogni 6 ore; dopo un errore si riprova in 10 minuti.
+  // Serve l'ora corretta (NTP o RTC) per verificare i certificati HTTPS.
+  // Se viene installato un nuovo firmware, checkForUpdates() riavvia.
+  if (!apMode && WiFi.status() == WL_CONNECTED && time(nullptr) > 1700000000 &&
+      (updateDue || updateCheckRequested || currentMillis - lastUpdateCheck >= updateWaitMs)) {
+    updateDue = false;
+    updateCheckRequested = false;
+    lastUpdateCheck = currentMillis;
+    updateWaitMs = checkForUpdates() ? UPDATE_CHECK_MS : UPDATE_RETRY_MS;
+  }
+
   // Esegui aggiornamenti solo quando non siamo in modalità AP
   if (!apMode) {
     // Determina l'intervallo di aggiornamento basato sulla modalità di risparmio energetico

@@ -19,10 +19,37 @@ bool apMode = false;
 // const char* AP_PASSWORD = "atmoverse"; // ora definito in AtmoVerseConstants.h
 const byte DNS_PORT = 53;
 
-// Configurazione del server NTP
+// Stringa TZ POSIX dal fuso della configurazione. L'ora legale segue le regole
+// europee (ultima domenica di marzo / ottobre) invece di sommare sempre
+// daylightOffset_sec. In POSIX il segno è invertito: UTC+1 si scrive "-1".
+static void buildTimezone(char* tz, size_t len) {
+  long offset = config.gmtOffset_sec;
+  int hours = -(int)(offset / 3600);
+  int minutes = abs((int)(offset % 3600)) / 60;
+  if (config.daylightOffset_sec > 0) {
+    snprintf(tz, len, "STD%+d:%02dDST,M3.5.0,M10.5.0/3", hours, minutes);
+  } else {
+    snprintf(tz, len, "STD%+d:%02d", hours, minutes);
+  }
+}
+
+// Imposta solo il fuso orario (anche senza rete): serve perché l'ora letta
+// dall'RTC, che è in UTC, venga mostrata come ora locale
+void applyTimezone() {
+  char tz[48];
+  buildTimezone(tz, sizeof(tz));
+  setenv("TZ", tz, 1);
+  tzset();
+}
+
+// Fuso orario e server NTP della configurazione (prima era sempre UTC)
 void setupTimeServer() {
   DEBUG_TRACE();
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  char tz[48];
+  buildTimezone(tz, sizeof(tz));
+  const char* ntp = strlen(config.ntpServer) > 0 ? config.ntpServer : "pool.ntp.org";
+  configTzTime(tz, ntp, "time.nist.gov");
+  Serial.printf("[TIME] Fuso orario %s, server NTP %s\n", tz, ntp);
 }
 
 // Avvia il punto di accesso

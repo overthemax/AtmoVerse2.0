@@ -348,21 +348,128 @@ bool loadRandomQuote(const String& category, Quote& quote) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Citazioni programmate
+// ---------------------------------------------------------------------------
+// Sezione "programmate" di quotes.json. Ogni voce:
+//   "text", "author"
+//   "ora":    "HH:MM"        inizio (facoltativo)
+//   "durata": minuti         per quanto resta attiva dall'"ora" (default 60)
+//   "giorni": "lun,mer,ven"  giorni della settimana (facoltativo)
+//   "data":   "MM-DD" ogni anno, oppure "YYYY-MM-DD" una volta (facoltativo);
+//             con la sola data la citazione vale tutto il giorno
+// Serve almeno uno tra "ora" e "data". Se più voci sono attive vince la più
+// specifica (data + ora, poi data, poi ora); a parità si sceglie a caso.
+
+static const char* SCHEDULED_KEY = "programmate";
+
+// "HH:MM" -> minuti dalla mezzanotte, -1 se non valido
+static int parseClock(const char* s) {
+  int h, m;
+  if (!s || sscanf(s, "%d:%d", &h, &m) != 2 || h < 0 || h > 23 || m < 0 || m > 59) return -1;
+  return h * 60 + m;
+}
+
+// "lun,mar,..." contiene il giorno tm_wday (0 = domenica)?
+static bool dayMatches(const char* days, int wday) {
+  static const char* names[] = {"dom", "lun", "mar", "mer", "gio", "ven", "sab"};
+  return timeMatches(days, names[wday]);
+}
+
+// "MM-DD" o "YYYY-MM-DD" corrisponde alla data di oggi?
+static bool dateMatches(const char* date, const struct tm& t) {
+  int y, m, d;
+  if (sscanf(date, "%d-%d-%d", &y, &m, &d) == 3) {
+    return y == t.tm_year + 1900 && m == t.tm_mon + 1 && d == t.tm_mday;
+  }
+  if (sscanf(date, "%d-%d", &m, &d) == 2) {
+    return m == t.tm_mon + 1 && d == t.tm_mday;
+  }
+  return false;
+}
+
+static bool loadScheduledQuote(Quote& quote) {
+  struct tm t;
+  if (!getLocalTime(&t, 0)) return false;  // Senza ora valida niente programmate
+  if (!initSD() || !SD.exists(QUOTES_FILE)) return false;
+
+  File file = SD.open(QUOTES_FILE, FILE_READ);
+  if (!file) return false;
+  DynamicJsonDocument doc(JSON_BUFFER_LARGE);
+  DynamicJsonDocument filter(JSON_BUFFER_SMALL);
+  filter[SCHEDULED_KEY] = true;
+  DeserializationError error = deserializeJson(doc, file, DeserializationOption::Filter(filter));
+  file.close();
+  if (error) return false;
+
+  JsonArray list = doc[SCHEDULED_KEY].as<JsonArray>();
+  if (list.isNull() || list.size() == 0) return false;
+
+  int nowMin = t.tm_hour * 60 + t.tm_min;
+  int bestScore = -1;
+  int bestCount = 0;
+  int chosen = -1;
+
+  for (int i = 0; i < (int)list.size(); i++) {
+    JsonObject q = list[i].as<JsonObject>();
+    const char* ora = q["ora"] | "";
+    const char* data = q["data"] | "";
+    const char* giorni = q["giorni"] | "";
+    bool hasTime = ora[0] != '\0';
+    bool hasDate = data[0] != '\0';
+    if (!hasTime && !hasDate) continue;
+
+    if (hasDate && !dateMatches(data, t)) continue;
+    if (giorni[0] != '\0' && !dayMatches(giorni, t.tm_wday)) continue;
+
+    if (hasTime) {
+      int start = parseClock(ora);
+      if (start < 0) continue;
+      int duration = q["durata"] | 60;
+      if (duration < 1) duration = 1;
+      // Minuti trascorsi dall'inizio, anche a cavallo della mezzanotte
+      int elapsed = (nowMin - start + 1440) % 1440;
+      if (elapsed >= duration) continue;
+    }
+
+    int score = (hasDate ? 2 : 0) + (hasTime ? 1 : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      bestCount = 1;
+      chosen = i;
+    } else if (score == bestScore) {
+      // Scelta casuale uniforme tra le voci ugualmente specifiche
+      bestCount++;
+      if (random(bestCount) == 0) chosen = i;
+    }
+  }
+
+  if (chosen < 0) return false;
+  JsonObject selected = list[chosen].as<JsonObject>();
+  quote.text = String(selected["text"] | "");
+  quote.author = String(selected["author"] | "");
+  return quote.text.length() > 0;
+}
+
 // Funzione principale per ottenere una citazione da visualizzare
 Quote getQuoteForDisplay() {
   Quote quote;
   Quote prev = getCurrentQuote();
-  
-  // Determina la categoria appropriata in base al tempo e alle condizioni meteo
-  String category = getWeatherCategory();
-  
-  // Tenta di caricare una citazione per la categoria meteo
-  bool loaded = (category.length() > 0) && loadRandomQuote(category, quote);
+
+  // 1) Citazione programmata attiva in questo momento
+  bool loaded = loadScheduledQuote(quote);
+  String category = loaded ? String(SCHEDULED_KEY) : getWeatherCategory();
+
+  // 2) Citazione per la categoria meteo corrente
+  if (!loaded) {
+    loaded = (category.length() > 0) && loadRandomQuote(category, quote);
+  }
 
   if (!loaded) {
-    // Nessun fallback: mostra la categoria non trovata sul display
-    quote.text = category.length() > 0 ? ("cat: " + category) : "meteo non disponibile";
-    quote.author = "";
+    // Nessuna citazione per questa categoria: si lascia quella precedente
+    // (prima veniva mostrato sul display il testo di debug "cat: <categoria>")
+    Serial.println("[QUOTES] Nessuna citazione per la categoria: " + category);
+    quote = prev;
   }
   
   // Logga solo se la citazione è cambiata rispetto alla precedente

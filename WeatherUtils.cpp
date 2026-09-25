@@ -1,7 +1,6 @@
 #include "WeatherUtils.h"
 #include "Config.h"
-#include <HTTPClient.h>
-#include <WiFiClient.h>
+#include "Updater.h"  // httpsGet()
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <time.h>
@@ -12,82 +11,66 @@ WeatherData currentWeather;
 // Funzione per ottenere i dati meteo da OpenWeatherMap (versione 2.5, gratuita)
 bool getWeatherData() {
   Serial.println("[WEATHER] Richiesta dati meteo in corso...");
-  
-  // Verifica se abbiamo una configurazione valida
-  if (!loadConfig()) {
-    Serial.println("[WEATHER] Errore: Configurazione non valida");
-    return false;
-  }
-  
-  // Verifica se API key e città sono configurate
+
+  // La configurazione è già in memoria (caricata all'avvio e aggiornata dalle
+  // pagine web): non viene riletta dalla SD a ogni aggiornamento
   if (strlen(config.api_key) == 0 || strlen(config.city) == 0) {
     Serial.println("[WEATHER] Errore: API key o città non configurate");
-    Serial.print("[WEATHER] API key: "); Serial.println(config.api_key);
-    Serial.print("[WEATHER] Citta: "); Serial.println(config.city);
     return false;
   }
-  
-  // NOTA: L'API 2.5 di OpenWeatherMap accetta direttamente il nome città.
-  // Le coordinate (lat/lon) sono opzionali e possono essere configurate manualmente
-  // se si vuole usare l'API 3.0 OneCall in futuro.
-  
-  // Torniamo all'API gratuita 2.5 per i dati meteo base
-  static const char base_url[] PROGMEM = "http://api.openweathermap.org/data/2.5/weather?q=";
-  String url = FPSTR(base_url);
-  url += config.city;
+
+  // API 2.5 gratuita di OpenWeatherMap, ricerca per nome città
+  String url = "https://api.openweathermap.org/data/2.5/weather?q=";
+  url += urlEncodeParam(config.city);
   url += "&units=";
   url += (strlen(config.units) ? config.units : "metric");
   url += "&lang=";
   url += (strlen(config.language) ? config.language : "it");
   url += "&appid=";
   url += config.api_key;
-  
-  // Serial.print("[WEATHER] URL richiesta: ");
-  // Serial.println(url);
-  
-  WiFiClient client;
-  HTTPClient http;
-  http.begin(client, url);
-  http.setTimeout(10000); // Timeout di 10 secondi
-  
-  // Effettua la richiesta GET
-  // Serial.println("[WEATHER] Invio richiesta GET...");
-  int httpCode = http.GET();
-  // Serial.print("[WEATHER] Codice risposta HTTP: ");
-  // Serial.println(httpCode);
-  
-  // Controlla il codice di risposta
-  if (httpCode > 0) {
-    if (httpCode == HTTP_CODE_OK) {
-      String payload = http.getString();
-      // Serial.println("[WEATHER] Risposta ricevuta! Parsing JSON...");
-      // Serial.print("[WEATHER] Payload: ");
-      // Serial.println(payload);
-      http.end();
-      client.stop();
-      
-      // Parsing dei dati JSON
-      bool success = parseWeatherData(payload);
-      if (success) {
-        Serial.print("[WEATHER] OK - id:"); Serial.print(currentWeather.weather_id);
-        Serial.print(" temp:"); Serial.print(currentWeather.temp);
-        Serial.print(" city:"); Serial.println(config.city);
-      } else {
-        Serial.println("[WEATHER] Errore nel parsing dei dati meteo");
-      }
-      return success;
+
+  // HTTPS con certificato verificato: l'API key non viaggia in chiaro
+  String payload;
+  int httpCode = httpsGet(url, payload, 8192);
+
+  if (httpCode == 200) {
+    bool success = parseWeatherData(payload);
+    if (success) {
+      Serial.print("[WEATHER] OK - id:"); Serial.print(currentWeather.weather_id);
+      Serial.print(" temp:"); Serial.print(currentWeather.temp);
+      Serial.print(" city:"); Serial.println(config.city);
     } else {
-      Serial.print("[WEATHER] Errore HTTP: ");
-      Serial.println(httpCode);
+      Serial.println("[WEATHER] Errore nel parsing dei dati meteo");
     }
-  } else {
-    Serial.print("[WEATHER] Errore connessione: ");
-    Serial.println(http.errorToString(httpCode));
+    return success;
   }
-  
-  http.end();
-  client.stop();
+
+  if (httpCode == 401) {
+    Serial.println("[WEATHER] API key non valida o non ancora attiva (HTTP 401)");
+  } else if (httpCode == 404) {
+    Serial.println("[WEATHER] Città non trovata (HTTP 404)");
+  } else if (httpCode > 0) {
+    Serial.printf("[WEATHER] Errore HTTP %d\n", httpCode);
+  } else {
+    Serial.println("[WEATHER] Errore di connessione");
+  }
   return false;
+}
+
+// Codifica un parametro per l'URL (es. "San Donà di Piave" -> "San%20Don%C3%A0%20di%20Piave")
+String urlEncodeParam(const char* text) {
+  static const char hex[] = "0123456789ABCDEF";
+  String out;
+  for (const unsigned char* p = (const unsigned char*)text; *p; p++) {
+    if (isalnum(*p) || *p == '-' || *p == '_' || *p == '.' || *p == '~') {
+      out += (char)*p;
+    } else {
+      out += '%';
+      out += hex[*p >> 4];
+      out += hex[*p & 0x0F];
+    }
+  }
+  return out;
 }
 
 // Parsing dei dati meteo dal JSON - Versione per API 2.5

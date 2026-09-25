@@ -25,6 +25,7 @@ struct WiFiNetwork {
 // Funzioni di configurazione e gestione rete
 bool setupWiFi();
 void setupTimeServer();
+void applyTimezone();  // Solo fuso orario, senza NTP
 bool isWiFiConnected();
 bool connectToWiFi(const char* ssid, const char* password);
 bool reconnectIfNeeded();

@@ -14,6 +14,25 @@
 #define INA219_SDA_PIN 32     // GPIO32 per Lolin32 Lite (libero)
 #define INA219_SCL_PIN 33     // GPIO33 per Lolin32 Lite (libero)
 
+// INA219 montato con VIN+/VIN- invertiti: VIN- è lato batteria.
+// Conseguenze: la tensione della batteria è la sola tensione di bus (non
+// bus + shunt) e la corrente letta è positiva in carica. Il codice la
+// riporta alla convenzione "positiva = scarica" usata in tutto il modulo.
+// Metti 0 se in futuro l'INA219 viene montato nel verso standard.
+#define INA219_REVERSED 1
+
+// Pacco batteria: 2 celle LiPo da 3500 mAh in parallelo.
+// Resistenza interna stimata (ohm): ~0,1 ohm per cella, dimezzata dal
+// parallelo, più collegamenti e protezione. Serve a stimare la tensione a
+// vuoto, da cui dipende la percentuale, mentre scorre corrente.
+#define BATTERY_INTERNAL_RESISTANCE 0.06f
+
+// Capacità del pacco (mAh), usata per la stima dell'autonomia: 2 x 3500
+#define BATTERY_CAPACITY_MAH 7000.0f
+
+// Soglia di corrente (mA) oltre la quale la batteria è in carica/scarica
+#define BATTERY_CURRENT_THRESHOLD_MA 20.0f
+
 // Tensioni batteria LiPo standard (3.7V nominale)
 #define BATTERY_MAX_VOLTAGE 4.2   // 100% carica
 #define BATTERY_MIN_VOLTAGE 3.0   // 0% (non scaricare sotto!)
@@ -35,7 +54,7 @@ private:
     // INA219
     Adafruit_INA219 ina219;
     bool ina219Available;
-    float current_mA;      // Corrente in mA (positiva = scarica, negativa = carica)
+    float current_mA;      // Corrente in mA (positiva = scarica, negativa = carica), qualunque sia il montaggio
     float power_mW;        // Potenza in mW
     float shuntVoltage_mV; // Tensione shunt in mV
     
@@ -45,7 +64,8 @@ private:
     float voltageRatio;
     
     // Dati correnti
-    float voltage;
+    float voltage;          // Tensione ai morsetti della batteria
+    float restVoltage;      // Tensione a vuoto stimata e filtrata (da cui la percentuale)
     int percentage;
     BatteryState state;
     bool isCharging;

@@ -30,6 +30,7 @@ void drawDateTime(int x, int y);
 void drawLastUpdate(int x, int y, time_t lastUpdate);
 void drawQuote(int x, int y, int maxWidth, int fontSize = 14);
 void showStatusOnDisplay(const char* msg);
+void showUpdateScreen();  // Download di un aggiornamento in corso
 
 // Funzioni per layout personalizzabili
 void drawDefaultLayout();  // Layout di default quando /layout.json non esiste

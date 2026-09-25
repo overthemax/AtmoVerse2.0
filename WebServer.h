@@ -20,6 +20,9 @@ void sendJsonResponse(WiFiClient& client, const String& jsonContent, int statusC
 void sendRedirect(WiFiClient& client, const String& location);
 void performWiFiScan(WiFiClient& client);
 
+// Chiede al loop di controllare subito gli aggiornamenti (definita nel .ino)
+void requestUpdateCheck();
+
 // Stato UI controllato dalla Web GUI (endpoint /api/display-settings)
 extern String g_displayTheme; // "default" | "eink"
 extern String g_displayMode;  // "classic" | "focus"

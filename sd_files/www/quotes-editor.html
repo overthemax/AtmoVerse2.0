@@ -100,6 +100,40 @@
         </small>
       </div>
 
+      <fieldset class="form-group" style="border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 12px;">
+        <legend>🗓️ Programmazione (facoltativa)</legend>
+        <small style="color: var(--text-secondary);">
+          Compila ora e/o data per mostrare la citazione in un momento preciso: ha la precedenza
+          su quelle del meteo. Con la sola data vale tutto il giorno.
+        </small>
+        <div class="grid-2" style="margin-top: 8px;">
+          <div>
+            <label for="edit-ora">Ora di inizio</label>
+            <input type="time" id="edit-ora">
+          </div>
+          <div>
+            <label for="edit-durata">Durata (minuti)</label>
+            <input type="number" id="edit-durata" min="1" max="1440" placeholder="60">
+          </div>
+        </div>
+        <div style="margin-top: 8px;">
+          <label for="edit-data">Data</label>
+          <input type="text" id="edit-data" placeholder="12-25 (ogni anno) oppure 2026-12-25 (una volta)" pattern="(\d{4}-)?\d{2}-\d{2}">
+        </div>
+        <div style="margin-top: 8px;">
+          <label>Giorni (nessuno = tutti)</label>
+          <div id="edit-giorni" style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <label><input type="checkbox" value="lun"> Lun</label>
+            <label><input type="checkbox" value="mar"> Mar</label>
+            <label><input type="checkbox" value="mer"> Mer</label>
+            <label><input type="checkbox" value="gio"> Gio</label>
+            <label><input type="checkbox" value="ven"> Ven</label>
+            <label><input type="checkbox" value="sab"> Sab</label>
+            <label><input type="checkbox" value="dom"> Dom</label>
+          </div>
+        </div>
+      </fieldset>
+
       <div class="grid-2">
         <div class="form-group">
           <label for="edit-font-size">Dimensione Font</label>
@@ -307,12 +341,13 @@
         if (response.ok) {
           const data = await response.json();
           quotes = Array.isArray(data) ? data : Object.entries(data).flatMap(([category, items]) =>
+            // Si conservano TUTTI i campi (time, season, ora, durata, giorni, data...):
+            // al salvataggio l'editor riscrive l'intero quotes.json
             Array.isArray(items) ? items.map(item => ({
+              ...item,
               text: item.text || item.quote || '',
               author: item.author || '',
-              category,
-              time: item.time || '',
-              season: item.season || ''
+              category
             })) : []
           );
           updateStats();
@@ -410,6 +445,7 @@
             <div>
               <strong>— ${authorInfo}</strong>
               ${quote.category ? `<span class="quote-category">${quote.category}</span>` : ''}
+              ${(quote.ora || quote.data) ? `<span class="quote-category">🗓️ ${[quote.data, quote.ora ? quote.ora + ' per ' + (quote.durata || 60) + ' min' : '', quote.giorni].filter(Boolean).join(' · ')}</span>` : ''}
               ${sizeLabel ? `<small style="margin-left: 8px; color: var(--text-secondary);">${sizeLabel} ${alignLabel}</small>` : ''}
             </div>
           </div>
@@ -482,8 +518,26 @@
       document.getElementById('edit-align').value = 'center';
       document.getElementById('edit-author-style').value = 'italic';
       document.getElementById('edit-author-same-line').checked = false;
+      setScheduleFields({});
       updatePreview();
       document.getElementById('edit-modal').classList.remove('hidden');
+    }
+
+    // Campi di programmazione (ora, durata, data, giorni)
+    function setScheduleFields(q) {
+      document.getElementById('edit-ora').value = q.ora || '';
+      document.getElementById('edit-durata').value = q.durata || '';
+      document.getElementById('edit-data').value = q.data || '';
+      const days = (q.giorni || '').split(',').map(d => d.trim());
+      document.querySelectorAll('#edit-giorni input').forEach(cb => { cb.checked = days.includes(cb.value); });
+    }
+
+    function readScheduleFields() {
+      const ora = document.getElementById('edit-ora').value;
+      const durata = parseInt(document.getElementById('edit-durata').value, 10);
+      const data = document.getElementById('edit-data').value.trim();
+      const giorni = Array.from(document.querySelectorAll('#edit-giorni input:checked')).map(cb => cb.value).join(',');
+      return { ora, durata: isNaN(durata) ? null : durata, data, giorni };
     }
 
     // Modifica citazione
@@ -498,6 +552,7 @@
       document.getElementById('edit-align').value = quote.align || 'center';
       document.getElementById('edit-author-style').value = quote.authorStyle || 'italic';
       document.getElementById('edit-author-same-line').checked = quote.authorSameLine || false;
+      setScheduleFields(quote);
       updatePreview();
       document.getElementById('edit-modal').classList.remove('hidden');
     }
@@ -518,16 +573,32 @@
         return;
       }
       
-      const quote = { 
-        text, 
-        author, 
-        category: category || 'motivazione',
+      const schedule = readScheduleFields();
+      if (schedule.data && !/^(\d{4}-)?\d{2}-\d{2}$/.test(schedule.data)) {
+        showMessage('❌ Data non valida: usa 12-25 oppure 2026-12-25', 'error');
+        return;
+      }
+      const scheduled = !!(schedule.ora || schedule.data);
+
+      // Si parte dalla citazione esistente per non perdere i campi che il
+      // modulo non mostra (es. time, season)
+      const quote = {
+        ...(editingIndex === -1 ? {} : quotes[editingIndex]),
+        text,
+        author,
+        // Con ora o data la citazione va tra le programmate
+        category: scheduled ? 'programmate' : (category || 'motivazione'),
         authorNote,
         fontSize,
         align,
         authorStyle,
         authorSameLine
       };
+      delete quote.ora; delete quote.durata; delete quote.data; delete quote.giorni;
+      if (schedule.ora) quote.ora = schedule.ora;
+      if (schedule.ora && schedule.durata) quote.durata = schedule.durata;
+      if (schedule.data) quote.data = schedule.data;
+      if (scheduled && schedule.giorni) quote.giorni = schedule.giorni;
       
       if (editingIndex === -1) {
         // Nuova citazione
