@@ -54,3 +54,6 @@ node_modules/
 # Cartelle temporanee
 temp/
 tmp/
+
+# Credenziali Arduino IoT Cloud: mai su git
+CloudSecrets.h
