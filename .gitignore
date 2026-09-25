@@ -57,3 +57,8 @@ tmp/
 
 # Credenziali Arduino IoT Cloud: mai su git
 CloudSecrets.h
+
+# Citazioni private (orologio letterario): solo sulla SD, mai su GitHub
+orari/
+sd_files/orari/
+quotes.csv
