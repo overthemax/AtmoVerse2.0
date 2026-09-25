@@ -24,6 +24,9 @@ BatteryManager::BatteryManager() {
     
     lastRead = 0;
     historyIndex = 0;
+    historyCount = 0;
+    lastVoltage = 0.0;
+    stuckCounter = 0;
     
     // Inizializza history
     for (int i = 0; i < 10; i++) {
@@ -35,26 +38,24 @@ void BatteryManager::begin(int pin, float ratio) {
     adcPin = pin;
     voltageRatio = ratio;
     
-    // Serial.println("[BATTERY] Inizializzazione BatteryManager...");
+    Serial.println("[BATTERY] Inizializzazione BatteryManager...");
     
     // Prova prima INA219 (più preciso)
     ina219Available = initINA219();
     
     if (ina219Available) {
-        // Serial.println("[BATTERY] ✓ INA219 trovato e inizializzato!");
-        // Serial.println("[BATTERY] Lettura tensione e corrente via I2C");
+        Serial.println("[BATTERY] INA219 trovato e inizializzato");
     } else {
-        // Serial.println("[BATTERY] INA219 non trovato, provo fallback ADC...");
+        Serial.println("[BATTERY] INA219 non trovato, provo fallback ADC...");
         
         // Configura pin ADC come fallback
         pinMode(adcPin, INPUT);
         adcAvailable = testADC();
         
         if (adcAvailable) {
-            // Serial.println("[BATTERY] ✓ ADC disponibile su pin " + String(adcPin));
+            Serial.println("[BATTERY] ADC disponibile su pin " + String(adcPin));
         } else {
-            // Serial.println("[BATTERY] ⚠️ ATTENZIONE: Nessun sensore disponibile!");
-            // Serial.println("[BATTERY] Collega INA219 o configura voltage divider su ADC.");
+            Serial.println("[BATTERY] ATTENZIONE: Nessun sensore batteria disponibile");
             voltage = 0.0;
             percentage = 0;
             state = BATTERY_UNKNOWN;
@@ -63,8 +64,17 @@ void BatteryManager::begin(int pin, float ratio) {
         }
     }
     
-    // Prima lettura
+    // Prima lettura immediata (forza update saltando il controllo intervallo)
+    lastRead = millis() - READ_INTERVAL - 1;
     update();
+    Serial.printf("[BATTERY] Init completato: V=%.2fV %%=%d\n", voltage, percentage);
+    if (ina219Available) {
+        Serial.println("[BATTERY] >>> SENSORE ATTIVO: INA219 (I2C)");
+    } else if (adcAvailable) {
+        Serial.printf("[BATTERY] >>> SENSORE ATTIVO: ADC (pin %d, ratio %.2f)\n", adcPin, voltageRatio);
+    } else {
+        Serial.println("[BATTERY] >>> SENSORE ATTIVO: NESSUNO");
+    }
 }
 
 bool BatteryManager::initINA219() {
@@ -75,22 +85,37 @@ bool BatteryManager::initINA219() {
     ina219 = Adafruit_INA219(INA219_I2C_ADDR);
     
     if (!ina219.begin(&Wire)) {
-        // Serial.println("[BATTERY] INA219 begin() fallito");
+        Serial.println("[BATTERY] INA219 begin() fallito");
         return false;
     }
     
-    // Configura per batteria LiPo (range 16V, 400mA max tipico per ESP32)
-    // Usa calibrazione 32V_1A per avere margine
+    // Configura per batteria LiPo
     ina219.setCalibration_32V_1A();
     
     // Test lettura
-    float testVoltage = ina219.getBusVoltage_V();
-    if (testVoltage < 0.1 || testVoltage > 10.0) {
-        // Serial.printf("[BATTERY] INA219 lettura anomala: %.2fV\n", testVoltage);
+    float testVoltage1 = ina219.getBusVoltage_V();
+    float testCurrent1 = ina219.getCurrent_mA();
+    delay(50);
+    float testVoltage2 = ina219.getBusVoltage_V();
+    float testCurrent2 = ina219.getCurrent_mA();
+    Serial.printf("[BATTERY] Test INA219: V1=%.2fV I1=%.1fmA | V2=%.2fV I2=%.1fmA\n",
+                  testVoltage1, testCurrent1, testVoltage2, testCurrent2);
+    
+    // Range valido per LiPo
+    if (testVoltage1 < 0.1 || testVoltage1 > 10.0) {
+        Serial.printf("[BATTERY] INA219 lettura anomala: %.2fV\n", testVoltage1);
         return false;
     }
     
-    // Serial.printf("[BATTERY] INA219 test OK, tensione: %.2fV\n", testVoltage);
+    // Falso positivo: se tensione e corrente sono identiche al centesimo tra due letture,
+    // probabilmente è un dispositivo I2C "fantasma" o non collegato correttamente
+    bool voltageIdentical = (abs(testVoltage1 - testVoltage2) < 0.01f);
+    bool currentZero = (abs(testCurrent1) < 0.1f && abs(testCurrent2) < 0.1f);
+    if (voltageIdentical && currentZero) {
+        Serial.println("[BATTERY] INA219 rilevato ma valori bloccati (falso positivo?) - uso ADC fallback");
+        return false;
+    }
+    
     return true;
 }
 
@@ -98,21 +123,25 @@ void BatteryManager::readINA219() {
     if (!ina219Available) return;
     
     // Leggi tutti i valori dall'INA219
+    float busVoltage = ina219.getBusVoltage_V();
     shuntVoltage_mV = ina219.getShuntVoltage_mV();
-    voltage = ina219.getBusVoltage_V() + (shuntVoltage_mV / 1000.0); // Tensione totale batteria
+    voltage = busVoltage + (shuntVoltage_mV / 1000.0); // Tensione totale batteria
     current_mA = ina219.getCurrent_mA();
     power_mW = ina219.getPower_mW();
     
-    // Nota: con INA219 in serie sul positivo:
-    // - Corrente POSITIVA = batteria si scarica (corrente verso ESP32)
-    // - Corrente NEGATIVA = batteria in carica (corrente da USB verso batteria)
-    // Questo dipende dal verso di collegamento VIN+/VIN-
+    // Debug: log RAW values
+    Serial.printf("[BATTERY] RAW bus=%.2fV shunt=%.2fmV cur=%.1fmA\n", 
+                  busVoltage, shuntVoltage_mV, current_mA);
+    
+    // Nota: INA219 montato con VIN+/VIN- invertiti:
+    // - Corrente POSITIVA = batteria IN CARICA (corrente da USB verso batteria)
+    // - Corrente NEGATIVA = batteria in SCARICA (corrente verso ESP32)
 }
 
 void BatteryManager::setADCAvailable(bool available) {
     adcAvailable = available;
-    // Serial.print("[BATTERY] ADC ");
-    // Serial.println(available ? "ABILITATO" : "DISABILITATO");
+    Serial.print("[BATTERY] ADC ");
+    Serial.println(available ? "ABILITATO" : "DISABILITATO");
 }
 
 bool BatteryManager::testADC() {
@@ -164,10 +193,12 @@ bool BatteryManager::testADC() {
 
 void BatteryManager::update() {
     // Controlla intervallo
-    if (millis() - lastRead < READ_INTERVAL) {
+    unsigned long now = millis();
+    if (now - lastRead < READ_INTERVAL) {
         return;
     }
-    lastRead = millis();
+    lastRead = now;
+    Serial.printf("[BATTERY] update() eseguito a %lums, ina219Avail=%d\n", now, ina219Available);
     
     // Nessun sensore disponibile
     if (!ina219Available && !adcAvailable) {
@@ -184,6 +215,21 @@ void BatteryManager::update() {
     } else {
         voltage = readVoltageRaw();
     }
+    
+    // Stuck detection: se tensione è identica per troppi cicli, sensore probabilmente non collegato correttamente
+    // TEMPORANEAMENTE DISABILITATO PER DEBUG CRASH AP
+    /*
+    if (abs(voltage - lastVoltage) < 0.001f) {
+        stuckCounter++;
+        if (stuckCounter >= 10) {
+            Serial.printf("[BATTERY] WARNING: tensione bloccata a %.2fV per %d letture consecutive - verificare collegamento sensore!\n", voltage, stuckCounter);
+            stuckCounter = 0; // reset per evitare flood log
+        }
+    } else {
+        stuckCounter = 0;
+    }
+    lastVoltage = voltage;
+    */
     
     // Aggiorna history
     updateHistory(voltage);
@@ -211,14 +257,14 @@ void BatteryManager::update() {
         }
     }
     
-    // Log
-    // if (ina219Available) {
-    //     Serial.printf("[BATTERY] V=%.2fV, I=%.1fmA, P=%.1fmW, %%=%d, Charging=%s\n", 
-    //                   voltage, current_mA, power_mW, percentage, isCharging ? "YES" : "NO");
-    // } else {
-    //     Serial.printf("[BATTERY] V=%.2fV, %%=%d, State=%d, Charging=%s\n", 
-    //                   voltage, percentage, state, isCharging ? "YES" : "NO");
-    // }
+    // Log valori batteria
+    if (ina219Available) {
+        Serial.printf("[BATTERY] V=%.2fV, I=%.1fmA, %%=%d\n", 
+                      voltage, current_mA, percentage);
+    } else {
+        Serial.printf("[BATTERY] V=%.2fV, %%=%d\n", 
+                      voltage, percentage);
+    }
 }
 
 float BatteryManager::readVoltageRaw() {
@@ -246,6 +292,7 @@ float BatteryManager::readVoltageRaw() {
 void BatteryManager::updateHistory(float v) {
     voltageHistory[historyIndex] = v;
     historyIndex = (historyIndex + 1) % 10;
+    historyCount++;
 }
 
 float BatteryManager::getVoltageTrend() {
@@ -269,11 +316,11 @@ float BatteryManager::getVoltageTrend() {
 void BatteryManager::detectChargingState() {
     // Se abbiamo INA219, usiamo la corrente (molto più affidabile!)
     if (ina219Available) {
-        // Corrente negativa = carica (corrente fluisce verso la batteria)
-        // Soglia di 10mA per evitare rumore
-        if (current_mA < -10.0) {
+        // Corrente positiva = carica (INA219 montato con VIN+/VIN- invertiti)
+        // Soglia di 50mA per evitare rumore
+        if (current_mA > 50.0) {
             isCharging = true;
-        } else if (current_mA > 10.0) {
+        } else if (current_mA < -50.0) {
             isCharging = false;
         }
         // Se corrente tra -10 e +10 mA, mantieni stato precedente
@@ -281,6 +328,11 @@ void BatteryManager::detectChargingState() {
     }
     
     // Fallback: usa trend tensione (meno affidabile)
+    // Se la history non è ancora popolata (indice < 10 letture), default a non in carica
+    if (historyCount < 10) {
+        isCharging = false;
+        return;
+    }
     float trend = getVoltageTrend();
     
     // Se tensione sta salendo significativamente, probabilmente in carica
@@ -292,24 +344,50 @@ void BatteryManager::detectChargingState() {
         isCharging = false;
     }
     // Mantieni stato precedente se cambio minimo
-    
-    // Ulteriore controllo: se tensione molto alta, sicuramente in carica
-    if (voltage > BATTERY_MAX_VOLTAGE - 0.1) {
-        isCharging = true;
-    }
 }
 
 int BatteryManager::voltageToPercentage(float v) {
-    // Mappa tensione a percentuale usando curva LiPo
-    if (v >= BATTERY_MAX_VOLTAGE) return 100;
-    if (v <= BATTERY_MIN_VOLTAGE) return 0;
-    
-    // Conversione lineare (semplificata)
-    // Per curva più accurata, usa lookup table
-    float range = BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE;
-    float normalized = (v - BATTERY_MIN_VOLTAGE) / range;
-    
-    return (int)(normalized * 100.0);
+    // Curva LiPo realistica basata su discharge curve 0.5C a 25°C
+    // Punti: tensione, percentuale (interpolazione lineare)
+    static const float curve[][2] = {
+        {4.20f, 100.0f},  // Full charge
+        {4.15f,  97.0f},  // Top plateau
+        {4.10f,  92.0f},  // 
+        {4.05f,  87.0f},  // 
+        {4.00f,  80.0f},  // Start of main plateau
+        {3.95f,  72.0f},  // 
+        {3.90f,  63.0f},  // 
+        {3.85f,  55.0f},  // 
+        {3.80f,  48.0f},  // 
+        {3.75f,  42.0f},  // 
+        {3.70f,  35.0f},  // 
+        {3.65f,  27.0f},  // 
+        {3.60f,  20.0f},  // 
+        {3.55f,  15.0f},  // 
+        {3.50f,  10.0f},  // 
+        {3.45f,   6.0f},  // 
+        {3.40f,   3.0f},  // 
+        {3.35f,   1.0f},  // Near cutoff
+        {3.30f,   0.0f},  // Minimum safe voltage
+        {3.00f,   0.0f}   // Deep discharge (should not reach)
+    };
+    const int n = sizeof(curve) / sizeof(curve[0]);
+
+    // Clamp voltage
+    if (v >= 4.25f) return 100;
+    if (v <= 3.30f) return 0;
+    if (v >= 4.20f) return 100;
+
+    // Interpolazione lineare tra i punti
+    for (int i = 0; i < n - 1; i++) {
+        if (v <= curve[i][0] && v >= curve[i+1][0]) {
+            float vRange = curve[i][0] - curve[i+1][0];
+            float pRange = curve[i][1] - curve[i+1][1];
+            float frac = (curve[i][0] - v) / vRange;
+            return (int)(curve[i][1] - frac * pRange + 0.5f);  // Round to nearest
+        }
+    }
+    return 0;
 }
 
 int BatteryManager::getEstimatedTimeRemaining() {
@@ -321,7 +399,7 @@ int BatteryManager::getEstimatedTimeRemaining() {
         return -1;  // Nessun sensore
     }
     
-    const float BATTERY_CAPACITY_MAH = 2000.0;
+    const float BATTERY_CAPACITY_MAH = 7000.0;
     float currentDraw;
     
     // Se abbiamo INA219, usa corrente reale!

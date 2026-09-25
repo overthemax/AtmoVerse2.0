@@ -61,6 +61,11 @@ private:
     // Storia per calcolare trend
     float voltageHistory[10];
     int historyIndex;
+    int historyCount;
+    
+    // Stuck detection
+    float lastVoltage;
+    int stuckCounter;
     
     // Metodi privati
     float readVoltageRaw();      // Lettura ADC fallback
@@ -94,6 +99,7 @@ public:
     float getCurrent() { return current_mA; }       // mA (positiva=scarica, negativa=carica)
     float getPower() { return power_mW; }           // mW
     bool hasINA219() { return ina219Available; }    // INA219 presente?
+    bool isAvailable() { return ina219Available || adcAvailable; }  // Qualsiasi sensore disponibile?
     
     // Calcola percentuale da tensione
     int voltageToPercentage(float v);

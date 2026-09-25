@@ -3,10 +3,14 @@
 #include <SD.h>
 #include <ArduinoJson.h>
 #include <Fonts/FreeMonoBold9pt7b.h>
+#include <Fonts/FreeMonoBold24pt7b.h>
 #include <Fonts/FreeSerif9pt7b.h>
 #include <Fonts/FreeSerif12pt7b.h>
+#include <Fonts/FreeSerifBoldItalic12pt7b.h>  // Font serif grassetto corsivo
+#include "KAUFMANN20pt7b.h"                      // Font calligrafico Kaufmann per citazioni
 #include <Fonts/FreeSansBold12pt7b.h>    // Font sans-serif più moderno e leggibile
 #include <Fonts/FreeSansBold18pt7b.h>    // Font sans-serif grande per citazioni
+#include <Fonts/FreeSansBold24pt7b.h>    // Font sans-serif 24pt per temperatura
 #include <Fonts/FreeMonoBoldOblique9pt7b.h> // Font corsivo per l'autore
 #include <WiFi.h>
 #include <math.h>
@@ -103,75 +107,34 @@ void displayStartupScreen() {
   // Serial.println("Schermata di avvio visualizzata");
 }
 
-// Disegna la temperatura usando cifre BMP in /fonts (0-9.bmp, degree.bmp)
+// Disegna la temperatura con font GFX grande (24pt) invece di BMP
 // temp: temperatura in gradi Celsius
-// glyphSize: dimensione massima del riquadro di ogni cifra
+// glyphSize: dimensione massima del riquadro (ignorato, usa font 24pt)
 void drawTemperatureBMP(int x, int y, float temp, int glyphSize) {
-  if (!initSD()) {
-    return;
-  }
-
-  // Converte la temperatura in stringa formattata, es: "-5.3" -> "-5.3"
-  // Limitiamo a una cifra decimale per leggibilità
-  char buf[16];
-  dtostrf(temp, 0, 1, buf);
-  String t = String(buf);
-  t.trim();
-
-  // Rimuovi eventuali spazi iniziali generati da dtostrf
-  while (t.startsWith(" ")) t.remove(0, 1);
-
-  // Costruisci lista di simboli da disegnare: cifre, opzionale '-' e un solo '.'
-  String symbols = "";
-  bool decimalDrawn = false;
-  for (size_t i = 0; i < t.length(); ++i) {
-    char c = t[i];
-    if (c == '-') {
-      symbols += '-';
-    } else if (c == '.' && !decimalDrawn) {
-      symbols += '.';
-      decimalDrawn = true;
-    } else if (c >= '0' && c <= '9') {
-      symbols += c;
-    }
-  }
-
-  // Aggiungi simbolo dei gradi alla fine
-  symbols += 'd'; // 'd' usato come placeholder per "degree"
-
-  int cursorX = x;
-  const int glyphSpacing = 0; // spazio extra minimo tra i glifi
-
-  for (size_t i = 0; i < symbols.length(); ++i) {
-    char c = symbols[i];
-    const char* filename = nullptr;
-
-    if (c >= '0' && c <= '9') {
-      static char numPath[32];
-      snprintf(numPath, sizeof(numPath), "/fonts/%c.bmp", c);
-      filename = numPath;
-    } else if (c == '.') {
-      filename = "/fonts/dot.bmp";
-    } else if (c == '-') {
-      filename = "/fonts/colon.bmp"; // placeholder se non c'e' un BMP del meno
-    } else if (c == 'd') {
-      filename = "/fonts/degree.bmp";
-    }
-
-    if (filename) {
-      BMPHelper::drawBMP(display, filename, cursorX, y, glyphSize, glyphSize);
-      // Usa un advance piu' stretto del box per ridurre lo spazio percepito
-      int advance;
-      if (c >= '0' && c <= '9') {
-        advance = (int)(glyphSize * 0.52f);
-      } else if (c == 'd') {
-        advance = (int)(glyphSize * 0.25f);
-      } else {
-        advance = (int)(glyphSize * 0.30f);
-      }
-      cursorX += advance + glyphSpacing;
-    }
-  }
+  // Usa font grande GFX per temperatura chiara e leggibile
+  display.setFont(&FreeSansBold24pt7b);
+  display.setTextColor(GxEPD_BLACK);
+  
+  // Formatta temperatura con 1 decimale
+  String tempStr = String(temp, 1);
+  
+  // Calcola bounds per centratura verticale
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds(tempStr.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
+  
+  // Disegna temperatura
+  display.setCursor(x, y + tbh);
+  display.print(tempStr);
+  
+  // Disegna simbolo gradi come cerchietto (affidabile su qualsiasi font)
+  int degreeX = x + tbw + 8;
+  int degreeY = y + tbh - 33; // posizionato in alto accanto alla cifra
+  int r = 4; // raggio cerchietto
+  display.fillCircle(degreeX + r, degreeY + r, r, GxEPD_BLACK);
+  display.fillCircle(degreeX + r, degreeY + r, r - 1, GxEPD_WHITE);
+  
+  // Reset font default
+  display.setFont(NULL);
 }
 
 // Funzione per visualizzare la schermata di configurazione
@@ -330,19 +293,14 @@ void updateTimeOnly() {
   char timeBuffer[10];
   strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
   
-  int16_t tbx, tby; uint16_t tbw, tbh;
-  display.setFont(&FreeSerif12pt7b);
-  display.getTextBounds(timeBuffer, 0, 0, &tbx, &tby, &tbw, &tbh);
-  
-  int x = 20 - 5;
-  int y = 70 - tbh - 5;
-  int w = tbw + 10;
-  int h = tbh + 10;
-  
-  display.setPartialWindow(x, y, w, h);
+  // Usa setFullWindow per compatibilità con tutti i display GxEPD2
+  // (setPartialWindow causa crash LoadProhibited su display che non lo supportano)
+  display.setFullWindow();
   display.firstPage();
   do {
-    display.fillRect(x, y, w, h, GxEPD_WHITE);
+    display.fillScreen(GxEPD_WHITE);
+    display.setFont(&FreeSerif12pt7b);
+    display.setTextColor(GxEPD_BLACK);
     display.setCursor(20, 70);
     display.print(timeBuffer);
   } while (display.nextPage());
@@ -788,7 +746,7 @@ void drawDisplayContent() {
   display.print(footerIpString);
   if (config.batteryMonitorEnabled && config.batteryShowOnDisplay) {
     int batteryPercentage = battery.getPercentage();
-    drawBattery(display.width() - 60, display.height() - 32, batteryPercentage);
+    drawBattery(display.width() - 60, display.height() - 20, batteryPercentage);
   }
 }
 
@@ -818,7 +776,7 @@ void drawDefaultLayout() {
   strftime(dateBuffer, sizeof(dateBuffer), "%d/%m/%Y", &timeinfo);
 
   int leftX = 10;
-  int topY  = 25;
+  int topY  = 10;
 
   // Luogo
   display.setFont(&FreeSerif9pt7b);
@@ -837,8 +795,9 @@ void drawDefaultLayout() {
   display.setCursor(leftX, topY + 54);
   display.print("Vento: " + String(currentWeather.wind_speed, 1) + " km/h");
 
-  // Calcola una dimensione icona meteo condivisa, così possiamo allineare la temperatura alla stessa altezza
-  int iconSize = min(W / 2, H / 2);
+
+  // Dimensione icona massima nel quadrante top-right
+  int iconSize = min(W / 2, H / 2 + 80);
   if (iconSize < 80) iconSize = 80;
 
   // Temperatura grande sulla sinistra - usa cifre BMP da /fonts
@@ -846,28 +805,33 @@ void drawDefaultLayout() {
     int glyphSize = 80; // dimensione di riferimento per ogni cifra (leggermente piu' compatta)
     int tempX = leftX;
 
-    // Allinea verticalmente il centro della temperatura al centro dell'icona meteo
-    int iconYForAlign = topY + 10;
-    int iconCenterY = iconYForAlign + iconSize / 2;
-    int tempY = iconCenterY - glyphSize / 2;
-
-    // Evita di salire troppo e sovrapporsi alle info in alto
-    int minTempY = topY + 10;
-    if (tempY < minTempY) {
-      tempY = minTempY;
-    }
+    // Temperatura posizionata sotto i dati info
+    int tempY = topY + 70;
 
     drawTemperatureBMP(tempX, tempY, currentWeather.temp, glyphSize);
   }
 
-  // Icona meteo grande sulla destra
-  int iconX = W - iconSize - 20;
-  int iconY = topY + 10;
+  // Icona meteo: angolo top-right, alzata di 30px
+  int iconX = W - iconSize;
+  int iconY = -30;
   drawWeatherIcon(iconX, iconY, currentWeather.weather_id, isNightTime(), iconSize);
 
-  // Citazione nella parte centrale/bassa
-  int quoteTop = H / 2 + 20;
-  int margin = 10; // margine ridotto per sfruttare meglio la larghezza
+  // Ora grande sotto i gradi - font monospace doppia dimensione
+  char timeBuffer[6];
+  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
+  display.setFont(&FreeMonoBold24pt7b);
+  display.setTextSize(2);
+  int16_t ttx, tty; uint16_t ttw, tth;
+  display.getTextBounds(timeBuffer, 0, 0, &ttx, &tty, &ttw, &tth);
+  int timeX = leftX;
+  int timeY = topY + 70 + 80 + 15 + (int)tth - 40; // sotto la temperatura, salito di 40px
+  display.setCursor(timeX, timeY);
+  display.print(timeBuffer);
+  display.setTextSize(1);
+
+  // Citazione nella parte bassa
+  int quoteTop = timeY + 30;
+  int margin = 30;
   if (quoteTop < topY + 80) quoteTop = topY + 80;
   drawQuote(margin, quoteTop, W - 2 * margin);
   
@@ -883,9 +847,18 @@ void drawDefaultLayout() {
   display.setCursor(centerX, display.height() - 10);
   display.print(ipString);
   
-  // Disegna sempre la batteria nel layout di default, indipendentemente dai flag di configurazione
+  // Disegna batteria con tensione reale per verifica calibrazione
   int batteryPercentage = battery.getPercentage();
-  drawBattery(display.width() - 60, display.height() - 32, batteryPercentage);
+  int battY = display.height() - 20;
+  drawBattery(display.width() - 60, battY, batteryPercentage);
+  // Mostra tensione reale allineata verticalmente all'icona batteria
+  display.setFont(NULL);
+  display.setTextSize(1);
+  String voltStr = String(battery.getVoltage(), 2) + "V";
+  int16_t vx, vy; uint16_t vw, vh;
+  display.getTextBounds(voltStr.c_str(), 0, 0, &vx, &vy, &vw, &vh);
+  display.setCursor(display.width() - 60 - vw - 4, battY + 2);
+  display.print(voltStr);
 }
 
 // ============================================================================
@@ -926,7 +899,7 @@ void drawFocusLayout() {
     display.print(ipString);
     if (config.batteryMonitorEnabled && config.batteryShowOnDisplay) {
       int batteryPercentage = battery.getPercentage();
-      drawBattery(display.width() - 60, display.height() - 32, batteryPercentage);
+      drawBattery(display.width() - 60, display.height() - 20, batteryPercentage);
     }
   }
 }
@@ -1008,7 +981,8 @@ void drawIconQuoteLayout() {
     // Footer minimale: ultimo aggiornamento e batteria
     int footerY = display.height() - 10;
     drawLastUpdate(10, footerY, currentWeather.last_update);
-    drawBattery(display.width() - 60, display.height() - 40, 80);
+    int batteryPct = battery.getPercentage();
+    drawBattery(display.width() - 60, display.height() - 20, batteryPct);
     
     return;
   }
@@ -1542,7 +1516,7 @@ void drawQuote(int x, int y, int maxWidth, int fontSize) {
   } else if (fontSize >= 16) {
     display.setFont(&FreeSansBold12pt7b);
   } else if (fontSize >= 12) {
-    display.setFont(&FreeSerif12pt7b);
+    display.setFont(&FreeSerif12pt7b);  // Serif leggibile
   } else if (fontSize >= 9) {
     display.setFont(&FreeSerif9pt7b);
   } else {
@@ -1641,48 +1615,54 @@ void drawQuote(int x, int y, int maxWidth, int fontSize) {
     cursorY = display.height() - 20;
   }
   
-  // Seleziona il font dell'autore in base al fontSize della citazione (leggermente più piccolo)
-  if (fontSize >= 16) {
-    display.setFont(&FreeMonoBoldOblique9pt7b);
-  } else if (fontSize >= 12) {
-    display.setFont(&FreeMonoBoldOblique9pt7b);
-  } else {
-    display.setFont(NULL);  // Font di default piccolo
-  }
-  
-  // Costruisci la stringa dell'autore completa (senza troncare)
-  String authorLine = String("— ") + (q.author.length() ? q.author : "Anonimo");
-  
-  // Calcola la larghezza del testo dell'autore
-  int16_t abx, aby; uint16_t abw, abh;
-  display.getTextBounds(authorLine.c_str(), 0, 0, &abx, &aby, &abw, &abh);
+  // Font autore: obliquo piccolo
+  display.setFont(fontSize >= 12 ? &FreeMonoBoldOblique9pt7b : NULL);
 
-  // Se troppo lunga per lo schermo, tronca con "..." per evitare overflow
+  // Misura altezza riga autore
+  int16_t abx, aby; uint16_t abw, abh;
+  display.getTextBounds("Ag", 0, 0, &abx, &aby, &abw, &abh);
+  int authorLineH = abh + 4;
   int maxAuthorWidth = maxWidth - 6;
-  if ((int)abw > maxAuthorWidth) {
-    const String ellipsis = "...";
-    String base = authorLine;
-    while (base.length() > 0) {
-      String candidate = base + ellipsis;
-      int16_t cbx, cby; uint16_t cbw, cbh;
-      display.getTextBounds(candidate.c_str(), 0, 0, &cbx, &cby, &cbw, &cbh);
-      if ((int)cbw <= maxAuthorWidth) {
-        authorLine = candidate;
-        abw = cbw;
-        break;
-      }
-      base.remove(base.length() - 1);
-    }
+
+  // Separa autore da opera alla prima virgola
+  String authorStr = q.author.length() ? q.author : "Anonimo";
+  int commaIdx = authorStr.indexOf(',');
+  String authorLine1, authorLine2;
+  if (commaIdx > 0) {
+    authorLine1 = String("\u2014 ") + authorStr.substring(0, commaIdx) + ",";
+    authorLine2 = authorStr.substring(commaIdx + 1);
+    authorLine2.trim();
+  } else {
+    authorLine1 = String("\u2014 ") + authorStr;
+    authorLine2 = "";
   }
-  
-  // Allinea a DESTRA: calcola la X in modo che il testo finisca a 3px dal bordo destro
-  int authorX = x + maxWidth - (int)abw - 3;
-  
-  // Assicura margine minimo da sinistra (non far partire troppo a sinistra)
-  if (authorX < x + 3) authorX = x + 3;
-  
-  display.setCursor(authorX, cursorY);
-  display.print(authorLine);
+
+  // Riga 1: autore, allineata a destra
+  int16_t w1x, w1y; uint16_t w1w, w1h;
+  display.getTextBounds(authorLine1.c_str(), 0, 0, &w1x, &w1y, &w1w, &w1h);
+  while (authorLine1.length() > 2 && (int)w1w > maxAuthorWidth) {
+    authorLine1.remove(authorLine1.length() - 1);
+    display.getTextBounds(authorLine1.c_str(), 0, 0, &w1x, &w1y, &w1w, &w1h);
+  }
+  int authorX1 = x + maxWidth - (int)w1w - 3;
+  if (authorX1 < x + 3) authorX1 = x + 3;
+  display.setCursor(authorX1, cursorY);
+  display.print(authorLine1);
+
+  // Riga 2: opera, allineata a destra
+  if (authorLine2.length() > 0 && cursorY + authorLineH <= display.height() - 8) {
+    cursorY += authorLineH;
+    int16_t w2x, w2y; uint16_t w2w, w2h;
+    display.getTextBounds(authorLine2.c_str(), 0, 0, &w2x, &w2y, &w2w, &w2h);
+    while (authorLine2.length() > 1 && (int)w2w > maxAuthorWidth) {
+      authorLine2.remove(authorLine2.length() - 1);
+      display.getTextBounds(authorLine2.c_str(), 0, 0, &w2x, &w2y, &w2w, &w2h);
+    }
+    int authorX2 = x + maxWidth - (int)w2w - 3;
+    if (authorX2 < x + 3) authorX2 = x + 3;
+    display.setCursor(authorX2, cursorY);
+    display.print(authorLine2);
+  }
 }
 
 // Funzione per disegnare lo stato della batteria
@@ -1693,50 +1673,62 @@ void drawBattery(int x, int y, int percentage) {
   // Dimensioni icona batteria
   int width = 25;
   int height = 12;
-  
-  // Assicura margini di sicurezza (min 10px da destra, max 30px dal fondo)
+
+  // Assicura margini di sicurezza
   if (x > display.width() - width - 10) x = display.width() - width - 10;
-  if (y > display.height() - height - 8) y = display.height() - height - 8;
+  if (y > display.height() - height - 4) y = display.height() - height - 4;
   if (x < 0) x = 0;
   if (y < 0) y = 0;
 
   int safePercentage = percentage;
-  // Controlla se ADC disponibile
-  if (battery.getVoltage() == 0.0) {
-    // ADC non disponibile - mostra alert
+  if (!battery.isAvailable()) {
     safePercentage = 0;
   }
-  
-  // Disegniamo il contorno della batteria
+
+  // Contorno batteria + terminale
   display.drawRect(x, y, width, height, GxEPD_BLACK);
   display.drawRect(x + width, y + 3, 2, height - 6, GxEPD_BLACK);
-  
-  // Disegniamo il livello della batteria
-  int fillWidth = map(safePercentage, 0, 100, 0, width - 4);
-  if (fillWidth > 0) {
-    display.fillRect(x + 2, y + 2, fillWidth, height - 4, GxEPD_BLACK);
-  }
-  
-  // Se in carica, disegna fulmine sulla batteria
+
   if (battery.charging()) {
-    // Disegna fulmine stilizzato al centro della batteria
-    int centerX = x + width / 2;
-    int centerY = y + height / 2;
+    // IN CARICA: riempimento nero totale + simbolo USB in bianco
+    display.fillRect(x + 1, y + 1, width - 2, height - 2, GxEPD_BLACK);
+
+    // Testo "-" a sinistra e "+" a destra in bianco dentro la batteria nera
+    display.setFont(NULL);
+    display.setTextSize(1);
+    display.setTextColor(GxEPD_WHITE);
+    display.setCursor(x + 2, y + 2);
+    display.print("-");
+    display.setCursor(x + 16, y + 2);
+    display.print("+");
+
+  } else {
+    // SCARICA: 4 segmenti verticali in base alla percentuale
+    int segWidth = 4;  // larghezza singolo segmento
+    int segGap = 1;    // spazio tra segmenti
+    int segX = x + 2;  // inizio primo segmento
+    int segY = y + 2;
+    int segH = height - 4;
     
-    // Fulmine: ⚡ (come forma vettoriale semplice)
-    // Linea superiore: da centro-sinistra a centro
-    display.drawLine(centerX - 3, centerY - 3, centerX, centerY, GxEPD_WHITE);
-    // Linea centrale: da centro a destra
-    display.drawLine(centerX, centerY, centerX + 3, centerY, GxEPD_WHITE);
-    // Linea inferiore: da centro a basso-sinistra
-    display.drawLine(centerX, centerY, centerX - 2, centerY + 3, GxEPD_WHITE);
+    // Attiva segmenti in base alla percentuale (0-25-50-75-100)
+    int activeSegments = safePercentage / 25;  // 0-24=0, 25-49=1, 50-74=2, 75-99=3, 100=4
+    if (safePercentage >= 100) activeSegments = 4;
     
-    // Rinforza il fulmine
-    display.drawLine(centerX - 2, centerY - 3, centerX + 1, centerY, GxEPD_WHITE);
-    display.drawLine(centerX + 1, centerY, centerX + 2, centerY + 3, GxEPD_WHITE);
+    for (int i = 0; i < 4; i++) {
+      if (i < activeSegments) {
+        display.fillRect(segX + i * (segWidth + segGap), segY, segWidth, segH, GxEPD_BLACK);
+      } else {
+        display.drawRect(segX + i * (segWidth + segGap), segY, segWidth, segH, GxEPD_BLACK);
+      }
+    }
   }
-  
-  // Disegniamo la percentuale
+
+  // Percentuale a destra, centrata verticalmente (font=8px, height=12 → y+2)
+  display.setFont(NULL);
+  display.setTextSize(1);
+  display.setTextColor(GxEPD_BLACK);
+  display.setCursor(x + width + 5, y + 2);
+  display.print(String(safePercentage) + "%");
 }
 // Funzione per disegnare una barra di progresso
 void drawProgress(int x, int y, int width, int progress) {
