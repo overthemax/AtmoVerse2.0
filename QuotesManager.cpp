@@ -451,17 +451,71 @@ static bool loadScheduledQuote(Quote& quote) {
   return quote.text.length() > 0;
 }
 
-// Funzione principale per ottenere una citazione da visualizzare
+// ---------------------------------------------------------------------------
+// Citazioni "orologio letterario": /orari/HH.txt sulla SD
+// ---------------------------------------------------------------------------
+// Un file per ora, una riga per citazione: "MM|testo|Autore, Opera"
+// (generati da tools/prepara_citazioni_orarie.py e copiati a mano sulla SD:
+// non fanno parte degli aggiornamenti automatici e non vengono mai toccati).
+// Si legge solo il file dell'ora corrente, riga per riga, senza caricarlo in RAM.
+
+// Oltre questa lunghezza la citazione non entra nel riquadro del display
+static const size_t CLOCK_QUOTE_MAX_CHARS = 240;
+
+static bool loadClockQuote(Quote& quote) {
+  struct tm t;
+  if (!getLocalTime(&t, 0)) return false;
+  if (!initSD()) return false;
+
+  char path[16];
+  snprintf(path, sizeof(path), "/orari/%02d.txt", t.tm_hour);
+  File f = SD.open(path, FILE_READ);
+  if (!f) return false;
+
+  char minute[3];
+  snprintf(minute, sizeof(minute), "%02d", t.tm_min);
+
+  // Scelta casuale uniforme tra le righe del minuto (reservoir sampling)
+  int matches = 0;
+  String chosen;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    if (line.length() < 4 || line[0] != minute[0] || line[1] != minute[1] || line[2] != '|') continue;
+    int sep = line.indexOf('|', 3);
+    if (sep < 0 || (size_t)(sep - 3) > CLOCK_QUOTE_MAX_CHARS) continue;
+    matches++;
+    if (random(matches) == 0) chosen = line;
+  }
+  f.close();
+  if (matches == 0) return false;
+
+  int sep = chosen.indexOf('|', 3);
+  quote.text = chosen.substring(3, sep);
+  quote.author = chosen.substring(sep + 1);
+  quote.author.trim();
+  return true;
+}
+
+// Funzione principale per ottenere una citazione da visualizzare.
+// Priorità: 1) programmate (quotes.json)  2) orologio letterario (/orari)
+//           3) categoria meteo corrente
 Quote getQuoteForDisplay() {
   Quote quote;
   Quote prev = getCurrentQuote();
 
   // 1) Citazione programmata attiva in questo momento
   bool loaded = loadScheduledQuote(quote);
-  String category = loaded ? String(SCHEDULED_KEY) : getWeatherCategory();
+  String category = loaded ? String(SCHEDULED_KEY) : "";
 
-  // 2) Citazione per la categoria meteo corrente
+  // 2) Citazione che cita l'orario attuale
   if (!loaded) {
+    loaded = loadClockQuote(quote);
+    if (loaded) category = "orari";
+  }
+
+  // 3) Citazione per la categoria meteo corrente
+  if (!loaded) {
+    category = getWeatherCategory();
     loaded = (category.length() > 0) && loadRandomQuote(category, quote);
   }
 
