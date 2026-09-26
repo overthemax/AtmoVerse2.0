@@ -545,24 +545,16 @@ static String formatMB(uint64_t bytes) {
   return String(buf);
 }
 
-// Durante i download la CPU passa da 80 a 240 MHz: le connessioni HTTPS
-// sono molto più rapide. Al termine si torna alla frequenza di risparmio.
-static uint32_t savedCpuMhz = 0;
-
+// I download restano a 80 MHz. Portando la CPU a 240 MHz durante i download
+// le connessioni HTTPS fallivano quasi sempre (HTTP -1, v2.1.8/2.1.9), mentre
+// le stesse richieste a 80 MHz riuscivano.
 static void beginDownloadPhase() {
   updateState = UPDATE_DOWNLOADING;
   reportProgress(true);
-  // Il cambio di frequenza vale per entrambi i core: si attende che il task
-  // del display abbia finito di trasmettere al pannello via SPI
-  waitDisplayIdle(15000);
-  savedCpuMhz = getCpuFrequencyMhz();
-  setCpuFrequencyMhz(240);
 }
 
 static void endDownloadPhase() {
   updateState = UPDATE_IDLE;
-  // Qui il display è fermo (l'ultima richiesta è la schermata di aggiornamento)
-  if (savedCpuMhz > 0) setCpuFrequencyMhz(savedCpuMhz);
   updateDisplay();  // Torna alla schermata normale
 }
 
