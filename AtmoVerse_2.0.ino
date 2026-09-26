@@ -327,8 +327,8 @@ unsigned long getDisplayRefreshIntervalMs() {
 // Loop principale
 void loop() {
   unsigned long currentMillis = millis();
+  battery.update();  // Anche senza sensore: riprova a trovarlo ogni minuto
   if (battery.isAvailable()) {
-    battery.update();
 
     // Caricatore collegato/staccato: display aggiornato subito (non al minuto)
     static unsigned long lastChargePoll = 0;

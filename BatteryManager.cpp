@@ -35,10 +35,10 @@ bool BatteryManager::initINA219() {
         Serial.printf("[BATTERY] INA219: tensione anomala %.2f V\n", v1);
         return false;
     }
-    if (fabsf(v1 - v2) < 0.01f && fabsf(i1) < 0.1f && fabsf(i2) < 0.1f) {
-        Serial.println("[BATTERY] INA219: valori bloccati, sensore non collegato correttamente");
-        return false;
-    }
+    // Nessun controllo su valori "fermi": una batteria carica col caricatore
+    // fermo ha tensione stabile e corrente nulla, ed era scambiata per un
+    // sensore scollegato (2.1.12). Un INA219 assente non risponde già a begin().
+    (void)v2; (void)i1; (void)i2;
     return true;
 }
 
@@ -76,8 +76,17 @@ bool BatteryManager::pollCharging() {
 }
 
 void BatteryManager::update() {
-    if (!ina219Available) return;
     unsigned long now = millis();
+    if (!ina219Available) {
+        // Sensore non trovato all'avvio: nuovo tentativo ogni minuto
+        if (now - lastRead < 60000UL) return;
+        lastRead = now;
+        ina219Available = initINA219();
+        if (!ina219Available) return;
+        measure();
+        Serial.printf("[BATTERY] INA219 trovato: V=%.2fV I=%.1fmA %d%%\n", voltage, current_mA, percentage);
+        return;
+    }
     if (now - lastRead < READ_INTERVAL) return;
     lastRead = now;
     measure();
