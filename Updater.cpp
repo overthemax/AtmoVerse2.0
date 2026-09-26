@@ -394,31 +394,156 @@ static void finishWithError(const String& message) {
   endDownloadPhase();
 }
 
+// Manifest e liste di lavoro stanno sulla SD, non in RAM: il manifest descrive
+// ~250 file (35 KB) e convertito tutto insieme in un documento JSON supera il
+// blocco di memoria libera più grande disponibile con WiFi e TLS attivi.
+static const char* MANIFEST_TMP = "/manifest.tmp";
+static const char* NEEDED_LIST = "/upd/needed.txt";  // "percorso|dimensione|sha256" per riga
+
+struct ManifestHeader {
+  String version;
+  String baseUrl;
+  String fwUrl;
+  size_t fwSize = 0;
+  String fwSha;
+};
+
+// Legge solo versione, firmware e indirizzo dei file: l'elenco dei file viene
+// saltato dal filtro, senza occupare memoria
+template <typename TInput>
+static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
+  JsonDocument filter;
+  filter["version"] = true;
+  filter["files_base_url"] = true;
+  filter["firmware"] = true;
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, input, DeserializationOption::Filter(filter));
+  if (err) {
+    Serial.printf("[UPDATE] Manifest non leggibile: %s (memoria libera max %u byte)\n",
+                  err.c_str(), (unsigned)ESP.getMaxAllocHeap());
+    return false;
+  }
+  h.version = doc["version"] | "";
+  h.baseUrl = doc["files_base_url"] | "";
+  h.fwUrl = doc["firmware"]["url"] | "";
+  h.fwSize = doc["firmware"]["size"] | 0;
+  h.fwSha = doc["firmware"]["sha256"] | "";
+  return h.version.length() > 0;
+}
+
+// Scorre l'elenco "files" del manifest salvato sulla SD una voce alla volta e
+// scrive in NEEDED_LIST quelle da scaricare. Restituisce quante sono, -1 se errore.
+static int buildNeededList() {
+  File manifest = SD.open(MANIFEST_TMP, FILE_READ);
+  if (!manifest) return -1;
+  File out = SD.open(NEEDED_LIST, FILE_WRITE);
+  if (!out) {
+    manifest.close();
+    return -1;
+  }
+
+  int count = 0;
+  if (manifest.find("\"files\":[")) {
+    do {
+      JsonDocument f;
+      if (deserializeJson(f, manifest)) break;
+      String path = f["path"] | "";
+      String sha = f["sha256"] | "";
+      size_t size = f["size"] | 0;
+      bool keep = f["keep"] | false;
+
+      // Solo percorsi assoluti, senza risalire di cartella né toccare l'area di lavoro
+      if (!path.startsWith("/") || path.indexOf("..") >= 0 || path.indexOf('|') >= 0 ||
+          path.startsWith(STAGING_DIR) || sha.length() != 64) continue;
+
+      if (SD.exists(path)) {
+        if (keep) continue;                      // File dell'utente già presente
+        if (sha256OfFile(path) == sha) continue; // Già aggiornato
+      }
+      out.printf("%s|%u|%s\n", path.c_str(), (unsigned)size, sha.c_str());
+      count++;
+    } while (manifest.findUntil(",", "]"));
+  }
+  out.close();
+  manifest.close();
+  return count;
+}
+
+// Scarica in /upd i file elencati in NEEDED_LIST, verificandoli; annota in
+// PENDING_LIST quelli pronti da spostare al loro posto
+static bool downloadNeededFiles(const String& baseUrl) {
+  File list = SD.open(NEEDED_LIST, FILE_READ);
+  if (!list) return false;
+  File pending = SD.open(PENDING_LIST, FILE_WRITE);
+  if (!pending) {
+    list.close();
+    return false;
+  }
+
+  bool ok = true;
+  while (list.available()) {
+    String line = list.readStringUntil('\n');
+    int a = line.indexOf('|');
+    int b = line.indexOf('|', a + 1);
+    if (a < 0 || b < 0) continue;
+    String path = line.substring(0, a);
+    size_t size = line.substring(a + 1, b).toInt();
+    String sha = line.substring(b + 1);
+    sha.trim();
+    if (!downloadToFile(baseUrl + path, String(STAGING_DIR) + path, size, sha)) {
+      lastStatus = "Download non riuscito: " + path;
+      ok = false;
+      break;
+    }
+    pending.println(path);
+  }
+  pending.close();
+  list.close();
+  return ok;
+}
+
 bool checkForUpdates() {
   Serial.println("[UPDATE] Controllo aggiornamenti...");
+  bool sd = sdAvailable();
 
-  // 1. Manifest dell'ultima release
-  String manifestText;
-  bool ok = httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
-    if (manifestText.length() + len > MAX_MANIFEST_SIZE) return false;
-    manifestText.concat((const char*)data, len);
-    return true;
-  });
-  if (!ok) {
+  // 1. Manifest dell'ultima release: sulla SD se c'è, altrimenti in RAM
+  //    (senza SD servono solo i dati del firmware)
+  ManifestHeader h;
+  bool downloaded;
+  bool parsed = false;
+  if (sd) {
+    SD.remove(MANIFEST_TMP);
+    File f = SD.open(MANIFEST_TMP, FILE_WRITE);
+    downloaded = f && httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
+      return f.write(data, len) == (size_t)len;
+    });
+    if (f) f.close();
+    if (downloaded) {
+      File in = SD.open(MANIFEST_TMP, FILE_READ);
+      parsed = in && parseManifestHeader(in, h);
+      if (in) in.close();
+    }
+  } else {
+    String text;
+    downloaded = httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
+      if (text.length() + len > MAX_MANIFEST_SIZE) return false;
+      text.concat((const char*)data, len);
+      return true;
+    });
+    parsed = downloaded && parseManifestHeader(text, h);
+  }
+
+  if (!downloaded) {
     lastStatus = "Server degli aggiornamenti non raggiungibile";
     Serial.println("[UPDATE] " + lastStatus);
     return false;
   }
-
-  JsonDocument manifest;
-  if (deserializeJson(manifest, manifestText)) {
+  if (!parsed) {
     lastStatus = "Manifest non valido";
     Serial.println("[UPDATE] " + lastStatus);
+    if (sd) SD.remove(MANIFEST_TMP);
     return false;
   }
-  manifestText = String();  // Libera memoria
-
-  const char* version = manifest["version"] | "";
 
   // 2. Serve un nuovo firmware? (salta una versione che ha già fallito l'avvio)
   Preferences prefs;
@@ -426,83 +551,59 @@ bool checkForUpdates() {
   String badVersion = prefs.getString(KEY_BAD, "");
   prefs.end();
 
-  bool firmwareNewer = strlen(version) > 0 &&
-                       compareVersions(version, ATMOVERSE_VERSION) > 0 &&
-                       badVersion != version;
+  bool firmwareNewer = compareVersions(h.version.c_str(), ATMOVERSE_VERSION) > 0 && badVersion != h.version;
 
-  // 3. Quali file della SD sono cambiati?
-  struct NeededFile { String path; size_t size; String sha; };
-  std::vector<NeededFile> needed;
-  String baseUrl = manifest["files_base_url"] | "";
-
-  if (sdAvailable() && baseUrl.length() > 0) {
-    for (JsonObject f : manifest["files"].as<JsonArray>()) {
-      String path = f["path"] | "";
-      String sha = f["sha256"] | "";
-      size_t size = f["size"] | 0;
-      bool keep = f["keep"] | false;
-
-      // Solo percorsi assoluti, senza risalire di cartella
-      if (!path.startsWith("/") || path.indexOf("..") >= 0 || path.startsWith(STAGING_DIR)) continue;
-
-      if (SD.exists(path)) {
-        if (keep) continue;                      // File dell'utente già presente
-        if (sha256OfFile(path) == sha) continue; // Già aggiornato
-      }
-      needed.push_back({path, size, sha});
+  // 3. Quali file della SD sono cambiati? (elenco scritto sulla SD, non in RAM)
+  int neededCount = 0;
+  if (sd && h.baseUrl.length() > 0) {
+    if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
+    SD.mkdir(STAGING_DIR);
+    neededCount = buildNeededList();
+    if (neededCount < 0) {
+      SD.remove(MANIFEST_TMP);
+      removeTree(STAGING_DIR);
+      lastStatus = "Impossibile leggere il manifest dalla SD";
+      Serial.println("[UPDATE] " + lastStatus);
+      return false;
     }
   }
+  if (sd) SD.remove(MANIFEST_TMP);
 
-  if (!firmwareNewer && needed.empty()) {
+  if (!firmwareNewer && neededCount == 0) {
+    if (sd && SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     lastStatus = String("Aggiornato (versione ") + ATMOVERSE_VERSION + ")";
     Serial.println("[UPDATE] " + lastStatus);
     return true;
   }
 
   // 4. Download: il display mostra la schermata di aggiornamento
-  Serial.printf("[UPDATE] Da scaricare: firmware %s, file %d\n", firmwareNewer ? version : "no", (int)needed.size());
+  Serial.printf("[UPDATE] Da scaricare: firmware %s, file %d\n", firmwareNewer ? h.version.c_str() : "no", neededCount);
   beginDownloadPhase();
 
-  if (!needed.empty()) {
-    if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
-    SD.mkdir(STAGING_DIR);
-
-    String pending;
-    for (const NeededFile& f : needed) {
-      if (!downloadToFile(baseUrl + f.path, String(STAGING_DIR) + f.path, f.size, f.sha)) {
-        finishWithError("Download non riuscito: " + f.path);
-        return false;
-      }
-      pending += f.path + "\n";
-    }
-    if (!writeTextFile(PENDING_LIST, pending)) {
-      finishWithError("Impossibile scrivere sulla SD");
-      return false;
-    }
+  if (neededCount > 0 && !downloadNeededFiles(h.baseUrl)) {
+    finishWithError(lastStatus);
+    return false;
   }
 
   if (firmwareNewer) {
-    String fwUrl = manifest["firmware"]["url"] | "";
-    size_t fwSize = manifest["firmware"]["size"] | 0;
-    String fwSha = manifest["firmware"]["sha256"] | "";
-    if (fwUrl.length() == 0 || fwSize == 0 || !downloadFirmware(fwUrl, fwSize, fwSha)) {
-      finishWithError(String("Installazione del firmware ") + version + " non riuscita");
+    if (h.fwUrl.length() == 0 || h.fwSize == 0 || !downloadFirmware(h.fwUrl, h.fwSize, h.fwSha)) {
+      finishWithError("Installazione del firmware " + h.version + " non riuscita");
       return false;
     }
 
     // Da confermare dopo il riavvio; se non parte, initUpdater() lo segnerà come difettoso
     prefs.begin(PREFS_NS, false);
-    prefs.putString(KEY_ATTEMPT, version);
+    prefs.putString(KEY_ATTEMPT, h.version);
     prefs.end();
   }
 
   // 5. Tutto verificato: i file vengono applicati ora (o al riavvio, se interrotti)
-  if (!needed.empty()) {
+  if (neededCount > 0) {
     writeTextFile(READY_MARKER, "1");
   }
 
   if (firmwareNewer) {
-    lastStatus = String("Installata la versione ") + version + ", riavvio";
+    lastStatus = "Installata la versione " + h.version + ", riavvio";
     Serial.println("[UPDATE] " + lastStatus);
     delay(500);
     ESP.restart();  // I file della SD vengono applicati all'avvio da initUpdater()
@@ -510,6 +611,7 @@ bool checkForUpdates() {
 
   applyPendingSdUpdate();
   lastStatus = "File della SD aggiornati";
+  Serial.printf("[UPDATE] %d file della SD aggiornati\n", neededCount);
   endDownloadPhase();
   return true;
 }
