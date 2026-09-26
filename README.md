@@ -137,7 +137,15 @@ La GitHub Action [`release.yml`](.github/workflows/release.yml) compila il firmw
 
 ## Interfaccia web
 
-Raggiungibile all'indirizzo IP mostrato in basso sul display (in configurazione: `http://192.168.4.1`).
+Raggiungibile all'indirizzo IP mostrato in basso sul display (in configurazione: `http://192.168.4.1`). Pensata prima di tutto per lo smartphone.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/images/web-index.png" alt="Home con meteo e citazione"><br><sub><b>Home</b></sub></td>
+    <td align="center" width="33%"><img src="docs/images/web-settings.png" alt="Impostazioni"><br><sub><b>Impostazioni</b></sub></td>
+    <td align="center" width="33%"><img src="docs/images/web-quotes-editor.png" alt="Editor delle citazioni"><br><sub><b>Citazioni</b></sub></td>
+  </tr>
+</table>
 
 | API | Descrizione |
 |---|---|

@@ -2,98 +2,112 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AtmoVerse 2.0</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7a5429">
+  <title>AtmoVerse</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>⛅ AtmoVerse 2.0</h1>
+      <h1>AtmoVerse</h1>
       <div class="header-actions">
-        <button class="btn btn-primary" onclick="location.href='settings.html'">⚙️ Impostazioni</button>
-        <button class="btn btn-secondary" onclick="location.href='layout-editor.html'">🎨 Layout</button>
-        <button class="btn btn-secondary" onclick="location.href='quotes-editor.html'">💬 Citazioni</button>
+        <a class="btn" href="/settings.html">Impostazioni</a>
+        <a class="btn" href="/quotes-editor.html">Citazioni</a>
       </div>
     </header>
 
     <div class="card">
-      <h2 class="card-title">📊 Dashboard</h2>
+      <h2 class="card-title">Meteo</h2>
       <div id="weather-container" class="weather-display">
         <div class="spinner"></div>
       </div>
     </div>
 
     <div class="card">
-      <h2 class="card-title">ℹ️ Stato Sistema</h2>
-      <div id="system-status">
-        <div class="spinner"></div>
-      </div>
+      <h2 class="card-title">Citazione sul display</h2>
+      <p id="quote" class="text-center" style="font-style: italic;">—</p>
+      <p id="quote-author" class="text-center hint"></p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Dispositivo</h2>
+      <ul id="system-status" class="status-list">
+        <li><div class="spinner"></div></li>
+      </ul>
     </div>
   </div>
 
   <script>
-    // Carica dati meteo
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const num = (v, d = 0) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '--';
+
+    // Codice icona OpenWeatherMap (01d, 10n, ...) -> simbolo
+    function iconFor(code) {
+      const c = (code || '').slice(0, 2), night = (code || '').endsWith('n');
+      return { '01': night ? '☾' : '☀', '02': '⛅', '03': '☁', '04': '☁', '09': '☂', '10': '☔', '11': '⚡', '13': '❄', '50': '≋' }[c] || '☁';
+    }
+
     async function loadWeather() {
+      const box = $('weather-container');
       try {
-        const response = await fetch('/api/weather');
-        const data = await response.json();
-        
-        const container = document.getElementById('weather-container');
-        container.innerHTML = `
-          <h3>${data.location?.city || 'N/A'}</h3>
-          <div class="weather-icon">☁️</div>
-          <div class="temperature">${data.weather?.temp || '--'}°C</div>
+        const r = await fetch('/api/weather', { cache: 'no-store' });
+        const d = await r.json();
+        const w = d.weather || {};
+        if (!w.valid) {
+          box.innerHTML = `<h3>${esc(d.location?.city || '')}</h3><p class="message message-info">Dati meteo non ancora disponibili.</p>`;
+          return;
+        }
+        const cond = String(w.condition || '');
+        box.innerHTML = `
+          <h3>${esc(d.location?.city || '')}</h3>
+          <div class="weather-icon">${iconFor(w.icon)}</div>
+          <div class="temperature">${num(w.temp)}°</div>
+          <div class="weather-condition">${esc(cond.charAt(0).toUpperCase() + cond.slice(1))} · percepita ${num(w.feels_like)}°</div>
           <div class="weather-details">
-            <div>💧 ${data.weather?.humidity || '--'}%</div>
-            <div>🌬️ ${data.weather?.wind_speed || '--'} km/h</div>
-            <div>🔽 ${data.weather?.pressure || '--'} hPa</div>
+            <div><span class="label">Umidità</span><span class="value">${num(w.humidity)}%</span></div>
+            <div><span class="label">Vento</span><span class="value">${num(w.wind_speed * 3.6)} km/h</span></div>
+            <div><span class="label">Pressione</span><span class="value">${num(w.pressure)} hPa</span></div>
           </div>
-        `;
-      } catch (error) {
-        document.getElementById('weather-container').innerHTML = 
-          '<p class="message message-error">Errore caricamento dati meteo</p>';
+          <p class="hint mt-4">Aggiornato ${esc(w.last_update || '')}</p>`;
+      } catch (e) {
+        box.innerHTML = '<p class="message message-error">Impossibile leggere i dati meteo.</p>';
       }
     }
 
-    // Carica stato sistema
-    async function loadSystemStatus() {
+    async function loadQuote() {
       try {
-        const response = await fetch('/api/settings');
-        const data = await response.json();
-        
-        const container = document.getElementById('system-status');
-        container.innerHTML = `
-          <div class="grid-2">
-            <div>
-              <strong>WiFi:</strong> ${data.ssid || 'Non configurato'}
-            </div>
-            <div>
-              <strong>Città:</strong> ${data.city || 'N/A'}
-            </div>
-            <div>
-              <strong>Risparmio Energetico:</strong> ${data.powerSavingEnabled ? '✅ Attivo' : '❌ Disattivo'}
-            </div>
-            <div>
-              <strong>Intervallo Aggiornamento:</strong> ${data.normalUpdateInterval || 30} min
-            </div>
-          </div>
-        `;
-      } catch (error) {
-        document.getElementById('system-status').innerHTML = 
-          '<p class="message message-error">Errore caricamento stato sistema</p>';
+        const r = await fetch('/api/quote/current', { cache: 'no-store' });
+        const q = await r.json();
+        if (q.text) {
+          $('quote').textContent = '«' + q.text + '»';
+          $('quote-author').textContent = q.author || '';
+        }
+      } catch (e) { /* facoltativa */ }
+    }
+
+    async function loadSystemStatus() {
+      const list = $('system-status');
+      try {
+        const r = await fetch('/api/settings', { cache: 'no-store' });
+        const s = await r.json();
+        const rows = [
+          ['Rete WiFi', s.apMode ? 'Modalità configurazione' : (s.ssid || 'Non configurata')],
+          ['Città', s.city || '—'],
+          ['Aggiornamento meteo', 'ogni ' + (s.normalUpdateInterval || 30) + ' min'],
+          ['Firmware', s.version || '—'],
+          ['Aggiornamenti', s.updateStatus || '—'],
+        ];
+        list.innerHTML = rows.map(([k, v]) => `<li><span class="label">${esc(k)}</span><span>${esc(v)}</span></li>`).join('');
+      } catch (e) {
+        list.innerHTML = '<li class="message message-error">Impossibile leggere lo stato del dispositivo.</li>';
       }
     }
 
-    // Inizializza
-    loadWeather();
-    loadSystemStatus();
-    
-    // Aggiorna ogni 60 secondi
-    setInterval(() => {
-      loadWeather();
-      loadSystemStatus();
-    }, 60000);
+    function refresh() { loadWeather(); loadQuote(); loadSystemStatus(); }
+    refresh();
+    setInterval(refresh, 60000);
   </script>
 </body>
 </html>

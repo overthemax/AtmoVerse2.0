@@ -2,18 +2,19 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7a5429">
   <title>Editor Citazioni - AtmoVerse 2.0</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>💬 Editor Citazioni</h1>
+      <h1>Editor Citazioni</h1>
       <div class="header-actions">
-        <button class="btn btn-secondary" onclick="location.href='index.html'">🏠 Home</button>
-        <button class="btn btn-primary" onclick="saveQuotes()">💾 Salva Tutte</button>
-        <button class="btn btn-success" onclick="addNewQuote()">➕ Nuova Citazione</button>
+        <button class="btn btn-secondary" onclick="location.href='index.html'">Home</button>
+        <button class="btn btn-primary" onclick="saveQuotes()">Salva Tutte</button>
+        <button class="btn btn-success" onclick="addNewQuote()">Nuova Citazione</button>
       </div>
     </header>
 
@@ -21,7 +22,7 @@
 
     <!-- Statistiche -->
     <div class="card">
-      <h2 class="card-title">📊 Statistiche</h2>
+      <h2 class="card-title">Statistiche</h2>
       <div class="grid-2" id="stats-container">
         <div><strong>Totale citazioni:</strong> <span id="total-quotes">0</span></div>
         <div><strong>Categorie:</strong> <span id="total-categories">0</span></div>
@@ -30,7 +31,7 @@
 
     <!-- Filtri -->
     <div class="card">
-      <h2 class="card-title">🔍 Filtra Citazioni</h2>
+      <h2 class="card-title">Filtra Citazioni</h2>
       <div class="grid-2">
         <div class="form-group">
           <label for="filter-category">Categoria</label>
@@ -48,8 +49,8 @@
     <!-- Lista Citazioni -->
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 class="card-title" style="margin: 0;">📝 Citazioni</h2>
-        <button class="btn btn-danger" onclick="deleteAllQuotes()">🗑️ Elimina Tutte</button>
+        <h2 class="card-title" style="margin: 0;">Citazioni</h2>
+        <button class="btn btn-danger" onclick="deleteAllQuotes()">Elimina Tutte</button>
       </div>
       <div id="quotes-list"></div>
     </div>
@@ -58,7 +59,7 @@
   <!-- Modal Modifica Citazione -->
   <div id="edit-modal" class="modal hidden">
     <div class="modal-content">
-      <h2>✏️ Modifica Citazione</h2>
+      <h2>Modifica Citazione</h2>
       
       <div class="form-group">
         <label for="edit-text">Testo Citazione *</label>
@@ -74,7 +75,7 @@
       </div>
 
       <div class="form-group">
-        <label>📝 Anteprima Live</label>
+        <label>Anteprima Live</label>
         <div id="preview-box" class="preview-box">
           La tua citazione apparirà qui...
         </div>
@@ -101,7 +102,7 @@
       </div>
 
       <fieldset class="form-group" style="border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 12px;">
-        <legend>🗓️ Programmazione (facoltativa)</legend>
+        <legend>Programmazione (facoltativa)</legend>
         <small style="color: var(--text-secondary);">
           Compila ora e/o data per mostrare la citazione in un momento preciso: ha la precedenza
           su quelle del meteo. Con la sola data vale tutto il giorno.
@@ -171,8 +172,8 @@
       </div>
 
       <div style="display: flex; gap: 12px; margin-top: 24px;">
-        <button class="btn btn-primary" onclick="saveEditedQuote()">💾 Salva</button>
-        <button class="btn btn-secondary" onclick="closeEditModal()">❌ Annulla</button>
+        <button class="btn btn-primary" onclick="saveEditedQuote()">Salva</button>
+        <button class="btn btn-secondary" onclick="closeEditModal()">Annulla</button>
       </div>
     </div>
   </div>
@@ -328,6 +329,21 @@
     .align-left { text-align: left; }
     .align-center { text-align: center; }
     .align-right { text-align: right; }
+    /* Smartphone: finestra a tutta larghezza, azioni che vanno a capo */
+    @media (max-width: 600px) {
+      .modal { align-items: flex-end; }
+      .modal-content { width: 100%; max-height: 92vh; padding: 18px 16px; border-radius: 10px 10px 0 0; }
+      .quote-meta { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .quote-actions { flex-wrap: wrap; }
+      .quote-actions .btn { flex: 1 1 auto; }
+      .quote-item:hover { transform: none; }
+    }
+    .quote-item { background: var(--inset-bg); border: 1px solid var(--border-color); border-left: 3px solid var(--bronze); }
+    .quote-text { font-family: var(--font-serif); }
+    .quote-category { background: var(--bronze-gradient); border-radius: 3px; }
+    textarea { border: 1px solid var(--border-color); }
+    .btn-format { color: var(--bronze-deep); background: #fffdf8; text-shadow: none; box-shadow: none; min-height: 40px; min-width: 44px; border: 1px solid var(--border-color); }
+    .btn-format:hover { color: #fffaf0; background: var(--bronze-gradient); }
   </style>
 
   <script>
@@ -421,9 +437,9 @@
       if (quotesToRender.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
-            <h3>📭 Nessuna citazione</h3>
+            <h3>Nessuna citazione</h3>
             <p>Inizia aggiungendo la tua prima citazione!</p>
-            <button class="btn btn-primary" onclick="addNewQuote()">➕ Aggiungi Citazione</button>
+            <button class="btn btn-primary" onclick="addNewQuote()">Aggiungi Citazione</button>
           </div>
         `;
         return;
@@ -456,8 +472,8 @@
             </div>
           </div>
           <div class="quote-actions">
-            <button class="btn btn-primary" onclick="editQuote(${realIndex})">✏️ Modifica</button>
-            <button class="btn btn-danger" onclick="deleteQuote(${realIndex})">🗑️ Elimina</button>
+            <button class="btn btn-primary" onclick="editQuote(${realIndex})">Modifica</button>
+            <button class="btn btn-danger" onclick="deleteQuote(${realIndex})">Elimina</button>
           </div>
         `;
         container.appendChild(div);
