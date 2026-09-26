@@ -17,6 +17,7 @@ void drawMainScreen(const ScreenModel& m);
 void drawSetupScreen(const ScreenModel& m);
 void drawUpdateScreen(const ScreenModel& m);
 void drawMessageScreen(const ScreenModel& m);
+void drawBatteryScreen(const ScreenModel& m);
 
 // true se la citazione entra per intero nel riquadro, anche col carattere più
 // piccolo. Chiamata dal loop: usa un oggetto di misura separato dal task.

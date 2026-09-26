@@ -30,6 +30,7 @@ extern bool apMode;           // Definita in NetworkUtils.cpp (header non inclus
 #include <string.h>
 #include "Screens.h"
 #include "DisplayTask.h"
+#include "Updater.h"
 
 // Visualizza un semplice box di testo centrale con il messaggio passato
 // ---------------------------------------------------------------------------
@@ -64,9 +65,25 @@ void showStatusOnDisplay(const char* msg) {
 
 // Schermata mostrata mentre si scarica un aggiornamento da GitHub
 // (provvisoria: verrà ridisegnata insieme al nuovo aspetto del display)
-void showUpdateScreen() {
+void showUpdateProgress(const char* phase, int filesDone, int filesTotal, int percent, int etaSec) {
   screenModel = ScreenModel();
   screenModel.kind = SCREEN_UPDATE;
+  screenModel.updPhase = phase;
+  screenModel.updFilesDone = filesDone;
+  screenModel.updFilesTotal = filesTotal;
+  screenModel.updPercent = constrain(percent, 0, 100);
+  screenModel.updEtaSec = etaSec;
+  fillBattery(screenModel);
+  showScreen(screenModel);
+}
+
+void showUpdateError(const char* title, const char* text) {
+  showMessage(title, text);
+}
+
+void showBatteryEmpty() {
+  screenModel = ScreenModel();
+  screenModel.kind = SCREEN_BATTERY;
   fillBattery(screenModel);
   showScreen(screenModel);
 }
@@ -184,6 +201,10 @@ void updateDisplay() {
     }
   }
 
+  m.notice = getUpdateNotice();
+  if (m.notice.length() == 0 && battery.getLevel() != BATTERY_LEVEL_OK) {
+    m.notice = "Batteria scarica: collega il caricatore";
+  }
   fillBattery(m);
   showScreen(m);
   if (isFirstBoot) isFirstBoot = false;
@@ -338,7 +359,7 @@ void drawFocusLayout() {
     display.setCursor(centerX, bottomY);
     display.setTextColor(GxEPD_BLACK);
     display.print(ipString);
-    if (config.batteryMonitorEnabled && config.batteryShowOnDisplay) {
+    if (battery.isAvailable() && config.batteryShowOnDisplay) {
       int batteryPercentage = battery.getPercentage();
       drawBattery(display.width() - 60, display.height() - 20, batteryPercentage);
     }

@@ -167,28 +167,18 @@
 
     <!-- Battery Monitor -->
     <div class="card">
-      <h2 class="card-title">Monitoraggio Batteria</h2>
-      <div class="form-group">
+      <h2 class="card-title">Batteria</h2>
+      <ul id="battery-status" class="status-list">
+        <li><span class="label">Stato</span><span>lettura in corso...</span></li>
+      </ul>
+      <div class="form-group mt-4">
         <label class="flex flex-between">
-          <span>Abilita Monitor Batteria</span>
+          <span>Mostra la batteria sul display</span>
           <label class="toggle-switch">
-            <input type="checkbox" id="batteryMonitorEnabled">
+            <input type="checkbox" id="batteryShowOnDisplay">
             <span class="slider"></span>
           </label>
         </label>
-        <small style="color: var(--text-secondary);">
-          Richiede un voltage divider esterno collegato al pin ADC
-        </small>
-      </div>
-      <div class="grid-2">
-        <div class="form-group">
-          <label for="batteryADCPin">Pin ADC</label>
-          <input type="number" id="batteryADCPin" min="0" max="39" value="35">
-        </div>
-        <div class="form-group">
-          <label for="batteryVoltageDivider">Voltage Divider Ratio</label>
-          <input type="number" id="batteryVoltageDivider" step="0.1" value="2.0">
-        </div>
       </div>
     </div>
 
@@ -224,9 +214,7 @@
         document.getElementById('powerSavingEnabled').checked = data.powerSavingEnabled || false;
         document.getElementById('powerSavingStartHour').value = data.powerSavingStartHour || 22;
         document.getElementById('powerSavingEndHour').value = data.powerSavingEndHour || 7;
-        document.getElementById('batteryMonitorEnabled').checked = data.batteryMonitorEnabled || false;
-        document.getElementById('batteryADCPin').value = data.batteryADCPin || 35;
-        document.getElementById('batteryVoltageDivider').value = data.batteryVoltageDivider || 2.0;
+        document.getElementById('batteryShowOnDisplay').checked = data.batteryShowOnDisplay !== false;
         
         showMessage('Impostazioni caricate', 'success');
       } catch (error) {
@@ -253,9 +241,7 @@
         powerSavingEnabled: document.getElementById('powerSavingEnabled').checked,
         powerSavingStartHour: parseInt(document.getElementById('powerSavingStartHour').value),
         powerSavingEndHour: parseInt(document.getElementById('powerSavingEndHour').value),
-        batteryMonitorEnabled: document.getElementById('batteryMonitorEnabled').checked,
-        batteryADCPin: parseInt(document.getElementById('batteryADCPin').value),
-        batteryVoltageDivider: parseFloat(document.getElementById('batteryVoltageDivider').value)
+        batteryShowOnDisplay: document.getElementById('batteryShowOnDisplay').checked
       };
       
       // Includi SSID e password SOLO se la password è stata modificata (non vuota)
@@ -340,6 +326,32 @@
 
     // Inizializza
     loadSettings();
+    async function loadBattery() {
+      const list = document.getElementById('battery-status');
+      const row = (k, v) => `<li><span class="label">${k}</span><span>${v}</span></li>`;
+      try {
+        const b = await (await fetch('/api/battery', { cache: 'no-store' })).json();
+        if (!b.available) {
+          list.innerHTML = row('Sensore', 'INA219 non rilevato');
+          return;
+        }
+        const mA = Math.abs(b.current_mA).toFixed(0);
+        let flow = b.charging ? `In carica · ${mA} mA` : `In uso · ${mA} mA`;
+        let autonomy = '—';
+        if (!b.charging && b.remaining_min > 0) {
+          const h = Math.floor(b.remaining_min / 60);
+          autonomy = h >= 48 ? `circa ${Math.round(h / 24)} giorni` : `circa ${h} h ${b.remaining_min % 60} min`;
+        }
+        const levels = { ok: 'Normale', low: 'Bassa', critical: 'Scarica' };
+        list.innerHTML = row('Carica', `${b.percent}%`) + row('Tensione', `${b.voltage.toFixed(2)} V`) +
+          row('Corrente', flow) + row('Autonomia stimata', b.charging ? '—' : autonomy) +
+          row('Livello', levels[b.level] || '—');
+      } catch (e) {
+        list.innerHTML = row('Stato', 'lettura non riuscita');
+      }
+    }
+    loadBattery();
+    setInterval(loadBattery, 30000);
   </script>
 </body>
 </html>

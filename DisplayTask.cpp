@@ -34,6 +34,7 @@ static void renderScreen(const ScreenModel& m) {
       case SCREEN_SETUP:   drawSetupScreen(m); break;
       case SCREEN_UPDATE:  drawUpdateScreen(m); break;
       case SCREEN_MESSAGE: drawMessageScreen(m); break;
+      case SCREEN_BATTERY: drawBatteryScreen(m); break;
     }
   } while (display.nextPage());
 }

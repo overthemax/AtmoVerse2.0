@@ -39,6 +39,7 @@
 #include "RTCManager.h"
 #include "Updater.h"
 #include "Version.h"
+#include "DisplayTask.h"
 
 // Il loop esegue anche le connessioni HTTPS (meteo, aggiornamenti): lo
 // stack predefinito da 8 KB è al limite durante l'handshake TLS
@@ -49,6 +50,42 @@ const unsigned long UPDATE_CHECK_MS     = 6UL * 60 * 60 * 1000;  // Controllo og
 const unsigned long UPDATE_RETRY_MS     = 10UL * 60 * 1000;      // Nuovo tentativo dopo un errore
 const unsigned long FIRMWARE_HEALTHY_MS = 60UL * 1000;           // Dopo 60 s il firmware è confermato
 const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP: nuovo tentativo sulla rete configurata
+
+// ---------------------------------------------------------------------------
+// Batteria scarica: sonno profondo
+// ---------------------------------------------------------------------------
+// Al livello critico il display mostra la faccina stanca e la scheda dorme,
+// risvegliandosi ogni 30 minuti solo per misurare la batteria. La variabile
+// in memoria RTC sopravvive al sonno profondo.
+const uint64_t BATTERY_SLEEP_US = 30ULL * 60 * 1000000;
+RTC_DATA_ATTR bool sleepingForBattery = false;
+
+void enterBatterySleep() {
+  Serial.printf("[BATTERY] Batteria al %d%%: sonno profondo, nuovo controllo tra 30 minuti\n",
+                battery.getPercentage());
+  sleepingForBattery = true;
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  esp_sleep_enable_timer_wakeup(BATTERY_SLEEP_US);
+  Serial.flush();
+  esp_deep_sleep_start();
+}
+
+// Risveglio dal sonno per batteria: si misura e, se è ancora scarica e non in
+// carica, si torna a dormire senza toccare display e WiFi (la faccina resta)
+void checkBatteryAfterSleep() {
+  if (!sleepingForBattery || esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
+    sleepingForBattery = false;
+    return;
+  }
+  battery.begin();
+  if (battery.isAvailable() && !battery.charging() &&
+      battery.getPercentage() < BATTERY_CRITICAL_EXIT_PERCENT) {
+    enterBatterySleep();
+  }
+  Serial.println("[BATTERY] Batteria ricaricata: avvio normale");
+  sleepingForBattery = false;
+}
 
 // Richiesta di controllo aggiornamenti dalla pagina web (vedi WebServer.cpp)
 volatile bool updateCheckRequested = false;
@@ -112,6 +149,9 @@ void setup() {
   // Inizializza Serial per debug
   Serial.begin(115200);
   delay(1000);
+
+  // Dopo un sonno per batteria scarica: se lo è ancora si torna a dormire qui
+  checkBatteryAfterSleep();
   // Serial.println("\n\n=== AtmoVerse 2.0 Startup ===");
   
   // Attesa per stabilizzazione sistema prima di inizializzare SD
@@ -152,8 +192,6 @@ void setup() {
   bool hasSSID = strlen(config.ssid) > 0;
   // Serial.printf("[SETUP] SSID presente in config: %s\n", hasSSID ? "SI" : "NO");
 
-  config.batteryMonitorEnabled = true;
-  config.batteryShowOnDisplay = true;
   
   // Se esiste il file e la configurazione è stata caricata, ma non è valida,
   // potrebbe esserci un errore di lettura. Proviamo a rileggerla fino a 3 volte.
@@ -208,9 +246,8 @@ void setup() {
   // Inizializzazione hardware
   initHardware();
 
-  if (config.batteryMonitorEnabled) {
-    battery.begin(config.batteryADCPin, config.batteryVoltageDivider);
-  }
+  // Batteria: INA219 cercato sempre; se manca la batteria non viene mostrata
+  battery.begin();
 
   // Inizializza RTC DS3231 - imposta subito il clock interno se disponibile
   rtcBegin();
@@ -268,7 +305,8 @@ bool isPowerSavingMode() {
 
 // Calcola l'intervallo di aggiornamento in base alla modalità
 unsigned long getUpdateInterval() {
-  if (isPowerSavingMode()) {
+  // Batteria bassa: meteo aggiornato meno spesso per risparmiare
+  if (isPowerSavingMode() || (battery.isAvailable() && battery.getLevel() != BATTERY_LEVEL_OK)) {
     return config.powerSavingUpdateInterval * 60 * 1000; // Converti minuti in millisecondi
   } else {
     return config.normalUpdateInterval * 60 * 1000; // Converti minuti in millisecondi
@@ -287,8 +325,22 @@ unsigned long getDisplayRefreshIntervalMs() {
 // Loop principale
 void loop() {
   unsigned long currentMillis = millis();
-  if (config.batteryMonitorEnabled) {
+  if (battery.isAvailable()) {
     battery.update();
+
+    // Livello critico stabile per almeno un minuto (due letture): faccina e sonno
+    static unsigned long criticalSince = 0;
+    if (battery.getLevel() == BATTERY_LEVEL_CRITICAL) {
+      if (criticalSince == 0) {
+        criticalSince = currentMillis;
+      } else if (currentMillis - criticalSince >= 60000UL) {
+        showBatteryEmpty();
+        waitDisplayIdle(15000);  // La schermata deve essere sul pannello prima di dormire
+        enterBatterySleep();
+      }
+    } else {
+      criticalSince = 0;
+    }
   }
   
   // Sincronizzazione NTP periodica ogni 30 minuti per calibrare il DS3231

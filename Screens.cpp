@@ -345,7 +345,12 @@ void drawMainScreen(const ScreenModel& m) {
   // Piè di pagina
   u8g2.setFont(FONT_SMALL);
   const int footerY = H - 12;
-  if (w.last_update > 1700000000) {
+  if (m.notice.length()) {
+    // Triangolo di avviso + testo
+    display.fillTriangle(MARGIN, footerY, MARGIN + 12, footerY, MARGIN + 6, footerY - 11, GxEPD_BLACK);
+    display.drawFastVLine(MARGIN + 6, footerY - 7, 4, GxEPD_WHITE);
+    textLeft(MARGIN + 18, footerY, displayText(m.notice));
+  } else if (w.last_update > 1700000000) {
     struct tm u;
     localtime_r(&w.last_update, &u);
     String when = twoDigits(u.tm_hour) + ":" + twoDigits(u.tm_min);
@@ -427,23 +432,53 @@ void drawSetupScreen(const ScreenModel& m) {
   drawServiceFooter(m, "Quando la rete di casa torna disponibile, AtmoVerse si ricollega da solo.");
 }
 
+static String formatEta(int seconds) {
+  if (seconds < 0) return "Stima del tempo in corso...";
+  if (seconds < 60) return "Meno di un minuto";
+  int minutes = (seconds + 30) / 60;
+  return minutes == 1 ? String("Circa 1 minuto") : "Circa " + String(minutes) + " minuti";
+}
+
 void drawUpdateScreen(const ScreenModel& m) {
   initText(u8g2);
   const int W = display.width();
-  const int cy = display.height() / 2;
+  const int H = display.height();
 
-  // Freccia di download sottile
-  display.drawFastVLine(W / 2, cy - 110, 50, GxEPD_BLACK);
-  display.drawFastVLine(W / 2 + 1, cy - 110, 50, GxEPD_BLACK);
-  display.drawLine(W / 2 - 16, cy - 76, W / 2, cy - 60, GxEPD_BLACK);
-  display.drawLine(W / 2 + 17, cy - 76, W / 2 + 1, cy - 60, GxEPD_BLACK);
-  display.drawFastHLine(W / 2 - 24, cy - 48, 50, GxEPD_BLACK);
-
+  // Titolo
   u8g2.setFont(FONT_TITLE);
-  textCenter(W / 2, cy, "Aggiornamento in corso");
+  textLeft(MARGIN, 52, "Aggiornamento in corso");
   u8g2.setFont(FONT_TEXT);
-  textCenter(W / 2, cy + 36, "AtmoVerse sta installando una nuova versione.");
-  textCenter(W / 2, cy + 36 + lineHeight(), "Non spegnere il dispositivo: si riavvierà da solo.");
+  textLeft(MARGIN, 80, "AtmoVerse sta installando una nuova versione.");
+  display.drawFastHLine(MARGIN, 96, W - 2 * MARGIN, GxEPD_BLACK);
+
+  // Fase e percentuale
+  u8g2.setFont(FONT_BODY);
+  textLeft(MARGIN, 160, m.updPhase.length() ? m.updPhase : String("Preparazione"));
+  u8g2.setFont(FONT_TEMP);
+  textRight(W - MARGIN, 172, String(m.updPercent) + "%");
+
+  // Barra di avanzamento: contorno sottile, riempimento pieno
+  const int barY = 196;
+  const int barH = 22;
+  const int barW = W - 2 * MARGIN;
+  display.drawRect(MARGIN, barY, barW, barH, GxEPD_BLACK);
+  int fill = (barW - 6) * m.updPercent / 100;
+  if (fill > 0) display.fillRect(MARGIN + 3, barY + 3, fill, barH - 6, GxEPD_BLACK);
+
+  // Dettagli
+  u8g2.setFont(FONT_TEXT);
+  int y = barY + barH + 36;
+  if (m.updFilesTotal > 0) {
+    textLeft(MARGIN, y, String(m.updFilesDone) + " di " + String(m.updFilesTotal) + " file scaricati");
+    y += lineHeight() + 4;
+  }
+  textLeft(MARGIN, y, formatEta(m.updEtaSec));
+
+  // Avvertenza
+  u8g2.setFont(FONT_TEXT);
+  textLeft(MARGIN, H - 64, "Non spegnere il dispositivo:");
+  textLeft(MARGIN, H - 64 + lineHeight(), "al termine si riavvia o torna al meteo da solo.");
+  drawServiceFooter(m, "La schermata si aggiorna a ogni 10% di avanzamento.");
 }
 
 void drawMessageScreen(const ScreenModel& m) {
@@ -469,4 +504,92 @@ void drawMessageScreen(const ScreenModel& m) {
     textCenter(W / 2, y, lines[i]);
     y += lh;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Batteria scarica: faccina stanca
+// ---------------------------------------------------------------------------
+
+// Arco spesso: punti pieni lungo la circonferenza (angoli in gradi, 0 = destra,
+// senso orario perché la y dello schermo cresce verso il basso)
+static void thickArc(int cx, int cy, int r, int fromDeg, int toDeg, int thickness) {
+  for (int a = fromDeg; a <= toDeg; a += 2) {
+    float rad = a * PI / 180.0f;
+    display.fillCircle(cx + (int)lroundf(r * cosf(rad)), cy + (int)lroundf(r * sinf(rad)),
+                       thickness / 2, GxEPD_BLACK);
+  }
+}
+
+static void thickLine(int x0, int y0, int x1, int y1, int thickness) {
+  int steps = max(abs(x1 - x0), abs(y1 - y0));
+  for (int i = 0; i <= steps; i++) {
+    display.fillCircle(x0 + (x1 - x0) * i / max(1, steps), y0 + (y1 - y0) * i / max(1, steps),
+                       thickness / 2, GxEPD_BLACK);
+  }
+}
+
+static void drawTiredFace(int cx, int cy, int r) {
+  // Contorno
+  for (int i = 0; i < 4; i++) display.drawCircle(cx, cy, r - i, GxEPD_BLACK);
+
+  const int eyeDx = r * 36 / 100;
+  const int eyeY = cy - r * 12 / 100;
+  const int eyeW = r * 22 / 100;
+  for (int side = -1; side <= 1; side += 2) {
+    int ex = cx + side * eyeDx;
+    // Palpebra abbassata: linea con la metà inferiore della pupilla sotto
+    thickLine(ex - eyeW, eyeY, ex + eyeW, eyeY, 5);
+    display.fillCircle(ex, eyeY + 2, eyeW * 55 / 100, GxEPD_BLACK);
+    display.fillRect(ex - eyeW, eyeY - eyeW, eyeW * 2 + 1, eyeW, GxEPD_WHITE);
+    thickLine(ex - eyeW, eyeY, ex + eyeW, eyeY, 5);
+    // Occhiaie
+    thickArc(ex, eyeY + eyeW * 40 / 100, eyeW * 85 / 100, 35, 145, 3);
+    // Sopracciglia inclinate verso l'esterno (aria stanca)
+    int by = eyeY - r * 26 / 100;
+    thickLine(ex - side * eyeW, by - 6, ex + side * eyeW, by + 4, 5);
+  }
+
+  // Bocca ondulata
+  const int mouthY = cy + r * 40 / 100;
+  const int mouthW = r * 34 / 100;
+  int px = cx - mouthW;
+  int py = mouthY;
+  for (int x = cx - mouthW; x <= cx + mouthW; x += 2) {
+    int y = mouthY + (int)lroundf(3.0f * sinf((x - cx) * PI / mouthW));
+    thickLine(px, py, x, y, 5);
+    px = x;
+    py = y;
+  }
+
+  // Goccia di sudore
+  int sx = cx + r * 78 / 100;
+  int sy = cy - r * 48 / 100;
+  display.fillCircle(sx, sy + 8, 8, GxEPD_BLACK);
+  display.fillTriangle(sx - 7, sy + 5, sx + 7, sy + 5, sx, sy - 12, GxEPD_BLACK);
+}
+
+void drawBatteryScreen(const ScreenModel& m) {
+  initText(u8g2);
+  const int W = display.width();
+  const int H = display.height();
+
+  drawTiredFace(W / 2, 150, 92);
+
+  u8g2.setFont(FONT_TITLE);
+  textCenter(W / 2, 300, "Batteria scarica");
+  u8g2.setFont(FONT_TEXT);
+  textCenter(W / 2, 336, "Collega il caricatore:");
+  textCenter(W / 2, 336 + lineHeight(), "AtmoVerse ripartirà da solo.");
+
+  // Batteria vuota con la percentuale
+  const int bw = 64, bh = 28;
+  int bx = W / 2 - bw / 2 - 20;
+  int by = 392;
+  display.drawRect(bx, by, bw, bh, GxEPD_BLACK);
+  display.drawRect(bx + 1, by + 1, bw - 2, bh - 2, GxEPD_BLACK);
+  display.fillRect(bx + bw, by + 8, 5, bh - 16, GxEPD_BLACK);
+  int fill = (bw - 8) * constrain(m.batteryPercent, 0, 100) / 100;
+  if (fill > 0) display.fillRect(bx + 4, by + 4, max(fill, 2), bh - 8, GxEPD_BLACK);
+  u8g2.setFont(FONT_VALUE);
+  textLeft(bx + bw + 14, by + 21, String(m.batteryPercent) + "%");
 }

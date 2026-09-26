@@ -24,6 +24,7 @@ enum ScreenKind : uint8_t {
   SCREEN_SETUP,    // Modalità AP con codice QR
   SCREEN_UPDATE,   // Download di un aggiornamento
   SCREEN_MESSAGE,  // Titolo + testo
+  SCREEN_BATTERY,  // Batteria scarica (faccina stanca)
 };
 
 // Icona meteo in RAM: 1 bit per pixel, righe dall'alto, bit a 1 = nero
@@ -44,11 +45,19 @@ struct ScreenModel {
   uint16_t iconWidth = 0;
   uint16_t iconHeight = 0;
   uint8_t icon[ICON_MAX_BYTES] = {};
+  String notice;  // Avviso persistente nel piè di pagina (es. SD piena)
 
   // Batteria (mostrata in tutte le schermate)
   bool showBattery = false;
   int batteryPercent = 0;
   bool batteryCharging = false;
+
+  // Schermata di aggiornamento
+  String updPhase;        // "File della SD" / "Nuovo firmware"
+  int updFilesDone = 0;
+  int updFilesTotal = 0;  // 0 = fase senza file (firmware)
+  int updPercent = 0;
+  int updEtaSec = -1;     // -1 = stima non ancora disponibile
 
   // Schermata di configurazione
   String apName;

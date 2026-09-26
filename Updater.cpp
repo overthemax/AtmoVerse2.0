@@ -15,6 +15,7 @@
 #include "Updater.h"
 #include "Version.h"
 #include "Display.h"
+#include "BatteryManager.h"
 #include "DisplayTask.h"
 #include <SD.h>
 #include <Update.h>
@@ -32,6 +33,8 @@
 volatile UpdateState updateState = UPDATE_IDLE;
 
 static String lastStatus = "Nessun controllo eseguito";
+static String updateNotice;       // Vedi getUpdateNotice()
+static bool sdWriteFailed = false;  // L'ultimo downloadToFile è fallito scrivendo sulla SD
 
 // Area di preparazione sulla SD
 static const char* STAGING_DIR = "/upd";
@@ -49,6 +52,10 @@ static const size_t MAX_MANIFEST_SIZE = 65536;  // ~230 file, icone BMP comprese
 // facciamo noi con markFirmwareHealthy() dopo 60 secondi di funzionamento
 extern "C" bool verifyRollbackLater() {
   return true;
+}
+
+String getUpdateNotice() {
+  return updateNotice;
 }
 
 String getUpdateStatusText() {
@@ -256,6 +263,49 @@ int httpsGet(const String& url, String& body, size_t maxLen) {
 }
 
 // Scarica un file sulla SD verificandone dimensione e SHA-256; in caso di errore lo cancella
+// ---------------------------------------------------------------------------
+// Avanzamento mostrato sul display
+// ---------------------------------------------------------------------------
+// Un refresh completo dell'e-ink dura ~4 s: la schermata si aggiorna a ogni 10%
+// e non più di una volta ogni 20 s.
+struct Progress {
+  const char* phase = "";
+  int filesDone = 0;
+  int filesTotal = 0;
+  uint64_t bytesDone = 0;
+  uint64_t bytesTotal = 0;
+  unsigned long start = 0;
+  int shownPercent = -100;
+  unsigned long shownAt = 0;
+};
+static Progress progress;
+
+static void startProgress(const char* phase, int files, uint64_t bytes) {
+  progress = Progress();
+  progress.phase = phase;
+  progress.filesTotal = files;
+  progress.bytesTotal = bytes;
+  progress.start = millis();
+}
+
+static void reportProgress(bool force = false) {
+  int pct = progress.bytesTotal ? (int)(progress.bytesDone * 100 / progress.bytesTotal) : 0;
+  unsigned long now = millis();
+  if (!force && (pct < progress.shownPercent + 10 || now - progress.shownAt < 20000)) return;
+
+  // Tempo stimato dalla velocità media, dopo almeno 5 s di dati
+  int eta = -1;
+  unsigned long elapsed = now - progress.start;
+  if (progress.bytesDone > 0 && elapsed > 5000) {
+    eta = (int)((double)elapsed * (progress.bytesTotal - progress.bytesDone) / progress.bytesDone / 1000.0);
+  }
+  progress.shownPercent = pct;
+  progress.shownAt = now;
+  Serial.printf("[UPDATE] %s: %d%% (file %d/%d, stima %d s)\n", progress.phase, pct,
+                progress.filesDone, progress.filesTotal, eta);
+  showUpdateProgress(progress.phase, progress.filesDone, progress.filesTotal, pct, eta);
+}
+
 // Connessione per i file della SD.
 // raw.githubusercontent.com usa la catena Let's Encrypt "Root YR" -> ISRG Root X1:
 // sull'ESP32 la verifica della firma RSA-4096 della radice fallisce
@@ -314,8 +364,12 @@ static bool downloadToFile(FileSession* session, const String& url, const String
                            size_t expectedSize, const String& expectedSha) {
   ensureParentDirs(dest);
   SD.remove(dest);
+  sdWriteFailed = false;
   File f = SD.open(dest, FILE_WRITE);
-  if (!f) return false;
+  if (!f) {
+    sdWriteFailed = true;
+    return false;
+  }
 
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
@@ -325,7 +379,11 @@ static bool downloadToFile(FileSession* session, const String& url, const String
   ChunkSink sink = [&](const uint8_t* data, int len) {
     mbedtls_sha256_update(&ctx, data, len);
     total += len;
-    return f.write(data, len) == (size_t)len;
+    if (f.write(data, len) != (size_t)len) {
+      sdWriteFailed = true;
+      return false;
+    }
+    return true;
   };
   bool ok = session ? sessionDownload(*session, url, sink) : httpDownload(url, sink);
   f.close();
@@ -358,6 +416,8 @@ static bool downloadFirmware(const String& url, size_t size, const String& expec
   bool ok = httpDownload(url, [&](const uint8_t* data, int len) {
     mbedtls_sha256_update(&ctx, data, len);
     total += len;
+    progress.bytesDone = total;
+    reportProgress();
     return Update.write((uint8_t*)data, len) == (size_t)len;
   });
 
@@ -444,13 +504,29 @@ void markFirmwareHealthy() {
   prefs.end();
 }
 
+// Errore che richiede un intervento: schermata dedicata (solo la prima volta,
+// non a ogni nuovo tentativo) e avviso nel piè di pagina finché non si risolve
+static void reportBlockingError(const String& title, const String& text, const String& notice) {
+  bool firstTime = updateNotice != notice;
+  updateNotice = notice;
+  lastStatus = title + ": " + text;
+  Serial.println("[UPDATE] " + lastStatus);
+  if (firstTime) showUpdateError(title.c_str(), text.c_str());
+}
+
+static String formatMB(uint64_t bytes) {
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%.1f MB", bytes / 1048576.0);
+  return String(buf);
+}
+
 // Durante i download la CPU passa da 80 a 240 MHz: le connessioni HTTPS
 // sono molto più rapide. Al termine si torna alla frequenza di risparmio.
 static uint32_t savedCpuMhz = 0;
 
 static void beginDownloadPhase() {
   updateState = UPDATE_DOWNLOADING;
-  showUpdateScreen();
+  reportProgress(true);
   // Il cambio di frequenza vale per entrambi i core: si attende che il task
   // del display abbia finito di trasmettere al pannello via SPI
   waitDisplayIdle(15000);
@@ -469,7 +545,13 @@ static void finishWithError(const String& message) {
   Serial.println("[UPDATE] " + message);
   lastStatus = message;
   if (sdAvailable() && SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
-  endDownloadPhase();
+  endDownloadPhase();  // Torna alla schermata principale
+  if (sdWriteFailed) {
+    reportBlockingError("Aggiornamento non riuscito",
+                        "Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata. "
+                        "Libera spazio o sostituisci la scheda: AtmoVerse riprova da solo.",
+                        "SD piena o danneggiata: aggiornamento sospeso");
+  }
 }
 
 // Manifest e liste di lavoro stanno sulla SD, non in RAM: il manifest descrive
@@ -511,7 +593,12 @@ static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
 
 // Scorre l'elenco "files" del manifest salvato sulla SD una voce alla volta e
 // scrive in NEEDED_LIST quelle da scaricare. Restituisce quante sono, -1 se errore.
-static int buildNeededList() {
+// Su FAT ogni file occupa almeno un cluster: fino a 32 KB anche se piccolo
+static const uint64_t FAT_CLUSTER_MAX = 32768;
+
+static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
+  totalBytes = 0;
+  diskBytes = 0;
   File manifest = SD.open(MANIFEST_TMP, FILE_READ);
   if (!manifest) return -1;
   File out = SD.open(NEEDED_LIST, FILE_WRITE);
@@ -540,6 +627,8 @@ static int buildNeededList() {
       }
       out.printf("%s|%u|%s\n", path.c_str(), (unsigned)size, sha.c_str());
       count++;
+      totalBytes += size;
+      diskBytes += ((size + FAT_CLUSTER_MAX - 1) / FAT_CLUSTER_MAX + 1) * FAT_CLUSTER_MAX;
     } while (manifest.findUntil(",", "]"));
   }
   out.close();
@@ -588,7 +677,10 @@ static bool downloadNeededFiles(const String& baseUrl) {
       break;
     }
     pending.println(path);
-    if (++downloaded % 25 == 0) Serial.printf("[UPDATE] File scaricati: %d\n", downloaded);
+    downloaded++;
+    progress.filesDone = downloaded;
+    progress.bytesDone += size;
+    reportProgress();
   }
   session->tls.stop();
   delete session;
@@ -648,24 +740,55 @@ bool checkForUpdates() {
 
   bool firmwareNewer = compareVersions(h.version.c_str(), ATMOVERSE_VERSION) > 0 && badVersion != h.version;
 
+  // Con la batteria bassa e senza caricatore il firmware non si installa: uno
+  // spegnimento durante la scrittura verrebbe recuperato dal rollback, ma è
+  // meglio non rischiare. I file della SD si aggiornano comunque.
+  if (firmwareNewer && battery.isAvailable() && !battery.charging() &&
+      battery.getPercentage() < BATTERY_MIN_FIRMWARE_UPDATE_PERCENT) {
+    Serial.printf("[UPDATE] Firmware %s rimandato: batteria al %d%%, non in carica\n",
+                  h.version.c_str(), battery.getPercentage());
+    firmwareNewer = false;
+    lastStatus = "Firmware " + h.version + " disponibile: si installa con la batteria sopra il " +
+                 String(BATTERY_MIN_FIRMWARE_UPDATE_PERCENT) + "% o in carica";
+  }
+
   // 3. Quali file della SD sono cambiati? (elenco scritto sulla SD, non in RAM)
   int neededCount = 0;
+  uint64_t neededBytes = 0;
+  uint64_t neededDisk = 0;
   if (sd && h.baseUrl.length() > 0) {
     if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     SD.mkdir(STAGING_DIR);
-    neededCount = buildNeededList();
+    neededCount = buildNeededList(neededBytes, neededDisk);
     if (neededCount < 0) {
       SD.remove(MANIFEST_TMP);
       removeTree(STAGING_DIR);
-      lastStatus = "Impossibile leggere il manifest dalla SD";
-      Serial.println("[UPDATE] " + lastStatus);
+      reportBlockingError("Aggiornamento non riuscito",
+                          "Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata.",
+                          "SD piena o danneggiata: aggiornamento sospeso");
       return false;
     }
   }
   if (sd) SD.remove(MANIFEST_TMP);
 
+  // Spazio: i file nuovi stanno in /upd accanto ai vecchi finché non sono tutti
+  // verificati, quindi serve spazio per l'intera copia più un margine
+  if (neededCount > 0) {
+    uint64_t freeBytes = SD.totalBytes() - SD.usedBytes();
+    uint64_t required = neededDisk + 512 * 1024;
+    if (freeBytes < required) {
+      removeTree(STAGING_DIR);
+      reportBlockingError("Spazio insufficiente sulla SD",
+                          "Per l'aggiornamento servono " + formatMB(required) + ", liberi " + formatMB(freeBytes) +
+                          ". Libera spazio sulla scheda: AtmoVerse riprova da solo.",
+                          "SD piena: servono " + formatMB(required) + ", liberi " + formatMB(freeBytes));
+      return false;
+    }
+  }
+
   if (!firmwareNewer && neededCount == 0) {
     if (sd && SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
+    updateNotice = "";
     lastStatus = String("Aggiornato (versione ") + ATMOVERSE_VERSION + ")";
     Serial.println("[UPDATE] " + lastStatus);
     return true;
@@ -673,6 +796,11 @@ bool checkForUpdates() {
 
   // 4. Download: il display mostra la schermata di aggiornamento
   Serial.printf("[UPDATE] Da scaricare: firmware %s, file %d\n", firmwareNewer ? h.version.c_str() : "no", neededCount);
+  if (neededCount > 0) {
+    startProgress("File della SD", neededCount, neededBytes);
+  } else {
+    startProgress("Nuovo firmware", 0, h.fwSize);
+  }
   beginDownloadPhase();
 
   if (neededCount > 0 && !downloadNeededFiles(h.baseUrl)) {
@@ -681,6 +809,10 @@ bool checkForUpdates() {
   }
 
   if (firmwareNewer) {
+    if (neededCount > 0) {
+      startProgress("Nuovo firmware", 0, h.fwSize);
+      reportProgress(true);
+    }
     if (h.fwUrl.length() == 0 || h.fwSize == 0 || !downloadFirmware(h.fwUrl, h.fwSize, h.fwSha)) {
       finishWithError("Installazione del firmware " + h.version + " non riuscita");
       return false;
@@ -698,6 +830,7 @@ bool checkForUpdates() {
   }
 
   if (firmwareNewer) {
+    updateNotice = "";
     lastStatus = "Installata la versione " + h.version + ", riavvio";
     Serial.println("[UPDATE] " + lastStatus);
     delay(500);
@@ -705,6 +838,7 @@ bool checkForUpdates() {
   }
 
   applyPendingSdUpdate();
+  updateNotice = "";
   lastStatus = "File della SD aggiornati";
   Serial.printf("[UPDATE] %d file della SD aggiornati\n", neededCount);
   endDownloadPhase();
