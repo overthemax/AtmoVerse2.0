@@ -464,6 +464,11 @@ static bool loadScheduledQuote(Quote& quote) {
 // non entra nel riquadro nemmeno col carattere più piccolo
 static const size_t CLOCK_QUOTE_MAX_CHARS = 700;
 
+bool clockQuoteFits(const String& text, const String& author) {
+  // Prefiltro sulla lunghezza: misurare testi enormi col font costa tempo
+  return text.length() <= CLOCK_QUOTE_MAX_CHARS && quoteFitsDisplay(text, author);
+}
+
 static bool loadClockQuote(Quote& quote) {
   struct tm t;
   if (!getLocalTime(&t, 0)) return false;
@@ -488,7 +493,7 @@ static bool loadClockQuote(Quote& quote) {
     // Solo citazioni che il display mostra per intero (font adattivo compreso)
     String author = line.substring(sep + 1);
     author.trim();
-    if (!quoteFitsDisplay(line.substring(3, sep), author)) continue;
+    if (!clockQuoteFits(line.substring(3, sep), author)) continue;
     matches++;
     if (random(matches) == 0) chosen = line;
   }

@@ -30,7 +30,9 @@ void initUpdater();
 // Controlla GitHub e installa gli aggiornamenti. Solo dal task di rete, con WiFi connesso.
 // Se viene installato un nuovo firmware il dispositivo si riavvia.
 // Restituisce false se il controllo non è riuscito (da ripetere a breve).
-bool checkForUpdates();
+// Se i file della SD risultano già allineati all'ultima release il loro
+// SHA-256 non viene ricalcolato, a meno di fullScan (controllo dalla pagina web).
+bool checkForUpdates(bool fullScan = false);
 
 // Conferma che il firmware in esecuzione funziona (annulla il rollback automatico)
 void markFirmwareHealthy();

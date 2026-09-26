@@ -13,13 +13,51 @@
       <h1>Editor Citazioni</h1>
       <div class="header-actions">
         <button class="btn btn-secondary" onclick="location.href='index.html'">Home</button>
-        <button class="btn btn-primary" onclick="saveQuotes()">Salva Tutte</button>
-        <button class="btn btn-success" onclick="addNewQuote()">Nuova Citazione</button>
+        <button class="btn btn-primary" onclick="activeTab === 'orari' ? saveClockHour() : saveQuotes()">Salva</button>
+        <button class="btn btn-success" onclick="activeTab === 'orari' ? addClockQuote() : addNewQuote()">Nuova Citazione</button>
       </div>
     </header>
 
     <div id="message-container"></div>
 
+    <!-- Due gruppi di citazioni: meteo/programmate (quotes.json) e orologio letterario (/orari) -->
+    <div class="tabs" role="tablist">
+      <button class="tab active" id="tab-btn-meteo" role="tab" onclick="showTab('meteo')">Meteo e programmate</button>
+      <button class="tab" id="tab-btn-orari" role="tab" onclick="showTab('orari')">Orologio letterario</button>
+    </div>
+
+    <div id="tab-orari" class="tab-panel hidden">
+      <div class="card">
+        <h2 class="card-title">Orologio letterario</h2>
+        <p class="hint">Citazioni che citano l'orario: hanno la precedenza su quelle del meteo e compaiono
+          nel minuto indicato. Si modifica un'ora alla volta; le citazioni restano solo sulla SD.</p>
+        <div class="grid-2">
+          <div><strong>Citazioni:</strong> <span id="clock-total">-</span></div>
+          <div><strong>Minuti coperti:</strong> <span id="clock-covered">-</span> su 1440</div>
+        </div>
+        <div id="hour-grid" class="hour-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="clock-head">
+          <h2 class="card-title" style="margin: 0;">Ore <span id="clock-hour-label">--</span></h2>
+          <span id="clock-dirty" class="dirty hidden">Modifiche non salvate</span>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="clock-search">Cerca nel testo o nell'autore</label>
+            <input type="text" id="clock-search" placeholder="Cerca..." oninput="renderClockHour()">
+          </div>
+          <div class="form-group">
+            <label class="check"><input type="checkbox" id="clock-show-empty" onchange="renderClockHour()"> Mostra anche i minuti senza citazioni</label>
+            <label class="check"><input type="checkbox" id="clock-only-long" onchange="renderClockHour()"> Solo quelle troppo lunghe per il display</label>
+          </div>
+        </div>
+        <div id="clock-list"></div>
+      </div>
+    </div>
+
+    <div id="tab-meteo" class="tab-panel">
     <!-- Statistiche -->
     <div class="card">
       <h2 class="card-title">Statistiche</h2>
@@ -53,6 +91,38 @@
         <button class="btn btn-danger" onclick="deleteAllQuotes()">Elimina Tutte</button>
       </div>
       <div id="quotes-list"></div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal citazione dell'orologio letterario -->
+  <div id="clock-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="clock-modal-title">Citazione delle <span id="clock-modal-hour">--</span></h2>
+      <div class="form-group">
+        <label for="clock-minute">Minuto</label>
+        <select id="clock-minute"></select>
+      </div>
+      <div class="form-group">
+        <label for="clock-text">Testo</label>
+        <textarea id="clock-text" rows="6" oninput="updateClockCount()"></textarea>
+        <small id="clock-count" class="hint"></small>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="clock-author">Autore</label>
+          <input type="text" id="clock-author">
+        </div>
+        <div class="form-group">
+          <label for="clock-work">Opera</label>
+          <input type="text" id="clock-work">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeClockModal()">Annulla</button>
+        <button class="btn btn-primary" onclick="applyClockQuote()">Applica</button>
+      </div>
+      <p class="hint">"Applica" aggiorna l'elenco; per scrivere sulla SD premi poi "Salva".</p>
     </div>
   </div>
 
@@ -344,6 +414,38 @@
     textarea { border: 1px solid var(--border-color); }
     .btn-format { color: var(--bronze-deep); background: #fffdf8; text-shadow: none; box-shadow: none; min-height: 40px; min-width: 44px; border: 1px solid var(--border-color); }
     .btn-format:hover { color: #fffaf0; background: var(--bronze-gradient); }
+
+    /* Schede: meteo/programmate e orologio letterario */
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+    .tab { flex: 1 1 0; padding: 10px 12px; border: 1px solid var(--border-color); border-bottom: none;
+           border-radius: 6px 6px 0 0; background: var(--inset-bg); color: var(--bronze-deep);
+           font-family: var(--font-serif); font-size: 15px; cursor: pointer; min-height: 44px; }
+    .tab.active { background: var(--bronze-gradient); color: #fffaf0; border-color: var(--bronze-dark); }
+    .tab-panel.hidden { display: none; }
+
+    .hour-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin-top: 14px; }
+    .hour-cell { padding: 6px 4px; border: 1px solid var(--border-color); border-radius: 4px; background: #fffdf8;
+                 text-align: center; cursor: pointer; line-height: 1.25; color: var(--bronze-deep); }
+    .hour-cell strong { display: block; font-family: var(--font-serif); font-size: 17px; }
+    .hour-cell small { font-size: 11px; }
+    .hour-cell .bar { height: 4px; margin-top: 4px; background: var(--border-color); border-radius: 2px; overflow: hidden; }
+    .hour-cell .bar span { display: block; height: 100%; background: var(--bronze); }
+    .hour-cell.selected { border-color: var(--bronze-dark); box-shadow: 0 0 0 2px var(--bronze-light); }
+    .hour-cell.now strong::after { content: " •"; color: var(--danger-color); }
+
+    .clock-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .dirty { color: var(--danger-color); font-size: 13px; font-weight: bold; }
+    .dirty.hidden { display: none; }
+    .check { display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 6px; }
+    .check input { width: auto; min-height: 0; }
+    .minute-group { margin-bottom: 14px; }
+    .minute-label { font-family: var(--font-serif); color: var(--bronze-deep); font-size: 15px; margin: 0 0 6px;
+                    display: flex; justify-content: space-between; align-items: center; }
+    .minute-empty { color: var(--text-secondary); font-size: 13px; font-style: italic; padding: 4px 0 4px 10px; }
+    .badge-long { background: var(--danger-color); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 6px; }
+    .badge-new { background: var(--bronze-dark); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 6px; }
+    .btn-small { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
   </style>
 
   <script>
@@ -703,10 +805,226 @@
       }, 5000);
     }
 
+    // -----------------------------------------------------------------
+    // Orologio letterario: /orari/HH.txt, righe "MM|testo|Autore, Opera".
+    // Si carica e si salva un'ora alla volta (i file insieme sono troppo
+    // grandi per la memoria della scheda).
+    // -----------------------------------------------------------------
+    let activeTab = 'meteo';
+    let clockSummary = null;     // {hours:[{h,count,minutes}], total, covered}
+    let clockHour = -1;          // Ora aperta
+    let clockQuotes = [];        // [{m, text, author, work, fit}]
+    let clockDirty = false;
+    let clockEditing = -1;       // Indice in clockQuotes, -1 = nuova
+
+    const pad2 = n => String(n).padStart(2, '0');
+
+    function showTab(name) {
+      activeTab = name;
+      document.getElementById('tab-meteo').classList.toggle('hidden', name !== 'meteo');
+      document.getElementById('tab-orari').classList.toggle('hidden', name !== 'orari');
+      document.getElementById('tab-btn-meteo').classList.toggle('active', name === 'meteo');
+      document.getElementById('tab-btn-orari').classList.toggle('active', name === 'orari');
+      if (name === 'orari' && !clockSummary) {
+        loadClockSummary().then(() => openClockHour(new Date().getHours()));
+      }
+    }
+
+    async function loadClockSummary() {
+      try {
+        const r = await fetch('/api/orari');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        clockSummary = await r.json();
+        renderHourGrid();
+      } catch (e) {
+        showMessage('❌ Impossibile leggere l\'orologio letterario: ' + e.message, 'error');
+      }
+    }
+
+    function renderHourGrid() {
+      if (!clockSummary) return;
+      document.getElementById('clock-total').textContent = clockSummary.total;
+      document.getElementById('clock-covered').textContent = clockSummary.covered;
+      const now = new Date().getHours();
+      document.getElementById('hour-grid').innerHTML = clockSummary.hours.map(h => `
+        <div class="hour-cell${h.h === clockHour ? ' selected' : ''}${h.h === now ? ' now' : ''}" onclick="openClockHour(${h.h})"
+             title="${h.count} citazioni, ${h.minutes} minuti su 60">
+          <strong>${pad2(h.h)}</strong>
+          <small>${h.minutes}/60 min</small>
+          <div class="bar"><span style="width:${Math.round(h.minutes * 100 / 60)}%"></span></div>
+        </div>`).join('');
+    }
+
+    // Separa "Autore, Opera" alla prima virgola: i nomi quasi mai ne hanno,
+    // i titoli a volte sì ("Tristram Shandy, gentiluomo")
+    function splitSignature(sig) {
+      const i = sig.indexOf(', ');
+      return i < 0 ? {author: sig.trim(), work: ''} : {author: sig.slice(0, i).trim(), work: sig.slice(i + 2).trim()};
+    }
+
+    async function openClockHour(h) {
+      if (h === clockHour) return;
+      if (clockDirty && !confirm('Le modifiche alle ore ' + pad2(clockHour) + ' non sono salvate. Continuare e perderle?')) return;
+      try {
+        const [textRes, fitRes] = await Promise.all([fetch('/api/orari?h=' + h), fetch('/api/orari?h=' + h + '&fit=1')]);
+        if (!textRes.ok) throw new Error('HTTP ' + textRes.status);
+        const text = await textRes.text();
+        const fit = fitRes.ok ? (await fitRes.json()).fit : [];
+        // Stesse righe considerate dal firmware in sendOrariFit (non vuote)
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length);
+        clockQuotes = lines.map((line, i) => {
+          const a = line.indexOf('|'), b = line.indexOf('|', a + 1);
+          if (a !== 2 || b < 0) return null;
+          const sig = splitSignature(line.slice(b + 1));
+          return {m: parseInt(line.slice(0, 2), 10), text: line.slice(a + 1, b), author: sig.author, work: sig.work,
+                  fit: fit[i] !== false};
+        }).filter(q => q && q.m >= 0 && q.m < 60);
+        clockHour = h;
+        setClockDirty(false);
+        document.getElementById('clock-hour-label').textContent = pad2(h) + ':00 – ' + pad2(h) + ':59';
+        renderHourGrid();
+        renderClockHour();
+      } catch (e) {
+        showMessage('❌ Impossibile leggere le citazioni delle ' + pad2(h) + ': ' + e.message, 'error');
+      }
+    }
+
+    function setClockDirty(v) {
+      clockDirty = v;
+      document.getElementById('clock-dirty').classList.toggle('hidden', !v);
+    }
+
+    function renderClockHour() {
+      const box = document.getElementById('clock-list');
+      if (clockHour < 0) { box.innerHTML = ''; return; }
+      const search = document.getElementById('clock-search').value.trim().toLowerCase();
+      const showEmpty = document.getElementById('clock-show-empty').checked;
+      const onlyLong = document.getElementById('clock-only-long').checked;
+      let html = '';
+      for (let m = 0; m < 60; m++) {
+        const items = clockQuotes.map((q, i) => ({q, i})).filter(({q}) => q.m === m &&
+          (!search || (q.text + ' ' + q.author + ' ' + q.work).toLowerCase().includes(search)) &&
+          (!onlyLong || q.fit === false));
+        const hasAny = clockQuotes.some(q => q.m === m);
+        if (!items.length && !(showEmpty && !hasAny && !search && !onlyLong)) continue;
+        html += `<div class="minute-group"><div class="minute-label"><span>${pad2(clockHour)}:${pad2(m)}</span>
+                 <button class="btn btn-secondary btn-small" onclick="addClockQuote(${m})">+ Aggiungi</button></div>`;
+        if (!items.length) html += '<div class="minute-empty">Nessuna citazione: si usa quella del meteo</div>';
+        for (const {q, i} of items) {
+          html += `<div class="quote-item">
+            <div class="quote-text">«${esc(q.text)}»</div>
+            <div class="quote-meta"><div><strong>— ${esc(q.author)}${q.work ? ', <em>' + esc(q.work) + '</em>' : ''}</strong>
+              ${q.fit === false ? '<span class="badge-long">Troppo lunga: non viene mostrata</span>' : ''}
+              ${q.fit === null ? '<span class="badge-new">Da salvare</span>' : ''}</div></div>
+            <div class="quote-actions">
+              <button class="btn btn-primary btn-small" onclick="editClockQuote(${i})">Modifica</button>
+              <button class="btn btn-danger btn-small" onclick="deleteClockQuote(${i})">Elimina</button>
+            </div></div>`;
+        }
+        html += '</div>';
+      }
+      box.innerHTML = html || '<div class="empty-state"><p>Nessuna citazione corrisponde ai filtri.</p></div>';
+    }
+
+    function openClockModal(q, title) {
+      if (clockHour < 0) return;
+      const sel = document.getElementById('clock-minute');
+      sel.innerHTML = Array.from({length: 60}, (_, m) => `<option value="${m}">${pad2(clockHour)}:${pad2(m)}</option>`).join('');
+      sel.value = q.m;
+      document.getElementById('clock-modal-title').textContent = title;
+      document.getElementById('clock-text').value = q.text;
+      document.getElementById('clock-author').value = q.author;
+      document.getElementById('clock-work').value = q.work;
+      updateClockCount();
+      document.getElementById('clock-modal').classList.remove('hidden');
+    }
+
+    function addClockQuote(m) {
+      if (activeTab !== 'orari' || clockHour < 0) return;
+      clockEditing = -1;
+      const minute = Number.isInteger(m) ? m : new Date().getMinutes();
+      openClockModal({m: minute, text: '', author: '', work: ''}, 'Nuova citazione delle ' + pad2(clockHour));
+    }
+
+    function editClockQuote(i) {
+      clockEditing = i;
+      openClockModal(clockQuotes[i], 'Modifica citazione');
+    }
+
+    function closeClockModal() {
+      document.getElementById('clock-modal').classList.add('hidden');
+      clockEditing = -1;
+    }
+
+    function updateClockCount() {
+      const n = document.getElementById('clock-text').value.trim().length;
+      document.getElementById('clock-count').textContent = n + ' caratteri' +
+        (n > 700 ? ' — troppo lunga, il display non la mostrerà' : n > 300 ? ' — lunga: verrà rimpicciolita' : '');
+    }
+
+    // "|" separa i campi e l'a capo separa le righe: nel testo non possono esserci
+    const cleanField = s => s.replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+
+    function applyClockQuote() {
+      const q = {
+        m: parseInt(document.getElementById('clock-minute').value, 10),
+        text: cleanField(document.getElementById('clock-text').value),
+        author: cleanField(document.getElementById('clock-author').value),
+        work: cleanField(document.getElementById('clock-work').value),
+        fit: null  // Verificata dal firmware al salvataggio
+      };
+      if (!q.text || !q.author) {
+        alert('Servono almeno testo e autore.');
+        return;
+      }
+      if (clockEditing >= 0) clockQuotes[clockEditing] = q; else clockQuotes.push(q);
+      closeClockModal();
+      setClockDirty(true);
+      renderClockHour();
+    }
+
+    function deleteClockQuote(i) {
+      if (!confirm('Eliminare questa citazione?')) return;
+      clockQuotes.splice(i, 1);
+      setClockDirty(true);
+      renderClockHour();
+    }
+
+    async function saveClockHour() {
+      if (clockHour < 0) return;
+      const h = clockHour;
+      // Ordinate per minuto, mantenendo l'ordine all'interno dello stesso minuto
+      const body = clockQuotes.map((q, i) => ({q, i})).sort((a, b) => a.q.m - b.q.m || a.i - b.i)
+        .map(({q}) => pad2(q.m) + '|' + q.text + '|' + (q.work ? q.author + ', ' + q.work : q.author))
+        .join('\n') + (clockQuotes.length ? '\n' : '');
+      try {
+        const r = await fetch('/api/orari?h=' + h, {method: 'POST', headers: {'Content-Type': 'text/plain; charset=utf-8'}, body});
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || !res.success) throw new Error(res.message || 'HTTP ' + r.status);
+        setClockDirty(false);
+        clockHour = -1;           // Ricarica l'ora per avere l'esito "entra nel display"
+        await loadClockSummary();
+        await openClockHour(h);
+        const long = clockQuotes.filter(q => q.fit === false).length;
+        showMessage(`✅ Ore ${pad2(h)} salvate: ${clockQuotes.length} citazioni` +
+                    (long ? `, ${long} troppo lunghe per il display` : ''), 'success');
+      } catch (e) {
+        showMessage('❌ Salvataggio non riuscito: ' + e.message, 'error');
+      }
+    }
+
+    window.addEventListener('beforeunload', e => {
+      if (clockDirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+    document.getElementById('clock-modal').addEventListener('click', e => {
+      if (e.target.id === 'clock-modal') closeClockModal();
+    });
+
     // Chiudi modal con ESC
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         closeEditModal();
+        closeClockModal();
       }
     });
 

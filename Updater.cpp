@@ -40,6 +40,10 @@ static bool sdWriteFailed = false;  // L'ultimo downloadToFile è fallito scrive
 static const char* STAGING_DIR = "/upd";
 static const char* PENDING_LIST = "/upd/pending.txt";  // File da spostare al loro posto
 static const char* READY_MARKER = "/upd/ready";        // Presente solo se tutto è stato verificato
+// Release con cui i file della SD sono allineati: se coincide con l'ultima, il
+// controllo periodico non ricalcola lo SHA-256 di tutti i file (~95 s)
+static const char* SYNCED_RELEASE = "/sd_release.txt";
+static const char* STAGED_RELEASE = "/upd/release.txt";  // Diventa SYNCED_RELEASE quando i file sono applicati
 
 // Stato persistente (NVS) per riconoscere un firmware che non si è avviato
 static const char* PREFS_NS = "updater";
@@ -465,6 +469,10 @@ static void applyPendingSdUpdate() {
     }
   }
 
+  if (SD.exists(STAGED_RELEASE)) {
+    SD.remove(SYNCED_RELEASE);
+    SD.rename(STAGED_RELEASE, SYNCED_RELEASE);
+  }
   removeTree(STAGING_DIR);
   Serial.printf("[UPDATE] File della SD aggiornati: %d\n", applied);
 }
@@ -638,6 +646,8 @@ static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
 
 // Scarica in /upd i file elencati in NEEDED_LIST, verificandoli; annota in
 // PENDING_LIST quelli pronti da spostare al loro posto
+static const int FILE_ATTEMPTS = 5;
+
 static bool downloadNeededFiles(const String& baseUrl) {
   File list = SD.open(NEEDED_LIST, FILE_READ);
   if (!list) return false;
@@ -663,12 +673,15 @@ static bool downloadNeededFiles(const String& baseUrl) {
     String sha = line.substring(b + 1);
     sha.trim();
     bool done = false;
-    for (int attempt = 1; attempt <= 3 && !done; attempt++) {
+    // La prima connessione TLS fallisce spesso per memoria frammentata:
+    // 5 tentativi con attesa crescente (2, 4, 6, 8 s)
+    for (int attempt = 1; attempt <= FILE_ATTEMPTS && !done; attempt++) {
       done = downloadToFile(session, baseUrl + path, String(STAGING_DIR) + path, size, sha);
       if (!done) {
         session->http.end();
         session->tls.stop();  // Il tentativo successivo riapre la connessione
-        delay(1000 * attempt);
+        if (sdWriteFailed) break;  // SD piena o guasta: riprovare non serve
+        if (attempt < FILE_ATTEMPTS) delay(2000 * attempt);
       }
     }
     if (!done) {
@@ -689,7 +702,7 @@ static bool downloadNeededFiles(const String& baseUrl) {
   return ok;
 }
 
-bool checkForUpdates() {
+bool checkForUpdates(bool fullScan) {
   Serial.println("[UPDATE] Controllo aggiornamenti...");
   bool sd = sdAvailable();
 
@@ -756,7 +769,12 @@ bool checkForUpdates() {
   int neededCount = 0;
   uint64_t neededBytes = 0;
   uint64_t neededDisk = 0;
-  if (sd && h.baseUrl.length() > 0) {
+  String synced = sd ? readTextFile(SYNCED_RELEASE) : String();
+  synced.trim();
+  bool filesInSync = !fullScan && synced.length() > 0 && synced == h.version;
+  if (filesInSync) {
+    Serial.println("[UPDATE] File della SD già allineati alla release " + h.version);
+  } else if (sd && h.baseUrl.length() > 0) {
     if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     SD.mkdir(STAGING_DIR);
     neededCount = buildNeededList(neededBytes, neededDisk);
@@ -784,6 +802,11 @@ bool checkForUpdates() {
                           "SD piena: servono " + formatMB(required) + ", liberi " + formatMB(freeBytes));
       return false;
     }
+  }
+
+  // Nessun file da scaricare: la SD è allineata a questa release
+  if (sd && neededCount == 0 && !filesInSync && h.baseUrl.length() > 0) {
+    writeTextFile(SYNCED_RELEASE, h.version);
   }
 
   if (!firmwareNewer && neededCount == 0) {
@@ -826,6 +849,7 @@ bool checkForUpdates() {
 
   // 5. Tutto verificato: i file vengono applicati ora (o al riavvio, se interrotti)
   if (neededCount > 0) {
+    writeTextFile(STAGED_RELEASE, h.version);
     writeTextFile(READY_MARKER, "1");
   }
 

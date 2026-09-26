@@ -4,9 +4,9 @@
  *
  * Griglia 648 x 480, margini laterali di 32 px.
  *   0 -  60  intestazione: giorno e data a sinistra, città a destra
- *  66 - 266  ora, temperatura e condizione a sinistra, icona 200 px a destra
- * 276 - 334  quattro dati: percepita, umidità, vento, pressione
- * 346 - 452  citazione, con carattere che si adatta alla lunghezza
+ *  60 - 260  ora, temperatura e condizione a sinistra, icona 200 px a destra
+ * 262 - 312  quattro dati: percepita, umidità, vento, pressione
+ * 322 - 452  citazione, con carattere che si adatta alla lunghezza
  * 460 - 480  piè di pagina: ultimo aggiornamento, IP, batteria
  */
 
@@ -35,9 +35,10 @@
 static const int MARGIN = 32;
 
 // Riquadro della citazione
-static const int QUOTE_TOP = 346;
+static const int QUOTE_TOP = 308;
 static const int QUOTE_BOTTOM = 452;
 static const int QUOTE_MAX_LINES = 8;
+static const int AUTHOR_MAX_LINES = 3;  // L'autore va a capo, non viene mai tagliato
 
 // Stili della citazione dal più grande al più piccolo: si usa il primo con
 // cui testo e autore entrano per intero nel riquadro
@@ -155,6 +156,7 @@ static int chooseQuoteStyle(Text& t, const String& text, const String& author, i
     if (author.length()) {
       t.setFont(QUOTE_STYLES[i].author);
       int authorLines = wrapText(t, author, width, lines, QUOTE_MAX_LINES);
+      if (authorLines > AUTHOR_MAX_LINES) continue;
       total += 4 + authorLines * lineHeight(t);
     }
     if (total <= height) return i;
@@ -189,13 +191,13 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
   int n = wrapText(u8g2, text, width, lines, QUOTE_MAX_LINES);
 
   // Righe dell'autore
-  String authorLines[2];
+  String authorLines[AUTHOR_MAX_LINES];
   int an = 0;
   int authorLh = 0;
   if (author.length()) {
     u8g2.setFont(QUOTE_STYLES[style].author);
     authorLh = lineHeight();
-    an = min(2, wrapText(u8g2, author, width, authorLines, 2));
+    an = min(AUTHOR_MAX_LINES, wrapText(u8g2, author, width, authorLines, AUTHOR_MAX_LINES));
   }
 
   // Testo troppo lungo anche col carattere più piccolo: si taglia con "..."
@@ -225,7 +227,7 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
     u8g2.setFont(QUOTE_STYLES[style].author);
     for (int i = 0; i < an; i++) {
       y += authorLh;
-      textCenter(cx, y - 4 + u8g2.getFontDescent(), authorLines[i]);
+      textRight(display.width() - MARGIN, y - 4 + u8g2.getFontDescent(), authorLines[i]);
     }
   }
 }
@@ -273,6 +275,22 @@ static void drawIcon(const ScreenModel& m, int x, int y, int scale) {
   }
 }
 
+// Prima e ultima riga non vuota dell'icona: serve a centrarne il disegno reale
+static void iconInkRows(const ScreenModel& m, int& first, int& last) {
+  int bytesPerRow = (m.iconWidth + 7) / 8;
+  first = -1;
+  last = -1;
+  for (int r = 0; r < m.iconHeight; r++) {
+    for (int i = 0; i < bytesPerRow; i++) {
+      if (m.icon[r * bytesPerRow + i]) {
+        if (first < 0) first = r;
+        last = r;
+        break;
+      }
+    }
+  }
+}
+
 void drawMainScreen(const ScreenModel& m) {
   initText(u8g2);
   const int W = display.width();
@@ -296,24 +314,31 @@ void drawMainScreen(const ScreenModel& m) {
 
   // Ora
   u8g2.setFont(FONT_TIME);
-  textLeft(MARGIN - 2, 136, timeOk ? twoDigits(t.tm_hour) + ":" + twoDigits(t.tm_min) : String("--:--"));
+  textLeft(MARGIN - 2, 118, timeOk ? twoDigits(t.tm_hour) + ":" + twoDigits(t.tm_min) : String("--:--"));
 
   // Temperatura e condizione
   u8g2.setFont(FONT_TEMP);
   String temp = weatherOk ? String((int)lroundf(w.temp)) : String("--");
-  textLeft(MARGIN, 204, temp + DEGREE);
+  textLeft(MARGIN, 180, temp + DEGREE);
 
   u8g2.setFont(FONT_BODY);
   String condition = weatherOk ? displayText(w.description) : String("In attesa dei dati meteo");
   if (condition.length() && condition[0] >= 'a' && condition[0] <= 'z') condition[0] = condition[0] - 32;
-  textLeft(MARGIN, 238, condition);
+  textLeft(MARGIN, 210, condition);
 
-  // Icona meteo: BMP 100 px letta dal loop, ingrandita esattamente x2
+  // Icona meteo: BMP 100 px letta dal loop, ingrandita esattamente x2.
+  // Il disegno reale (non il riquadro) va centrato tra la riga sotto
+  // l'intestazione e le etichette dei dati, così pioggia e fulmini non le toccano
   const int iconArea = 200;
+  const int iconSpaceTop = 62, iconSpaceBottom = 247;
   if (weatherOk && m.iconWidth > 0) {
     int scale = max(1, iconArea / max((int)m.iconWidth, (int)m.iconHeight));
-    drawIcon(m, W - MARGIN - iconArea + (iconArea - m.iconWidth * scale) / 2,
-             66 + (iconArea - m.iconHeight * scale) / 2, scale);
+    int first, last;
+    iconInkRows(m, first, last);
+    if (first < 0) { first = 0; last = m.iconHeight - 1; }
+    int inkH = (last - first + 1) * scale;
+    int y = iconSpaceTop + (iconSpaceBottom - iconSpaceTop - inkH) / 2 - first * scale;
+    drawIcon(m, W - MARGIN - iconArea + (iconArea - m.iconWidth * scale) / 2, y, scale);
   }
 
   // Quattro dati
@@ -333,11 +358,11 @@ void drawMainScreen(const ScreenModel& m) {
   for (int i = 0; i < 4; i++) {
     int x = MARGIN + i * colW;
     u8g2.setFont(FONT_LABEL);
-    textLeft(x, 292, labels[i]);
+    textLeft(x, 260, labels[i]);
     u8g2.setFont(FONT_VALUE);
-    textLeft(x, 318, values[i]);
+    textLeft(x, 284, values[i]);
   }
-  display.drawFastHLine(MARGIN, 334, W - 2 * MARGIN, GxEPD_BLACK);
+  display.drawFastHLine(MARGIN, 298, W - 2 * MARGIN, GxEPD_BLACK);
 
   // Citazione
   drawQuoteBlock(m.quoteText, m.quoteAuthor);

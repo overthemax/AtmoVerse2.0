@@ -38,6 +38,178 @@ static String readRequestBody(WiFiClient& client, int contentLength, int maxBody
 // Variabile definita nel file principale per il controllo del refresh display
 extern unsigned long lastDisplayUpdate;
 
+// Valore di un parametro della query string ("h=08&fit=1"), vuoto se assente
+static String queryParam(const String& params, const char* name) {
+  String key = String(name) + "=";
+  int start = 0;
+  while (start < (int)params.length()) {
+    int end = params.indexOf('&', start);
+    if (end < 0) end = params.length();
+    if (params.substring(start, start + key.length()) == key) {
+      return params.substring(start + key.length(), end);
+    }
+    start = end + 1;
+  }
+  return "";
+}
+
+// Orologio letterario: un file per ora, /orari/00.txt ... /orari/23.txt.
+// L'editor legge e salva un'ora alla volta (max ~64 KB), mai tutti i file
+// insieme: in totale sono centinaia di KB, troppi per la RAM della scheda.
+static const int ORARI_MAX_FILE = 65536;
+
+// Ora valida "0".."23" -> percorso del file, altrimenti stringa vuota
+static String orariPath(const String& h) {
+  if (h.length() == 0 || h.length() > 2) return "";
+  for (size_t i = 0; i < h.length(); i++) {
+    if (!isDigit(h[i])) return "";
+  }
+  int hour = h.toInt();
+  if (hour < 0 || hour > 23) return "";
+  char path[16];
+  snprintf(path, sizeof(path), "/orari/%02d.txt", hour);
+  return String(path);
+}
+
+// GET /api/orari: per ogni ora quante citazioni e quanti minuti coperti
+static void sendOrariSummary(WiFiClient& client) {
+  String json = "{\"hours\":[";
+  int totalQuotes = 0, totalMinutes = 0;
+  for (int hour = 0; hour < 24; hour++) {
+    char path[16];
+    snprintf(path, sizeof(path), "/orari/%02d.txt", hour);
+    bool minutes[60] = {false};
+    int count = 0;
+    File f = SD.open(path, FILE_READ);
+    if (f) {
+      // Basta leggere i primi 3 caratteri di ogni riga ("MM|")
+      bool lineStart = true;
+      char mm[3];
+      int pos = 0;
+      while (f.available()) {
+        char c = f.read();
+        if (c == '\n') { lineStart = true; pos = 0; continue; }
+        if (!lineStart) continue;
+        if (pos < 2) { mm[pos++] = c; continue; }
+        lineStart = false;
+        if (c == '|' && isDigit(mm[0]) && isDigit(mm[1])) {
+          int m = (mm[0] - '0') * 10 + (mm[1] - '0');
+          if (m < 60) { minutes[m] = true; count++; }
+        }
+      }
+      f.close();
+    }
+    int covered = 0;
+    for (int m = 0; m < 60; m++) covered += minutes[m];
+    totalQuotes += count;
+    totalMinutes += covered;
+    if (hour) json += ",";
+    json += "{\"h\":" + String(hour) + ",\"count\":" + String(count) + ",\"minutes\":" + String(covered) + "}";
+  }
+  json += "],\"total\":" + String(totalQuotes) + ",\"covered\":" + String(totalMinutes) + "}";
+  sendJsonResponse(client, json);
+}
+
+// GET /api/orari?h=8: il file dell'ora così com'è, inviato a pezzi senza caricarlo in RAM
+static void sendOrariHour(WiFiClient& client, const String& path) {
+  File f = SD.open(path, FILE_READ);
+  size_t size = f ? f.size() : 0;
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/plain; charset=utf-8");
+  client.println("Content-Length: " + String(size));
+  client.println("Cache-Control: no-store");
+  client.println("Connection: close");
+  client.println();
+  if (f) {
+    uint8_t buf[512];
+    while (f.available()) {
+      int n = f.read(buf, sizeof(buf));
+      if (n <= 0) break;
+      client.write(buf, n);
+    }
+    f.close();
+  }
+  client.flush();
+  delay(1);
+  client.stop();
+}
+
+// GET /api/orari?h=8&fit=1: per ogni riga del file, se il display la mostra per intero
+static void sendOrariFit(WiFiClient& client, const String& path) {
+  String json = "{\"fit\":[";
+  File f = SD.open(path, FILE_READ);
+  bool first = true;
+  if (f) {
+    while (f.available()) {
+      String line = f.readStringUntil('\n');
+      line.trim();
+      if (line.length() == 0) continue;
+      int sep = line.indexOf('|', 3);
+      bool ok = line.length() > 3 && line[2] == '|' && sep > 3 &&
+                clockQuoteFits(line.substring(3, sep), line.substring(sep + 1));
+      json += first ? "" : ",";
+      json += ok ? "true" : "false";
+      first = false;
+    }
+    f.close();
+  }
+  json += "]}";
+  sendJsonResponse(client, json);
+}
+
+// POST /api/orari?h=8: il corpo (testo, righe "MM|testo|Autore, Opera") va
+// direttamente su un file temporaneo e sostituisce quello dell'ora solo se
+// è arrivato per intero
+static void saveOrariHour(WiFiClient& client, const String& path, int contentLength) {
+  if (contentLength < 0 || contentLength > ORARI_MAX_FILE) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"File troppo grande (max 64 KB per ora)\"}");
+    return;
+  }
+  if (!SD.exists("/orari")) SD.mkdir("/orari");
+  String tmp = path.substring(0, path.length() - 4) + ".tmp";
+  SD.remove(tmp);
+  File f = SD.open(tmp, FILE_WRITE);
+  if (!f) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere sulla SD\"}");
+    return;
+  }
+  int received = 0;
+  bool writeOk = true;
+  uint8_t buf[512];
+  unsigned long lastData = millis();
+  while (received < contentLength && millis() - lastData < 5000) {
+    int avail = client.available();
+    if (avail <= 0) {
+      if (!client.connected()) break;
+      delay(2);
+      continue;
+    }
+    int n = client.read(buf, min((int)sizeof(buf), min(avail, contentLength - received)));
+    if (n <= 0) continue;
+    // Il separatore di riga del firmware è '\n': i '\r' si scartano
+    for (int i = 0; i < n; i++) {
+      if (buf[i] != '\r' && f.write(buf[i]) != 1) writeOk = false;
+    }
+    received += n;
+    lastData = millis();
+  }
+  f.close();
+  if (!writeOk || received != contentLength) {
+    SD.remove(tmp);
+    sendJsonResponse(client, writeOk ? "{\"success\":false,\"message\":\"Dati incompleti\"}"
+                                     : "{\"success\":false,\"message\":\"SD piena o non scrivibile\"}");
+    return;
+  }
+  SD.remove(path);
+  if (!SD.rename(tmp, path)) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile sostituire il file\"}");
+    return;
+  }
+  Serial.printf("[WEB] Orologio letterario salvato: %s (%d byte)\n", path.c_str(), received);
+  lastDisplayUpdate = 0;  // Se è l'ora corrente, il display la usa subito
+  sendJsonResponse(client, "{\"success\":true}");
+}
+
 // File citazioni su SD
 static const char* QUOTES_JSON_PATH = "/quotes.json";
 // File layout personalizzato su SD
@@ -900,6 +1072,33 @@ void handleClientRequests() {
     return;
   }
   
+  // Orologio letterario: riepilogo, lettura e salvataggio di un'ora
+  if (path == "/api/orari") {
+    if (!initSD()) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}", 503);
+      return;
+    }
+    String h = queryParam(params, "h");
+    if (h.length() == 0 && method == "GET") {
+      sendOrariSummary(client);
+      return;
+    }
+    String file = orariPath(h);
+    if (file.length() == 0) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"Ora non valida\"}", 400);
+      return;
+    }
+    if (method == "GET") {
+      if (queryParam(params, "fit") == "1") sendOrariFit(client, file);
+      else sendOrariHour(client, file);
+    } else if (method == "POST") {
+      saveOrariHour(client, file, contentLength);
+    } else {
+      sendJsonResponse(client, "{\"success\":false}", 405);
+    }
+    return;
+  }
+
   // API citazioni - POST salva tutte le citazioni (da formato array Web GUI a formato oggetto firmware)
   if (path == "/api/quotes" && method == "POST") {
     // L'editor invia tutte le citazioni: quotes.json può superare i 48 KB
