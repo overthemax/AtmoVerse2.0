@@ -242,7 +242,8 @@ The CPU runs at 80 MHz, downloads included: raising it to 240 MHz during downloa
 | `BatteryManager.cpp` · `RTCManager.cpp` | Battery (INA219) and clock (DS3231) |
 | `sd_files/` | SD card contents distributed with the updates |
 | `cad/` | Case source and print files |
-| `tools/` | Display previews, manifest, literary clock files |
+| `tools/` | Display previews, manifest, literary clock files, icon download and conversion |
+| `tests/` | Hardware test sketches for the display and the SD card |
 
 ---
 

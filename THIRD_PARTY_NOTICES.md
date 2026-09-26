@@ -34,7 +34,7 @@ release tag, plus the library versions listed here.
 
 ## Icons (included in this repository)
 
-`sd_files/icons/`, `sd_files/icons_bmp/` and `svg/` are converted from
+`sd_files/icons/` are converted from
 [Weather Icons](https://erikflowers.github.io/weather-icons/) by Erik Flowers,
 licensed under the [SIL Open Font License 1.1](LICENSES/OFL-1.1.txt).
 
