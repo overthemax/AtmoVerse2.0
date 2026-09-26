@@ -31,7 +31,9 @@ RTC_W, RTC_H = 17.0, 16.0                         # DS3231
 DRV_W, DRV_H, DRV_T = 48.5, 22.7, 6.0             # scheda driver e-paper (misurata; spessore stimato)
 
 # --- Parametri del case ---
-WALL = 2.2          # pareti laterali e fronte
+WALL = 2.2          # pareti laterali
+FRONT_T = 3.6       # parete frontale: 1,2 mm di bordo davanti al pannello + incavo
+PANEL_RECESS = 2.4  # incavo in cui il pannello si incastona nella cornice
 CLR = 0.5           # gioco attorno al pannello
 BEZEL_SIDE = 8.0    # bordo cornice ai lati e in alto
 CHIN = 18.0         # fascia inferiore: piega del cavo piatto
@@ -47,7 +49,7 @@ WINDOW_R = 3.0      # angoli della finestra del display
 POCKET_W, POCKET_H = PANEL_W + 2 * CLR, PANEL_H + 2 * CLR
 WIDTH = POCKET_W + 2 * BEZEL_SIDE
 HEIGHT = CHIN + POCKET_H + BEZEL_SIDE
-DEPTH = WALL + PANEL_T + FPC_GAP + ELEC_DEPTH + BACK_T
+DEPTH = FRONT_T + FPC_GAP + ELEC_DEPTH + BACK_T   # il pannello sta dentro l'incavo
 FRONT_D = DEPTH - BACK_T
 CX, CZ = WIDTH / 2, HEIGHT / 2
 pocket_x0 = (WIDTH - POCKET_W) / 2
@@ -80,7 +82,8 @@ def edges_at_y(shape, y):
 BOSS_D = 8.0
 INSERT_D, INSERT_L = 4.0, 6.5
 SCREW_CLEAR_D = 3.4
-BOSS_FRONT_Y = WALL + PANEL_T + 0.2   # le colonnine premono gli angoli del pannello
+PANEL_Y = FRONT_T - PANEL_RECESS      # faccia anteriore del pannello (fondo dell'incavo)
+BOSS_FRONT_Y = PANEL_Y + PANEL_T + 0.2   # le colonnine premono gli angoli del pannello
 # Sulla diagonale di ogni angolo tondo, fuse con la parete (0.5 mm di sovrapposizione)
 inner_r = CORNER_R - WALL
 boss_off = CORNER_R - (inner_r - BOSS_D / 2 + 0.5) / math.sqrt(2)
@@ -91,12 +94,14 @@ boss_pts = [(boss_off, boss_off), (WIDTH - boss_off, boss_off),
 outer = rr_prism(WIDTH, HEIGHT, CORNER_R, 0, FRONT_D)
 outer = fillet(edges_at_y(outer, 0), FRONT_EDGE_R)
 outer = fillet(edges_at_y(outer, FRONT_D), 0.8)
-cavity = rr_prism(WIDTH - 2 * WALL, HEIGHT - 2 * WALL, inner_r, WALL, FRONT_D)
+cavity = rr_prism(WIDTH - 2 * WALL, HEIGHT - 2 * WALL, inner_r, FRONT_T, FRONT_D)
+# Incavo del pannello: profondo PANEL_RECESS dalla faccia interna della parete frontale
+recess = Pos(pocket_x0, PANEL_Y, pocket_z0) * Box(POCKET_W, PANEL_RECESS + 0.1, POCKET_H, align=MIN3)
 win_w, win_h = ACTIVE_W + 1.0, ACTIVE_H + 1.0
 win_cz = pocket_z0 + CLR + (PANEL_H - ACTIVE_H) / 2 + ACTIVE_OFF_Z - 0.5 + win_h / 2
-window = rr_prism(win_w, win_h, WINDOW_R, -0.1, WALL + 0.2, cz=win_cz)
+window = rr_prism(win_w, win_h, WINDOW_R, -0.1, PANEL_Y + 0.2, cz=win_cz)
 # Pannello tenuto in sede da 3 alette sul bordo (oltre alle colonnine negli angoli)
-tab_y = WALL + PANEL_T + 0.2
+tab_y = PANEL_Y + PANEL_T + 0.2
 tabs = union([
     Pos(CX - 10, tab_y, HEIGHT - BEZEL_SIDE - 2) * Box(20, 2.0, BEZEL_SIDE - WALL + 2.1, align=MIN3),
     Pos(WALL - 0.1, tab_y, CZ - 10) * Box(BEZEL_SIDE - WALL + 2.1, 2.0, 20, align=MIN3),
@@ -104,14 +109,14 @@ tabs = union([
 ])
 # LOLIN32 a destra, con la presa USB a 0.5 mm dalla parete destra
 mcu_x0 = WIDTH - WALL - 0.5 - MCU_L
-MCU_Z0 = 40.0
+MCU_Z0 = 42.0   # sopra la scheda driver
 mcu_pcb_y = FRONT_D - MCU_STANDOFF - 1.6     # faccia componenti della scheda
 usb_y = mcu_pcb_y - 1.5                      # centro della presa micro-USB
 usb_slot = Pos(WIDTH - WALL / 2, usb_y, MCU_Z0 + MCU_W / 2) * Rot(0, 90, 0) * \
     Box(12.0, 8.0, WALL + 2.0)  # attraversa la parete destra
 bosses = union([y_cyl(x, z, BOSS_FRONT_Y, FRONT_D - BOSS_FRONT_Y, BOSS_D) for x, z in boss_pts])
 inserts = union([y_cyl(x, z, FRONT_D - INSERT_L, INSERT_L + 0.1, INSERT_D) for x, z in boss_pts])
-front = outer - cavity + bosses + tabs - window - usb_slot - inserts
+front = outer - cavity - recess + bosses + tabs - window - usb_slot - inserts
 
 # --- Coperchio posteriore ---
 back = rr_prism(WIDTH, HEIGHT, CORNER_R, FRONT_D, BACK_T)
@@ -127,7 +132,7 @@ lip = rr_prism(WIDTH - 2 * lip_o, HEIGHT - 2 * lip_o, CORNER_R - lip_o, FRONT_D 
 back = back + lip
 
 # Alloggio batteria: quattro angolari alti 8 mm (la batteria si ferma con biadesivo)
-BATT_X0, BATT_Z0 = WALL + 6, 46.0
+BATT_X0, BATT_Z0 = 14.5, 7.0   # più in basso possibile: baricentro basso (sopra il bordo di centraggio)
 cradle_h, cradle_t, cradle_l = 8.0, 1.6, 10.0
 bx0, bz0 = BATT_X0 - 0.5 - cradle_t, BATT_Z0 - 0.5 - cradle_t
 bx1, bz1 = BATT_X0 + BATT_W + 0.5, BATT_Z0 + BATT_H + 0.5
@@ -166,7 +171,7 @@ right_x0 = WIDTH - WALL - 4.0 - max(SD_W, INA_W + 6 + RTC_W) - FRAME_CLR - FRAME
 SD_Z0 = MCU_Z0 + MCU_W + 4
 INA_Z0 = SD_Z0 + SD_H + 4
 RTC_X0 = right_x0 + INA_W + 6
-DRV_X0, DRV_Z0 = CX - DRV_W / 2, 7.0
+DRV_X0, DRV_Z0 = BATT_X0 + BATT_W + 0.5 + cradle_t + 3.0, 15.0   # in basso a destra, accanto alla batteria e sopra la colonnina
 modules = union([
     frame(right_x0, SD_Z0, SD_W, SD_H),
     frame(right_x0, INA_Z0, INA_W, INA_H),
@@ -189,7 +194,7 @@ lug_seat = y_cyl(TOUCH_X, TOUCH_Z, FRONT_D - 0.1, LUG_DEPTH + 0.1, LUG_D)
 lug_tail = Pos(TOUCH_X, FRONT_D - 0.1, TOUCH_Z) * Rot(0, 45, 0) * \
     Pos(LUG_TAIL_L / 2, (LUG_DEPTH + 0.1) / 2, 0) * Box(LUG_TAIL_L, LUG_DEPTH + 0.1, LUG_TAIL_W)
 back = back - lug_seat - lug_tail
-back = back - union([rr_prism(4.0, 14.0, 1.9, FRONT_D - 0.1, BACK_T + 0.2, cx=CX - 25 + i * 10, cz=HEIGHT - 26)
+back = back - union([rr_prism(4.0, 14.0, 1.9, FRONT_D - 0.1, BACK_T + 0.2, cx=25 + i * 9, cz=HEIGHT - 26)
                      for i in range(6)])
 
 # --- Supporto cilindrico sul retro, stampato insieme al coperchio ---
@@ -206,7 +211,7 @@ stand = stand - Pos(CX - STAND_L, 0, 0) * Box(2 * STAND_L, DEPTH - 0.6, HEIGHT, 
 back = back + stand
 
 # --- Riferimenti dei componenti ---
-panel_ref = Pos(pocket_x0 + CLR, WALL, pocket_z0 + CLR) * Box(PANEL_W, PANEL_T, PANEL_H, align=MIN3)
+panel_ref = Pos(pocket_x0 + CLR, PANEL_Y, pocket_z0 + CLR) * Box(PANEL_W, PANEL_T, PANEL_H, align=MIN3)
 battery = Pos(BATT_X0, FRONT_D - BATT_T, BATT_Z0) * Box(BATT_W, BATT_T, BATT_H, align=MIN3)
 mcu = Pos(mcu_x0, FRONT_D - MCU_STANDOFF - MCU_T, MCU_Z0) * Box(MCU_L, MCU_T, MCU_W, align=MIN3)
 sd = Pos(right_x0, FRONT_D - 4.0, SD_Z0) * Box(SD_W, 4.0, SD_H, align=MIN3)
