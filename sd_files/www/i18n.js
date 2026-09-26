@@ -9,6 +9,7 @@
     // Navigazione e pagina principale
     'Home': 'Home', 'Impostazioni': 'Settings', 'Citazioni': 'Quotes', 'Meteo': 'Weather',
     'Citazione sul display': 'Quote on the display', 'Dispositivo': 'Device',
+    'Dati meteo forniti da': 'Weather data provided by',
     'Umidità': 'Humidity', 'Vento': 'Wind', 'Pressione': 'Pressure',
     'Dati meteo non ancora disponibili.': 'Weather data not available yet.',
     'Impossibile leggere i dati meteo.': 'Cannot read the weather data.',

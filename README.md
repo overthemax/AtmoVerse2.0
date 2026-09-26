@@ -105,7 +105,7 @@ The script uses `partitions.csv`, which splits the flash into two 1.9 MB app slo
 
 ### 2. SD card
 
-Any FAT32 microSD, even empty: web pages, icons and fonts are downloaded from GitHub the first time AtmoVerse goes online.
+Any FAT32 microSD, even empty: web pages and icons are downloaded from GitHub the first time AtmoVerse goes online.
 
 ### 3. First setup
 
@@ -248,12 +248,17 @@ The CPU runs at 80 MHz, downloads included: raising it to 240 MHz during downloa
 
 ## Credits
 
-- Weather icons: [Weather Icons](https://erikflowers.github.io/weather-icons/) by Erik Flowers (SIL OFL 1.1), converted to bitmaps for e-ink.
-- Fonts: FreeUniversal and Lucida Sans through [U8g2](https://github.com/olikraus/u8g2).
-- Weather data: [OpenWeatherMap](https://openweathermap.org).
+- Weather icons: [Weather Icons](https://erikflowers.github.io/weather-icons/) by Erik Flowers ([SIL OFL 1.1](LICENSES/OFL-1.1.txt)), converted to bitmaps for e-ink.
+- Fonts: FreeUniversal (SIL OFL 1.1) and Lucida Sans (© Bigelow & Holmes, X11 font license) through [U8g2](https://github.com/olikraus/u8g2).
+- Weather data provided by [OpenWeather](https://openweathermap.org).
+- Libraries: GxEPD2, Adafruit GFX, Adafruit BusIO, Adafruit INA219, RTClib, ArduinoJson, U8g2_for_Adafruit_GFX, Arduino core for ESP32 / ESP-IDF.
 - Case modelled with [build123d](https://github.com/gumyr/build123d) and [Amagine3D](https://github.com/amagine-ai/Amagine3D).
 - Design inspired by literary clocks such as [Author Clock](https://www.authorandco.com/).
 
+Full list with versions and licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## License
 
-[MIT](LICENSE) © overthemax
+The source code of AtmoVerse is released under the [MIT license](LICENSE) © overthemax.
+
+The firmware binaries in the releases include GxEPD2, licensed under the GNU GPL v3, so each binary as a whole is distributed under the GPL v3; its complete source is this repository at the release tag. Third-party libraries, fonts and icons keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
