@@ -60,6 +60,21 @@ void BatteryManager::readINA219() {
 #endif
 }
 
+bool BatteryManager::pollCharging() {
+    if (!ina219Available) return false;
+    bool before = isCharging;
+    float rawCurrent = ina219.getCurrent_mA();
+#if INA219_REVERSED
+    current_mA = -rawCurrent;
+#else
+    current_mA = rawCurrent;
+#endif
+    detectChargingState();
+    if (before == isCharging) return false;
+    Serial.printf("[BATTERY] Caricatore %s (%.0f mA)\n", isCharging ? "collegato" : "staccato", current_mA);
+    return true;
+}
+
 void BatteryManager::update() {
     if (!ina219Available) return;
     unsigned long now = millis();

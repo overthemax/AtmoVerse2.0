@@ -181,6 +181,13 @@ def main_screen(quote, author, out):
     left(img, "fur17_tf", MARGIN, 44, "Venerd\xec 26 settembre")
     right(img, "luRS14_tf", W - MARGIN, 44, "Roma")
     hline(d, 60)
+    # Icona WiFi a sinistra della città (come drawWifiIcon in Screens.cpp)
+    city_w = F["luRS14_tf"].width("Roma")
+    wx = W - MARGIN - city_w - 12 - 18
+    cx, cy = wx + 9, 44 - 1
+    d.ellipse([cx - 2, cy - 3, cx + 2, cy + 1], fill=0)
+    for r in (8, 14):
+        d.arc([cx - r, cy - r, cx + r, cy + r], 225, 315, fill=0, width=2)
     left(img, "fur49_tn", MARGIN - 2, 118, "10:42")
     left(img, "fur35_tf", MARGIN, 180, "18\xb0")
     left(img, "luRS14_tf", MARGIN, 210, "Nubi sparse")

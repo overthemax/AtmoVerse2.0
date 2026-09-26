@@ -62,3 +62,7 @@ CloudSecrets.h
 orari/
 sd_files/orari/
 quotes.csv
+
+# Bozze e risultati temporanei del CAD (Amagine3D)
+cad/.amagine3d-drafts/
+cad/*.json

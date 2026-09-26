@@ -40,6 +40,7 @@
 #include "Updater.h"
 #include "Version.h"
 #include "DisplayTask.h"
+#include "EcoPower.h"
 
 // Il loop esegue anche le connessioni HTTPS (meteo, aggiornamenti): lo
 // stack predefinito da 8 KB è al limite durante l'handshake TLS
@@ -248,6 +249,7 @@ void setup() {
 
   // Batteria: INA219 cercato sempre; se manca la batteria non viene mostrata
   battery.begin();
+  ecoBegin();  // Tasto a sfioramento per la pagina web a batteria
 
   // Inizializza RTC DS3231 - imposta subito il clock interno se disponibile
   rtcBegin();
@@ -328,6 +330,16 @@ void loop() {
   if (battery.isAvailable()) {
     battery.update();
 
+    // Caricatore collegato/staccato: display aggiornato subito (non al minuto)
+    static unsigned long lastChargePoll = 0;
+    if (currentMillis - lastChargePoll >= 2000) {
+      lastChargePoll = currentMillis;
+      if (battery.pollCharging()) {
+        ecoPowerChanged();
+        lastDisplayUpdate = 0;
+      }
+    }
+
     // Livello critico stabile per almeno un minuto (due letture): faccina e sonno
     static unsigned long criticalSince = 0;
     if (battery.getLevel() == BATTERY_LEVEL_CRITICAL) {
@@ -391,6 +403,18 @@ void loop() {
     }
   } else {
     apSince = 0;
+  }
+
+  // Risparmio a batteria: il WiFi si accende solo quando serve (meteo e ora,
+  // aggiornamenti, pagina web dopo un tocco) e si spegne subito dopo
+  bool eco = ecoActive();
+  if (eco) {
+    bool weatherDue = (unsigned long)(currentMillis - lastWeatherUpdate) >= getUpdateInterval();
+    bool updatesDue = updateDue || updateCheckRequested || currentMillis - lastUpdateCheck >= updateWaitMs;
+    if (weatherDue || updatesDue || ecoWebWindowOpen()) ecoEnsureWiFi();
+  } else if (!apMode && strlen(config.ssid) > 0 && WiFi.getMode() == WIFI_OFF) {
+    // Caricatore ricollegato dopo il risparmio: il WiFi torna sempre acceso
+    ecoEnsureWiFi();
   }
 
   // Aggiornamenti da GitHub: all'avvio (quindi anche subito dopo la prima
@@ -475,6 +499,15 @@ void loop() {
   // DISABILITATO: Controlla la connessione WiFi e passa in modalità AP se necessario
   // checkWiFiConnection();
   
+  // A batteria, col WiFi spento: si dorme fino allo scatto del minuto
+  if (eco) {
+    ecoWiFiOffIfIdle();
+    if (WiFi.getMode() == WIFI_OFF && !updateCheckRequested) {
+      ecoSleep(60000);
+      return;
+    }
+  }
+
   // Delay ridotto per mantenere reattività del server web
   // Il delay originale di 500ms rendeva l'interfaccia lenta
   delay(10); 

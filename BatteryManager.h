@@ -86,6 +86,10 @@ public:
     // Nuova lettura (al massimo ogni 30 secondi)
     void update();
 
+    // Sola corrente, per accorgersi subito di caricatore collegato/staccato.
+    // Restituisce true se lo stato "in carica" è cambiato.
+    bool pollCharging();
+
     float getVoltage() { return voltage; }
     int getPercentage() { return percentage; }
     BatteryState getState() { return state; }

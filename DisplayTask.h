@@ -41,6 +41,7 @@ struct ScreenModel {
   String quoteAuthor;
   String city;
   String ip;
+  bool wifiOn = false;  // Icona WiFi nell'intestazione
   bool metric = true;
   uint16_t iconWidth = 0;
   uint16_t iconHeight = 0;

@@ -10,6 +10,7 @@
 #include "Updater.h"
 #include "BatteryManager.h"
 #include "Version.h"
+#include "EcoPower.h"
 #include "AtmoVerseConstants.h" // Aggiunto per costanti JSON se necessarie
 #include <SD.h>
 #include <ArduinoJson.h>
@@ -413,6 +414,7 @@ void handleClientRequests() {
   if (!client) {
     return;
   }
+  ecoNoteWebActivity();  // A batteria: la pagina web resta attiva finché la si usa
 
   // Timeout per la richiesta
   unsigned long timeout = millis() + 5000;
