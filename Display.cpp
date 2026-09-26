@@ -28,56 +28,47 @@
 #include "BatteryManager.h"  // Per accesso stato batteria
 extern bool apMode;           // Definita in NetworkUtils.cpp (header non incluso: conflitto su WIFI_CHECK_INTERVAL)
 #include <string.h>
+#include "Screens.h"
+#include "DisplayTask.h"
 
 // Visualizza un semplice box di testo centrale con il messaggio passato
+// ---------------------------------------------------------------------------
+// Richieste al task del display (vedi DisplayTask.h)
+// ---------------------------------------------------------------------------
+// Queste funzioni girano nel loop (core 1): raccolgono i dati, li copiano in
+// uno ScreenModel e lo consegnano al task del display (core 0), che disegna.
+// Nessuna di loro tocca il pannello, quindi tornano subito.
+
+static ScreenModel screenModel;  // Usato solo dal loop
+
+static void fillBattery(ScreenModel& m) {
+  m.showBattery = config.batteryShowOnDisplay && battery.isAvailable();
+  m.batteryPercent = battery.getPercentage();
+  m.batteryCharging = battery.charging();
+}
+
+static void showMessage(const char* title, const char* text) {
+  screenModel = ScreenModel();
+  screenModel.kind = SCREEN_MESSAGE;
+  screenModel.title = title;
+  screenModel.text = text;
+  fillBattery(screenModel);
+  showScreen(screenModel);
+}
+
 void showStatusOnDisplay(const char* msg) {
-  DEBUG_TRACE("showStatusOnDisplay"); // added
-  
-  if (msg == nullptr) {
-    // Serial.println("[DISPLAY] ERRORE: Tentativo di stampare messaggio NULL");
-    msg = "Error: NULL message";
-  }
-  
-    display.setFullWindow();
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        // bordo
-        display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
-        // testo centrato
-        display.setTextColor(GxEPD_BLACK);
-        display.setFont(&FreeSerif12pt7b);
-        int16_t tbx, tby; uint16_t tbw, tbh;
-        display.getTextBounds(msg, 0, 0, &tbx, &tby, &tbw, &tbh);
-        display.setCursor((display.width() - tbw) / 2, (display.height() + tbh) / 2);
-        display.print(msg);
-    } while (display.nextPage());
-    // Serial.println(msg);
+  String text = msg ? msg : "";
+  text.replace("\n", " ");
+  showMessage("", text.c_str());
 }
 
 // Schermata mostrata mentre si scarica un aggiornamento da GitHub
 // (provvisoria: verrà ridisegnata insieme al nuovo aspetto del display)
 void showUpdateScreen() {
-  const char* lines[] = {
-    "Aggiornamento in corso",
-    "Non spegnere il dispositivo:",
-    "si riavviera' da solo al termine."
-  };
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    int y = display.height() / 2 - 30;
-    for (int i = 0; i < 3; i++) {
-      display.setFont(i == 0 ? &FreeSerif12pt7b : &FreeSerif9pt7b);
-      int16_t tbx, tby; uint16_t tbw, tbh;
-      display.getTextBounds(lines[i], 0, 0, &tbx, &tby, &tbw, &tbh);
-      display.setCursor((display.width() - tbw) / 2, y);
-      display.print(lines[i]);
-      y += (i == 0) ? 40 : 26;
-    }
-  } while (display.nextPage());
+  screenModel = ScreenModel();
+  screenModel.kind = SCREEN_UPDATE;
+  fillBattery(screenModel);
+  showScreen(screenModel);
 }
 
 // Definizione pin per display e-ink già dichiarati nel file principale
@@ -85,52 +76,18 @@ void showUpdateScreen() {
 
 // Inizializzazione del display e-ink
 void initDisplay() {
-  DEBUG_TRACE("initDisplay"); // added
-  // Serial.println("Inizializzazione display...");
+  DEBUG_TRACE("initDisplay");
   display.init(115200);
   display.setRotation(0);
   display.setTextColor(GxEPD_BLACK);
   display.setFullWindow();
-  // Serial.println("Display inizializzato");
+  // Da qui in poi solo il task del display usa il pannello
+  startDisplayTask();
 }
 
 // Funzione per visualizzare la schermata di avvio
 void displayStartupScreen() {
-  DEBUG_TRACE("displayStartupScreen"); // added
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    
-    // Bordo decorativo
-    display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
-    
-    // Logo AtmoVerse 2.0
-    display.setFont(&FreeSerif12pt7b);
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    display.getTextBounds("AtmoVerse 2.0", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, display.height() / 3);
-    display.print("AtmoVerse 2.0");
-    
-    // Sottotitolo
-    display.setFont(&FreeSerif9pt7b);
-    display.getTextBounds("Sistema meteo con calendario", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, display.height() / 2);
-    display.print("Sistema meteo con calendario");
-    
-    // Messaggio di caricamento invece della data
-    display.getTextBounds("Caricamento...", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, display.height() * 2 / 3);
-    display.print("Caricamento...");
-    
-    // Versione
-    display.setFont(NULL);
-    display.setCursor(display.width() / 2 - 30, display.height() - 20);
-    display.print("v2.0 - 2025");
-    
-  } while (display.nextPage());
-  
-  // Serial.println("Schermata di avvio visualizzata");
+  showMessage("AtmoVerse", "Avvio in corso...");
 }
 
 // Disegna la temperatura con font GFX grande (24pt) invece di BMP
@@ -165,137 +122,12 @@ void drawTemperatureBMP(int x, int y, float temp, int glyphSize) {
 
 // Funzione per visualizzare la schermata di configurazione
 void displaySetupScreen(String apName, String ipAddress) {
-  DEBUG_TRACE("displaySetupScreen"); // added
-  // Serial.println("Visualizzazione schermata di configurazione...");
-  
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    
-    // Bordo esterno
-    display.drawRect(5, 5, display.width()-10, display.height()-10, GxEPD_BLACK);
-    
-    // Indicatore batteria in basso a destra
-    if (config.batteryMonitorEnabled) {
-      int batteryPercentage = battery.getPercentage();
-      
-      // Disegna batteria nell'angolo in basso a destra
-      int battX = display.width() - 80;
-      int battY = display.height() - 60;
-      drawBattery(battX, battY, batteryPercentage);
-      
-      // Testo percentuale sotto l'icona
-    }
-    
-    // Disegna il sole - spostato a sinistra del titolo
-    int sunX = 50;
-    int sunY = 35;
-    display.fillCircle(sunX, sunY, 8, GxEPD_BLACK);
-    for(int i = 0; i < 8; i++) {
-        float angle = i * PI / 4;
-        int x1 = sunX + cos(angle) * 12;
-        int y1 = sunY + sin(angle) * 12;
-        int x2 = sunX + cos(angle) * 16;
-        int y2 = sunY + sin(angle) * 16;
-        display.drawLine(x1, y1, x2, y2, GxEPD_BLACK);
-    }
-    
-    // Disegna la nuvola - spostata a destra del titolo
-    int cloudX = display.width() - 50;
-    int cloudY = 35;
-    display.fillCircle(cloudX, cloudY, 6, GxEPD_BLACK);
-    display.fillCircle(cloudX + 8, cloudY, 8, GxEPD_BLACK);
-    display.fillCircle(cloudX - 6, cloudY + 4, 5, GxEPD_BLACK);
-    
-    // Titolo AtmoVerse - ora al centro, tra sole e nuvola
-    display.setFont(&FreeSerif12pt7b);
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    display.getTextBounds("AtmoVerse", 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, 45);
-    display.print("AtmoVerse");
-    
-    // Linea separatrice
-    display.drawLine(20, 65, display.width() - 20, 65, GxEPD_BLACK);
-    
-    // Cambio da "Modalità Configurazione" a "Prima Configurazione"
-    display.setFont(&FreeSerif12pt7b);
-    const char* configTitle = "Prima Configurazione";
-    display.getTextBounds(configTitle, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, 95);
-    display.print(configTitle);
-    
-    // Istruzioni di connessione con font più grande
-    // Aumento lo spazio tra le fasi
-    int textY = 135;
-    display.setFont(&FreeSerif9pt7b);
-    
-    // Passo 1 - Connessione alla rete AtmoVerse
-    display.fillCircle(30, textY, 12, GxEPD_BLACK);
-    display.setTextColor(GxEPD_WHITE);
-    display.setCursor(26, textY+4);
-    display.print("1");
-    display.setTextColor(GxEPD_BLACK);
-    display.setCursor(50, textY+4);
-    // Uso font più grande per il titolo del passo
-    display.setFont(&FreeSerif12pt7b);
-    display.print("Rete: ");
-    display.print(apName);
-    
-    // Spiegazione più concisa del passo 1
-    display.setFont(&FreeSerif9pt7b);
-    display.setCursor(50, textY+25);
-    display.print("Cerca questa rete WiFi sul tuo dispositivo");
-    
-    // Passo 2 - Password per connettersi
-    textY += 70; // Aumentata spaziatura tra le fasi
-    display.fillCircle(30, textY, 12, GxEPD_BLACK);
-    display.setTextColor(GxEPD_WHITE);
-    display.setCursor(26, textY+4);
-    display.print("2");
-    display.setTextColor(GxEPD_BLACK);
-    display.setCursor(50, textY+4);
-    // Uso font più grande per il titolo del passo
-    display.setFont(&FreeSerif12pt7b);
-    display.print("Password: ");
-    display.print(ATMOVERSE_AP_PASSWORD);
-    
-    // Spiegazione più concisa del passo 2
-    display.setFont(&FreeSerif9pt7b);
-    display.setCursor(50, textY+25);
-    display.print("Inserisci questa password quando richiesto");
-    
-    // Passo 3 - Apertura browser
-    textY += 70; // Aumentata spaziatura tra le fasi
-    display.fillCircle(30, textY, 12, GxEPD_BLACK);
-    display.setTextColor(GxEPD_WHITE);
-    display.setCursor(26, textY+4);
-    display.print("3");
-    display.setTextColor(GxEPD_BLACK);
-    display.setCursor(50, textY+4);
-    // Uso font più grande per il titolo del passo
-    display.setFont(&FreeSerif12pt7b);
-    display.print("Apri nel browser:");
-    
-    // Indirizzo IP con font ancora più grande
-    display.setFont(&FreeSerif12pt7b);
-    display.setCursor(50, textY+35);
-    display.print("http://192.168.4.1");
-    
-    // Spiegazione più concisa del passo 3
-    display.setFont(&FreeSerif9pt7b);
-    display.setCursor(50, textY+60);
-    display.print("Configura il dispositivo e salva");
-    
-    
-    // Versione in basso
-    display.setFont(&FreeSerif9pt7b);
-    display.setCursor(20, display.height() - 20);
-    display.print("Calendario meteo integrato - AtmoVerse 2.0");
-    
-  } while (display.nextPage());
-  
-  // Serial.println("Schermata di configurazione visualizzata");
+  screenModel = ScreenModel();
+  screenModel.kind = SCREEN_SETUP;
+  screenModel.apName = apName;
+  screenModel.apIp = ipAddress;
+  fillBattery(screenModel);
+  showScreen(screenModel);
 }
 
 // Versione aggiornata della funzione showAPModeInfo che utilizza displaySetupScreen
@@ -311,50 +143,7 @@ void showAPModeInfo() {
   displaySetupScreen(apName, WiFi.softAPIP().toString());
 }
 
-// Funzione che aggiorna solo l'ora (minimale)
-void updateTimeOnly() {
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)) return;
-  
-  char timeBuffer[10];
-  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
-  
-  // Usa setFullWindow per compatibilità con tutti i display GxEPD2
-  // (setPartialWindow causa crash LoadProhibited su display che non lo supportano)
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setFont(&FreeSerif12pt7b);
-    display.setTextColor(GxEPD_BLACK);
-    display.setCursor(20, 70);
-    display.print(timeBuffer);
-  } while (display.nextPage());
-}
 
-// Funzione che aggiorna orario e citazioni
-void updateTimeAndQuotes() {
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)) return;
-  
-  char timeBuffer[10];
-  strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", &timeinfo);
-  
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    int timeX = 20;
-    int timeY = 70;
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    display.setFont(&FreeSerif12pt7b);
-    display.getTextBounds(timeBuffer, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.fillRect(timeX - 2, timeY - tbh - 2, tbw + 4, tbh + 4, GxEPD_WHITE);
-    display.fillRect(10, display.height() - 25, 150, 20, GxEPD_WHITE);
-    display.setCursor(timeX, timeY);
-    display.print(timeBuffer);
-    drawLastUpdate(10, display.height() - 30, currentWeather.last_update);
-  } while (display.nextPage());
-}
 
 // Flag per indicare se è il primo avvio
 static bool isFirstBoot = true;
@@ -368,411 +157,39 @@ extern bool isPowerSavingMode();
 // Implementazione completa della funzione di aggiornamento display
 void updateDisplay() {
   // La schermata di configurazione solo quando l'AP è davvero attivo: se il
-  // WiFi cade per un momento si continua a mostrare il meteo (ultimi dati).
-  // (Rimossa la lettura dell'ora: getLocalTime() senza ora valida attende 5 s)
+  // WiFi cade per un momento si continua a mostrare il meteo (ultimi dati)
   if (apMode) {
     showAPModeInfo();
     return;
   }
-  
-  // Metodo semplificato per aggiornamento display
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    drawDisplayContent();
-    // if (config.batteryMonitorEnabled) {
-    //   Serial.printf("[BATTERY] Status: %s\n", battery.getStatusString().c_str());
-    // }
-    
-    // Se l'ultimo aggiornamento meteo ha avuto problemi, mostra un indicatore
-    if (!lastWeatherUpdateSuccess) {
-      // Disegna un'icona di avvertimento in alto a destra
-      int iconX = display.width() - 30;
-      int iconY = 15;
-      
-      // Triangolo di avvertimento
-      display.fillTriangle(
-        iconX, iconY + 20,           // Base sinistra
-        iconX + 20, iconY + 20,      // Base destra
-        iconX + 10, iconY,           // Punta
-        GxEPD_BLACK
-      );
-      
-      // Punto esclamativo all'interno
-      display.fillRect(iconX + 9, iconY + 5, 2, 10, GxEPD_WHITE);
-      display.fillRect(iconX + 9, iconY + 16, 2, 2, GxEPD_WHITE);
+
+  ScreenModel& m = screenModel;
+  m = ScreenModel();
+  m.kind = SCREEN_MAIN;
+  m.weather = currentWeather;
+  m.weatherUpdateOk = lastWeatherUpdateSuccess;
+  m.city = config.city;
+  m.metric = strlen(config.units) == 0 || strcmp(config.units, "metric") == 0;
+  if (WiFi.status() == WL_CONNECTED) m.ip = WiFi.localIP().toString();
+
+  // Citazione e icona si leggono dalla SD qui, nel loop: il task del display
+  // non accede mai alla SD
+  Quote q = getQuoteForDisplay();
+  m.quoteText = q.text;
+  m.quoteAuthor = q.author;
+  if (currentWeather.valid && BMPHelper::begin()) {
+    WeatherIcon icon = SVGHelper::getIconFromWeatherID(currentWeather.weather_id, isNightTime(), currentWeather.wind_speed);
+    if (!loadIconBitmap(BMPHelper::getIconPath(icon), m)) {
+      Serial.printf("[DISPLAY] Icona non leggibile: %s\n", BMPHelper::getIconPath(icon));
     }
-    
-    // Se siamo in modalità risparmio energetico, mostra un'icona luna
-    if (isPowerSavingMode()) {
-      int iconX = display.width() - 30;
-      int iconY = 40;
-      
-      // Luna per indicare risparmio energetico
-      display.fillCircle(iconX + 10, iconY + 10, 10, GxEPD_BLACK);
-      display.fillCircle(iconX + 15, iconY + 10, 9, GxEPD_WHITE);
-    }
-  } while (display.nextPage());
-  
+  }
+
+  fillBattery(m);
+  showScreen(m);
   if (isFirstBoot) isFirstBoot = false;
 }
 
-// Funzione che contiene tutto il codice per disegnare i contenuti
-// Separata per evitare duplicazione di codice
-void drawDisplayContent() {
-  DEBUG_TRACE("drawDisplayContent"); // added
-  // Nota: il controllo WiFi.status() è stato spostato in updateDisplay()
-  // per evitare nesting di firstPage/nextPage loops
-  
-  // Layout fisso: per ora mettiamo in standby il layout personalizzato (/layout.json)
-  // e il drag&drop. Usiamo sempre il layout di default disegnato da drawDefaultLayout().
-  drawDefaultLayout();
-  return;
 
-  // --- CODICE LAYOUT PERSONALIZZATO IN STANDBY ---
-  // Sistema unificato: usa SEMPRE il layout personalizzabile da /layout.json
-  // Se il file non esiste, crea un layout di default
-  
-  // Verifica disponibilità SD
-  if (!initSD()) {
-    // SD non disponibile: mostra schermata errore SD (versione semplificata)
-    // Serial.println("[DISPLAY] SD non disponibile - mostro schermata errore SD");
-    drawSDCardError();
-    return;
-  }
-  
-  // Se non esiste layout.json, usa layout di default semplice
-  if (!SD.exists("/layout.json")) {
-    // Serial.println("[DISPLAY] /layout.json non trovato - uso layout default");
-    drawDefaultLayout();
-    return;
-  }
-  
-  // Carica il file layout.json
-  File f = SD.open("/layout.json", FILE_READ);
-  if (!f) {
-    // Serial.println("[DISPLAY] Errore apertura /layout.json - uso default");
-    drawDefaultLayout();
-    return;
-  }
-  
-  String content;
-  while (f.available()) {
-    content += (char)f.read();
-  }
-  f.close();
-  
-  DynamicJsonDocument doc(4096);
-  DeserializationError err = deserializeJson(doc, content);
-  if (err) {
-    // Serial.printf("[DISPLAY] Errore parsing JSON: %s - uso default\n", err.c_str());
-    drawDefaultLayout();
-    return;
-  }
-  
-  // Serial.println("[DISPLAY] Layout personalizzato caricato da /layout.json");
-  
-  // Parametri griglia
-  int cols = doc["grid"]["cols"] | 24;
-  int rowH = doc["grid"]["row_height"] | 20;
-  int m = doc["grid"]["margin"] | 4;
-  if (cols <= 0) cols = 24;
-  if (rowH <= 0) rowH = 20;
-  if (m < 0) m = 0;
-  int usableW = display.width() - (cols + 1) * m;
-  if (usableW < cols) usableW = display.width();
-  int cellW = usableW / cols;
-  auto rectFor = [&](int gx, int gy, int gw, int gh) {
-    int x = m + gx * (cellW + m);
-    int y = m + gy * (rowH + m);
-    int w = gw * cellW + (gw - 1) * m;
-    int h = gh * rowH + (gh - 1) * m;
-    // Clamp
-    if (x < 0) x = 0; if (y < 0) y = 0;
-    if (x + w > display.width()) w = display.width() - x;
-    if (y + h > display.height()) h = display.height() - y;
-    struct { int x; int y; int w; int h; } r { x, y, w, h };
-    return r;
-  };
-
-  JsonArray items = doc["items"].as<JsonArray>();
-  if (items.isNull()) items = doc.createNestedArray("items");
-  // Calcola z max
-  int maxZ = 0;
-  for (JsonObject it : items) {
-    int z = it["z"].as<int>(); if (z > maxZ) maxZ = z;
-  }
-  
-  // Disegna per z crescente
-  for (int z = 0; z <= maxZ; ++z) {
-    for (JsonObject it : items) {
-      if (it["visible"].is<bool>() && it["visible"] == false) continue;
-      int iz = it["z"].as<int>(); if (iz != z) continue;
-      const char* type = it["type"].as<const char*>();
-      int gx = it["x"].as<int>();
-      int gy = it["y"].as<int>();
-      int gw = it["w"].as<int>(); if (gw <= 0) gw = 1;
-      int gh = it["h"].as<int>(); if (gh <= 0) gh = 1;
-      auto r = rectFor(gx, gy, gw, gh);
-
-      // Bordi guida per debug (disattivati)
-      // display.drawRect(r.x, r.y, r.w, r.h, GxEPD_BLACK);
-
-      String align = it["align"].as<String>(); align.toLowerCase();
-      int fontSize = it["font_size"].as<int>();
-      if (strcmp(type, "city") == 0) {
-        // Font mapping semplice
-        if (fontSize >= 20) display.setFont(&FreeSerif12pt7b);
-        else if (fontSize >= 12) display.setFont(&FreeSansBold12pt7b);
-        else display.setFont(&FreeSerif9pt7b);
-        int16_t tbx, tby; uint16_t tbw, tbh;
-        display.getTextBounds(config.city, 0, 0, &tbx, &tby, &tbw, &tbh);
-        int tx = r.x + 2;
-        if (align == "center") tx = r.x + (r.w - tbw) / 2;
-        else if (align == "right") tx = r.x + r.w - tbw - 2;
-        int ty = r.y + tbh + 2;
-        if (ty > r.y + r.h - 2) ty = r.y + r.h - 2;
-        display.setCursor(tx, ty);
-        display.setTextColor(GxEPD_BLACK);
-        display.print(config.city);
-      } else if (strcmp(type, "weather_icon") == 0) {
-        // Dimensione icona: se definita nel layout usa icon_size, altrimenti adatta all'area
-        int iconSize = it["icon_size"].as<int>();
-        if (iconSize <= 0) {
-          iconSize = min(r.w, r.h); // fallback: usa lato minore dell'area
-        }
-        int ix = r.x + (r.w - iconSize) / 2; if (ix < r.x) ix = r.x;
-        int iy = r.y + (r.h - iconSize) / 2; if (iy < r.y) iy = r.y;
-        drawWeatherIcon(ix, iy, currentWeather.weather_id, isNightTime(), iconSize);
-      } else if (strcmp(type, "quote") == 0) {
-        int marginX = 2;
-        int maxW = r.w - 2 * marginX; if (maxW < 20) maxW = 20;
-        int qx = r.x + marginX;
-        int qy = r.y + 2;
-        
-        // Calcola fontSize in base all'altezza della box se non specificato
-        int quoteFontSize = it["font_size"].as<int>();
-        if (quoteFontSize <= 0) {
-          // Calcola automaticamente: più alta è la box, più grande il font
-          // Usa circa 1/6 dell'altezza come fontSize
-          quoteFontSize = r.h / 6;
-          if (quoteFontSize < 9) quoteFontSize = 9;
-          if (quoteFontSize > 24) quoteFontSize = 24;
-        }
-        
-        drawQuote(qx, qy, maxW, quoteFontSize);
-      } else if (strcmp(type, "footer_bar") == 0) {
-        // La footer bar viene disegnata separatamente fuori dal layout personalizzato
-        continue;
-      } else if (strcmp(type, "temperature") == 0) {
-        // Temperatura - usa grafica vettoriale se fontSize > 40
-        if (fontSize > 40) {
-          // Numero grande in stile 7-segment
-          int height = fontSize * 2;  // Converti pt in pixel (approssimato)
-          if (height > r.h) height = r.h - 4;  // Limita all'altezza disponibile
-          
-          // Calcola posizione X in base all'allineamento
-          int tx = r.x + 2;
-          // Per centrare/allineare a destra, dovremmo calcolare la larghezza totale
-          // Per semplicità ora partiamo da sinistra, poi aggiungiamo logica
-          if (align == "center") {
-            // Stima larghezza: circa height*0.6 per cifra + spazi
-            int estimatedW = height * 2.5;  // Stima per "XX.X°"
-            tx = r.x + (r.w - estimatedW) / 2;
-            if (tx < r.x) tx = r.x;
-          } else if (align == "right") {
-            int estimatedW = height * 2.5;
-            tx = r.x + r.w - estimatedW - 2;
-            if (tx < r.x) tx = r.x;
-          }
-          
-          int ty = r.y + (r.h - height) / 2;
-          if (ty < r.y) ty = r.y;
-          
-          drawBigNumber(tx, ty, currentWeather.temp, height, true);
-        } else {
-          // Font normale per dimensioni piccole
-          if (fontSize >= 16) display.setFont(&FreeSansBold12pt7b);
-          else if (fontSize >= 12) display.setFont(&FreeSerif9pt7b);
-          else display.setFont(NULL);
-          
-          String tempStr = String(currentWeather.temp, 1) + "\xB0" + "C";
-          int16_t tbx, tby; uint16_t tbw, tbh;
-          display.getTextBounds(tempStr.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
-          
-          int tx = r.x + 2;
-          if (align == "center") tx = r.x + (r.w - tbw) / 2;
-          else if (align == "right") tx = r.x + r.w - tbw - 2;
-          int ty = r.y + tbh + 2;
-          
-          display.setCursor(tx, ty);
-          display.setTextColor(GxEPD_BLACK);
-          display.print(tempStr);
-        }
-      } else if (strcmp(type, "humidity") == 0) {
-        // Umidità - usa grafica vettoriale se fontSize > 40
-        if (fontSize > 40) {
-          int height = fontSize * 2;
-          if (height > r.h) height = r.h - 4;
-          
-          int tx = r.x + 2;
-          if (align == "center") {
-            int estimatedW = height * 2.0;  // Stima per "XX%"
-            tx = r.x + (r.w - estimatedW) / 2;
-            if (tx < r.x) tx = r.x;
-          } else if (align == "right") {
-            int estimatedW = height * 2.0;
-            tx = r.x + r.w - estimatedW - 2;
-            if (tx < r.x) tx = r.x;
-          }
-          
-          int ty = r.y + (r.h - height) / 2;
-          if (ty < r.y) ty = r.y;
-          
-          // Disegna numero senza decimale
-          drawBigNumber(tx, ty, currentWeather.humidity, height, false);
-          
-          // Aggiungi simbolo %
-          int percentSize = height * 0.4;
-          int percentX = tx + height * 1.5;  // Dopo il numero
-          display.setFont(&FreeSansBold12pt7b);
-          display.setCursor(percentX, ty + height - percentSize);
-          display.print("%");
-        } else {
-          // Font normale
-          if (fontSize >= 16) display.setFont(&FreeSansBold12pt7b);
-          else if (fontSize >= 12) display.setFont(&FreeSerif9pt7b);
-          else display.setFont(NULL);
-          
-          String humStr = String((int)currentWeather.humidity) + "%";
-          int16_t tbx, tby; uint16_t tbw, tbh;
-          display.getTextBounds(humStr.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
-          
-          int tx = r.x + 2;
-          if (align == "center") tx = r.x + (r.w - tbw) / 2;
-          else if (align == "right") tx = r.x + r.w - tbw - 2;
-          int ty = r.y + tbh + 2;
-          
-          display.setCursor(tx, ty);
-          display.setTextColor(GxEPD_BLACK);
-          display.print(humStr);
-        }
-      } else if (strcmp(type, "pressure") == 0) {
-        // Pressione - usa grafica vettoriale se fontSize > 40
-        if (fontSize > 40) {
-          int height = fontSize * 2;
-          if (height > r.h) height = r.h - 4;
-          
-          int tx = r.x + 2;
-          if (align == "center") {
-            int estimatedW = height * 3.5;  // Stima per "XXXX"
-            tx = r.x + (r.w - estimatedW) / 2;
-            if (tx < r.x) tx = r.x;
-          } else if (align == "right") {
-            int estimatedW = height * 3.5;
-            tx = r.x + r.w - estimatedW - 2;
-            if (tx < r.x) tx = r.x;
-          }
-          
-          int ty = r.y + (r.h - height) / 2;
-          if (ty < r.y) ty = r.y;
-          
-          drawBigNumber(tx, ty, currentWeather.pressure, height, false);
-          
-          // Aggiungi "hPa" piccolo
-          int textSize = height * 0.3;
-          int textX = tx + height * 3.0;
-          display.setFont(&FreeSerif9pt7b);
-          display.setCursor(textX, ty + height - textSize);
-          display.print("hPa");
-        } else {
-          // Font normale
-          if (fontSize >= 16) display.setFont(&FreeSansBold12pt7b);
-          else if (fontSize >= 12) display.setFont(&FreeSerif9pt7b);
-          else display.setFont(NULL);
-          
-          String presStr = String((int)currentWeather.pressure) + " hPa";
-          int16_t tbx, tby; uint16_t tbw, tbh;
-          display.getTextBounds(presStr.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
-          
-          int tx = r.x + 2;
-          if (align == "center") tx = r.x + (r.w - tbw) / 2;
-          else if (align == "right") tx = r.x + r.w - tbw - 2;
-          int ty = r.y + tbh + 2;
-          
-          display.setCursor(tx, ty);
-          display.setTextColor(GxEPD_BLACK);
-          display.print(presStr);
-        }
-      } else if (strcmp(type, "wind") == 0) {
-        // Vento - usa grafica vettoriale se fontSize > 40
-        if (fontSize > 40) {
-          int height = fontSize * 2;
-          if (height > r.h) height = r.h - 4;
-          
-          int tx = r.x + 2;
-          if (align == "center") {
-            int estimatedW = height * 3.0;  // Stima per "XX.X"
-            tx = r.x + (r.w - estimatedW) / 2;
-            if (tx < r.x) tx = r.x;
-          } else if (align == "right") {
-            int estimatedW = height * 3.0;
-            tx = r.x + r.w - estimatedW - 2;
-            if (tx < r.x) tx = r.x;
-          }
-          
-          int ty = r.y + (r.h - height) / 2;
-          if (ty < r.y) ty = r.y;
-          
-          drawBigNumber(tx, ty, currentWeather.wind_speed, height, true);
-          
-          // Aggiungi "km/h" piccolo
-          int textSize = height * 0.25;
-          int textX = tx + height * 2.8;
-          display.setFont(&FreeSerif9pt7b);
-          display.setCursor(textX, ty + height - textSize);
-          display.print("km/h");
-        } else {
-          // Font normale
-          if (fontSize >= 16) display.setFont(&FreeSansBold12pt7b);
-          else if (fontSize >= 12) display.setFont(&FreeSerif9pt7b);
-          else display.setFont(NULL);
-          
-          String windStr = String(currentWeather.wind_speed, 1) + " km/h";
-          int16_t tbx, tby; uint16_t tbw, tbh;
-          display.getTextBounds(windStr.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
-          
-          int tx = r.x + 2;
-          if (align == "center") tx = r.x + (r.w - tbw) / 2;
-          else if (align == "right") tx = r.x + r.w - tbw - 2;
-          int ty = r.y + tbh + 2;
-          
-          display.setCursor(tx, ty);
-          display.setTextColor(GxEPD_BLACK);
-          display.print(windStr);
-        }
-      }
-    }
-  }
-
-  // Footer standard fuori dal layout personalizzato
-  drawLastUpdate(10, display.height() - 30, currentWeather.last_update);
-  display.setFont(NULL);
-  String footerIpString = (WiFi.status() == WL_CONNECTED)
-                          ? (String("IP: ") + WiFi.localIP().toString())
-                          : String("IP: N/A");
-  int16_t fbx, fby; uint16_t fbw, fbh;
-  display.getTextBounds(footerIpString.c_str(), 0, 0, &fbx, &fby, &fbw, &fbh);
-  int centerX = (display.width() - fbw) / 2;
-  display.setCursor(centerX, display.height() - 10);
-  display.setTextColor(GxEPD_BLACK);
-  display.print(footerIpString);
-  if (config.batteryMonitorEnabled && config.batteryShowOnDisplay) {
-    int batteryPercentage = battery.getPercentage();
-    drawBattery(display.width() - 60, display.height() - 20, batteryPercentage);
-  }
-}
 
 // ============================================================================
 // LAYOUT DI DEFAULT - Usato quando /layout.json non esiste
@@ -1265,176 +682,19 @@ void drawWeatherIcon(int x, int y, int weatherId, bool isNight, int iconSize) {
 
 // Funzione per visualizzare messaggi di errore
 void displayError(const char* message) {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(GxEPD_BLACK);
-  display.setFont(&FreeMonoBold9pt7b);
-  display.setCursor(10, 30);
-  display.print("ERRORE:");
-  display.setCursor(10, 60);
-  display.print(message);
-  // Aggiornamento secondo API GxEPD2
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    // Ridisegna i contenuti per ogni pagina
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setCursor(10, 30);
-    display.print("ERRORE:");
-    display.setCursor(10, 60);
-    display.print(message);
-  } while (display.nextPage());
+  showMessage("Errore", message);
 }
 
 // Funzione per mostrare schermata SD mancante
 void showSDCardMissing() {
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    
-    // Disegna icona SD card (semplificata)
-    int cardX = display.width() / 2 - 40;
-    int cardY = 80;
-    int cardW = 80;
-    int cardH = 60;
-    
-    // Corpo SD card
-    display.drawRect(cardX, cardY, cardW, cardH, GxEPD_BLACK);
-    display.drawRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2, GxEPD_BLACK);
-    
-    // "Taglio" angolare in alto a destra
-    display.fillTriangle(
-      cardX + cardW - 15, cardY,
-      cardX + cardW, cardY,
-      cardX + cardW, cardY + 15,
-      GxEPD_WHITE
-    );
-    display.drawLine(cardX + cardW - 15, cardY, cardX + cardW, cardY + 15, GxEPD_BLACK);
-    
-    // Dettagli SD card (contatti)
-    for (int i = 0; i < 5; i++) {
-      display.fillRect(cardX + 15 + (i * 10), cardY + cardH - 15, 6, 10, GxEPD_BLACK);
-    }
-    
-    // Logo SD stilizzato
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(cardX + 25, cardY + 35);
-    display.print("SD");
-    
-    // Titolo
-    display.setFont(&FreeSerif12pt7b);
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    const char* title = "Ops! SD Card non trovata";
-    display.getTextBounds(title, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, cardY + cardH + 50);
-    display.print(title);
-    
-    // Messaggio
-    display.setFont(&FreeSerif9pt7b);
-    const char* msg1 = "Per favore inserisci una";
-    display.getTextBounds(msg1, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, cardY + cardH + 80);
-    display.print(msg1);
-    
-    const char* msg2 = "scheda SD per continuare";
-    display.getTextBounds(msg2, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, cardY + cardH + 105);
-    display.print(msg2);
-    
-    // Emoji/Icona simpatica
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(display.width() / 2 - 10, cardY + cardH + 140);
-    display.print(":(");
-    
-    // Footer informativo
-    display.setFont(NULL);
-    const char* footer = "Il sistema si riavviera' automaticamente quando la SD sara' disponibile";
-    display.getTextBounds(footer, 0, 0, &tbx, &tby, &tbw, &tbh);
-    int footerX = (display.width() - tbw) / 2;
-    if (footerX < 5) footerX = 5;
-    display.setCursor(footerX, display.height() - 20);
-    display.print(footer);
-    
-  } while (display.nextPage());
-  
-  // Serial.println("[DISPLAY] Mostrata schermata SD mancante");
+  showMessage("Scheda SD non trovata", "Inserisci una microSD formattata FAT32 e riavvia AtmoVerse.");
 }
 
 // Mostra conferma visiva di salvataggio configurazione
 void showConfigSaved() {
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    
-    // Disegna un grande checkmark (✓)
-    int checkX = display.width() / 2;
-    int checkY = 100;
-    int checkSize = 80;
-    
-    // Cerchio attorno al checkmark
-    display.drawCircle(checkX, checkY, checkSize / 2, GxEPD_BLACK);
-    display.drawCircle(checkX, checkY, checkSize / 2 - 1, GxEPD_BLACK);
-    display.drawCircle(checkX, checkY, checkSize / 2 - 2, GxEPD_BLACK);
-    
-    // Disegna il checkmark
-    // Braccio corto (verso sinistra-basso)
-    for (int i = 0; i < 6; i++) {
-      display.drawLine(
-        checkX - 20, checkY + 5 + i,
-        checkX - 5, checkY + 20 + i,
-        GxEPD_BLACK
-      );
-    }
-    
-    // Braccio lungo (verso destra-alto)
-    for (int i = 0; i < 6; i++) {
-      display.drawLine(
-        checkX - 5, checkY + 20 + i,
-        checkX + 25, checkY - 15 + i,
-        GxEPD_BLACK
-      );
-    }
-    
-    // Titolo principale
-    display.setFont(&FreeSansBold12pt7b);
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    const char* title = "CONFIGURAZIONE SALVATA!";
-    display.getTextBounds(title, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, checkY + checkSize / 2 + 60);
-    display.print(title);
-    
-    // Messaggio di riavvio
-    display.setFont(&FreeSerif9pt7b);
-    const char* msg1 = "Il dispositivo si riavviera'";
-    display.getTextBounds(msg1, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, checkY + checkSize / 2 + 95);
-    display.print(msg1);
-    
-    const char* msg2 = "tra pochi istanti...";
-    display.getTextBounds(msg2, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, checkY + checkSize / 2 + 120);
-    display.print(msg2);
-    
-    // Emoji felice
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(display.width() / 2 - 15, checkY + checkSize / 2 + 160);
-    display.print(":)");
-    
-    // Footer
-    display.setFont(NULL);
-    const char* footer = "AtmoVerse 2.0";
-    display.getTextBounds(footer, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display.setCursor((display.width() - tbw) / 2, display.height() - 20);
-    display.print(footer);
-    
-  } while (display.nextPage());
-  
-  // Serial.println("[DISPLAY] Mostrata conferma salvataggio configurazione");
+  showMessage("Impostazioni salvate", "AtmoVerse si riavvia tra pochi istanti.");
+  // Subito dopo il chiamante riavvia: il messaggio deve essere sul pannello
+  waitDisplayIdle(10000);
 }
 
 // [RIMOSSO] duplicato drawCityInfo

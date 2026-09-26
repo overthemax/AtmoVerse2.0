@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "AtmoVerseConstants.h" // Per JSON_BUFFER_LARGE
 #include <SD.h> // Aggiunto per SD
+#include "Screens.h"  // quoteFitsDisplay()
 
 // Stato in memoria della citazione attualmente mostrata sul display
 static Quote g_currentQuote = {"", ""};
@@ -21,7 +22,7 @@ const char* QUOTES_FILE = "/quotes.json";
 // Ottiene la categoria temporale corrente
 TimeCategory getCurrentTimeCategory() {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo, 0)) {
     return AFTERNOON; // Default in caso di errore
   }
   
@@ -82,7 +83,7 @@ static bool isCertainAuthor(const char* authorValue) {
 
 static String getCurrentSeasonTag() {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo, 0)) {
     return "";
   }
   int month = timeinfo.tm_mon + 1;
@@ -459,8 +460,9 @@ static bool loadScheduledQuote(Quote& quote) {
 // non fanno parte degli aggiornamenti automatici e non vengono mai toccati).
 // Si legge solo il file dell'ora corrente, riga per riga, senza caricarlo in RAM.
 
-// Oltre questa lunghezza la citazione non entra nel riquadro del display
-static const size_t CLOCK_QUOTE_MAX_CHARS = 240;
+// Scarto rapido prima della misura vera: oltre questa lunghezza la citazione
+// non entra nel riquadro nemmeno col carattere più piccolo
+static const size_t CLOCK_QUOTE_MAX_CHARS = 700;
 
 static bool loadClockQuote(Quote& quote) {
   struct tm t;
@@ -483,6 +485,10 @@ static bool loadClockQuote(Quote& quote) {
     if (line.length() < 4 || line[0] != minute[0] || line[1] != minute[1] || line[2] != '|') continue;
     int sep = line.indexOf('|', 3);
     if (sep < 0 || (size_t)(sep - 3) > CLOCK_QUOTE_MAX_CHARS) continue;
+    // Solo citazioni che il display mostra per intero (font adattivo compreso)
+    String author = line.substring(sep + 1);
+    author.trim();
+    if (!quoteFitsDisplay(line.substring(3, sep), author)) continue;
     matches++;
     if (random(matches) == 0) chosen = line;
   }

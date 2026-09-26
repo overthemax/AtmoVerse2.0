@@ -10,9 +10,6 @@
 void initDisplay();
 void displayStartupScreen();
 void updateDisplay();
-void updateTimeOnly();
-void updateTimeAndQuotes();
-void drawDisplayContent();
 void displaySetupScreen(String apName, String ipAddress);
 void showAPModeInfo();
 void drawWeatherIcon(int x, int y, int weatherId, bool isNight, int iconSize = 160);

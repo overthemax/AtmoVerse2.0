@@ -332,6 +332,12 @@
 
   <script>
     let quotes = [];
+
+    // Il testo delle citazioni viene dal file sulla SD: va escapato prima di
+    // inserirlo come HTML (un file modificato potrebbe contenere codice)
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
     let editingIndex = -1;
 
     // Carica citazioni
@@ -430,12 +436,12 @@
         div.className = 'quote-item';
         
         // Formattazione preview del testo
-        let displayText = quote.text
+        let displayText = esc(quote.text)
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
           .replace(/\\n/g, '<br>');
         
-        const authorInfo = quote.authorNote ? `${quote.author} (${quote.authorNote})` : quote.author;
+        const authorInfo = esc(quote.authorNote ? `${quote.author} (${quote.authorNote})` : quote.author);
         const sizeLabel = quote.fontSize ? `📏 ${quote.fontSize}` : '';
         const alignLabel = quote.align ? `⬅️ ${quote.align}` : '';
         
@@ -444,8 +450,8 @@
           <div class="quote-meta">
             <div>
               <strong>— ${authorInfo}</strong>
-              ${quote.category ? `<span class="quote-category">${quote.category}</span>` : ''}
-              ${(quote.ora || quote.data) ? `<span class="quote-category">🗓️ ${[quote.data, quote.ora ? quote.ora + ' per ' + (quote.durata || 60) + ' min' : '', quote.giorni].filter(Boolean).join(' · ')}</span>` : ''}
+              ${quote.category ? `<span class="quote-category">${esc(quote.category)}</span>` : ''}
+              ${(quote.ora || quote.data) ? `<span class="quote-category">🗓️ ${esc([quote.data, quote.ora ? quote.ora + ' per ' + (quote.durata || 60) + ' min' : '', quote.giorni].filter(Boolean).join(' · '))}</span>` : ''}
               ${sizeLabel ? `<small style="margin-left: 8px; color: var(--text-secondary);">${sizeLabel} ${alignLabel}</small>` : ''}
             </div>
           </div>
@@ -487,7 +493,7 @@
       const sameLine = document.getElementById('edit-author-same-line').checked;
       
       // Converti markdown in HTML
-      let formattedText = text
+      let formattedText = esc(text)
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // grassetto
         .replace(/\*(.*?)\*/g, '<em>$1</em>')              // corsivo
         .replace(/\\n/g, '<br>');                          // a capo
@@ -497,7 +503,7 @@
       
       let authorHtml = '';
       if (author) {
-        const fullAuthor = authorNote ? `${author} (${authorNote})` : author;
+        const fullAuthor = esc(authorNote ? `${author} (${authorNote})` : author);
         const separator = sameLine ? ' — ' : '<br>';
         authorHtml = `${separator}<span class="preview-author ${authorStyle}">— ${fullAuthor}</span>`;
       }

@@ -46,7 +46,7 @@ void NightMode::forceCheck() {
     
     // Ottieni ora corrente
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
+    if (!getLocalTime(&timeinfo, 0)) {
         Serial.println("[NIGHT MODE] Impossibile ottenere ora corrente");
         return;
     }
