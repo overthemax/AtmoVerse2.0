@@ -719,6 +719,33 @@ static bool downloadNeededFiles(const String& baseUrl) {
   return ok;
 }
 
+// Ultima release dall'API di GitHub (certificato verificabile dal bundle di
+// ESP-IDF): URL del manifest e suo SHA-256 ("digest" dell'asset)
+static bool fetchReleaseInfo(String& manifestUrl, String& manifestSha) {
+  String body;
+  int status = httpsGet(ATMOVERSE_RELEASE_API_URL, body, 32768);
+  if (status != 200) {
+    Serial.printf("[UPDATE] API GitHub: HTTP %d\n", status);
+    return false;
+  }
+  JsonDocument filter;
+  filter["assets"][0]["name"] = true;
+  filter["assets"][0]["digest"] = true;
+  filter["assets"][0]["browser_download_url"] = true;
+  JsonDocument doc;
+  if (deserializeJson(doc, body, DeserializationOption::Filter(filter))) return false;
+  for (JsonObject a : doc["assets"].as<JsonArray>()) {
+    if (strcmp(a["name"] | "", "manifest.json") != 0) continue;
+    String digest = a["digest"] | "";
+    manifestUrl = a["browser_download_url"] | "";
+    if (!digest.startsWith("sha256:") || manifestUrl.length() == 0) return false;
+    manifestSha = digest.substring(7);
+    return manifestSha.length() == 64;
+  }
+  Serial.println("[UPDATE] API GitHub: manifest.json non trovato nella release");
+  return false;
+}
+
 bool checkForUpdates(bool fullScan) {
   Serial.println("[UPDATE] Controllo aggiornamenti...");
   bool sd = sdAvailable();
@@ -728,38 +755,69 @@ bool checkForUpdates(bool fullScan) {
   ManifestHeader h;
   bool downloaded;
   bool parsed = false;
-  if (sd) {
-    // Il manifest resta scaricato con certificato verificato (porta gli SHA-256
-    // di tutto il resto); la prima connessione TLS fallisce spesso: 3 tentativi
-    downloaded = false;
-    for (int attempt = 1; attempt <= 3 && !downloaded; attempt++) {
-      if (attempt > 1) delay(3000);
+  // L'URL e lo SHA-256 del manifest arrivano dall'API di GitHub, con
+  // certificato verificato; il manifest poi si scarica dal CDN (vedi
+  // FileSession) e vale solo se il suo SHA-256 coincide
+  String manifestUrl, manifestSha;
+  bool infoOk = false;
+  for (int attempt = 1; attempt <= 3 && !infoOk; attempt++) {
+    if (attempt > 1) delay(3000);
+    infoOk = fetchReleaseInfo(manifestUrl, manifestSha);
+  }
+  if (!infoOk) {
+    lastStatus = "Server degli aggiornamenti non raggiungibile";
+    Serial.println("[UPDATE] " + lastStatus);
+    return false;
+  }
+
+  String text;
+  File f;
+  downloaded = false;
+  for (int attempt = 1; attempt <= 3 && !downloaded; attempt++) {
+    if (attempt > 1) delay(3000);
+    if (sd) {
       SD.remove(MANIFEST_TMP);
-      File f = SD.open(MANIFEST_TMP, FILE_WRITE);
-      downloaded = f && httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
-        return f.write(data, len) == (size_t)len;
-      });
-      if (f) f.close();
+      f = SD.open(MANIFEST_TMP, FILE_WRITE);
+      if (!f) break;
+    } else {
+      text = "";
     }
-    if (downloaded) {
-      File in = SD.open(MANIFEST_TMP, FILE_READ);
-      parsed = in && parseManifestHeader(in, h);
-      if (in) in.close();
-    }
-  } else {
-    String text;
-    downloaded = httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    mbedtls_sha256_starts(&ctx, 0);
+    FileSession* session = new FileSession();
+    bool ok = sessionDownload(*session, manifestUrl, [&](const uint8_t* data, int len) {
+      mbedtls_sha256_update(&ctx, data, len);
+      if (sd) return f.write(data, len) == (size_t)len;
       if (text.length() + len > MAX_MANIFEST_SIZE) return false;
       text.concat((const char*)data, len);
       return true;
     });
-    parsed = downloaded && parseManifestHeader(text, h);
+    session->tls.stop();
+    delete session;
+    if (sd) f.close();
+    uint8_t digest[32];
+    mbedtls_sha256_finish(&ctx, digest);
+    mbedtls_sha256_free(&ctx);
+    if (ok && toHex(digest, 32) != manifestSha) {
+      Serial.println("[UPDATE] SHA-256 del manifest diverso da quello dichiarato da GitHub: scartato");
+      ok = false;
+    }
+    downloaded = ok;
   }
 
   if (!downloaded) {
     lastStatus = "Server degli aggiornamenti non raggiungibile";
     Serial.println("[UPDATE] " + lastStatus);
+    if (sd) SD.remove(MANIFEST_TMP);
     return false;
+  }
+  if (sd) {
+    File in = SD.open(MANIFEST_TMP, FILE_READ);
+    parsed = in && parseManifestHeader(in, h);
+    if (in) in.close();
+  } else {
+    parsed = parseManifestHeader(text, h);
   }
   if (!parsed) {
     lastStatus = "Manifest non valido";
