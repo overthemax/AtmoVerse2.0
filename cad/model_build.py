@@ -222,6 +222,26 @@ def on_desk(shape):
     return Pos(0, DEPTH, 0) * Rot(-TILT_DEG, 0, 0) * Pos(0, -DEPTH, 0) * shape
 
 
+if os.environ.get("ATMO_EXPORT"):
+    # File per la stampa, già orientati sul piatto (z = 0):
+    # - cornice a faccia in giù (il fronte appoggia sul piatto);
+    # - coperchio in piedi sul bordo inferiore: il cilindro resta orizzontale
+    #   e servono supporti solo sotto il cilindro e sotto le sponde interne.
+    from build123d import export_step, export_stl
+    out = os.environ["ATMO_EXPORT"]
+    os.makedirs(out, exist_ok=True)
+    front_print = Rot(90, 0, 0) * front
+    back_print = back
+    for name, shape in (("atmoverse-cornice", front_print), ("atmoverse-coperchio", back_print)):
+        bb = shape.bounding_box()
+        shape = Pos(-bb.min.X, -bb.min.Y, -bb.min.Z) * shape
+        export_stl(shape, os.path.join(out, name + ".stl"), tolerance=0.02, angular_tolerance=0.1)
+        export_step(shape, os.path.join(out, name + ".step"))
+        bb = shape.bounding_box()
+        print(f"{name}: {bb.size.X:.1f} x {bb.size.Y:.1f} x {bb.size.Z:.1f} mm, "
+              f"volume {shape.volume / 1000:.1f} cm3, valido {shape.is_valid}")
+    raise SystemExit(0)
+
 if os.environ.get("ATMO_EXPLODED"):
     # Vista esplosa per controllare l'interno: cornice girata di 180 gradi
     # (lato interno verso l'osservatore), coperchio affiancato

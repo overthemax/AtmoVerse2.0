@@ -2,63 +2,91 @@
 
 # AtmoVerse
 
-**Stazione meteo e-ink per la casa: ora, meteo e una citazione al giorno, su carta elettronica.**
+**An e-ink weather station for your home: time, weather and a literary quote, on electronic paper.**
 
-ESP32 · display e-ink 5,83″ · aggiornamenti automatici da GitHub
+ESP32 · 5.83″ e-ink display · battery powered · self-updating from GitHub · Italian / English
 
-<img src="docs/images/display-principale.png" width="648" alt="Schermata principale di AtmoVerse">
+<img src="docs/images/display-principale.png" width="648" alt="AtmoVerse main screen">
 
 </div>
 
 ---
 
-## Cosa fa
+## What it does
 
-- **Meteo sempre visibile.** Temperatura, percepita, umidità, vento e pressione da OpenWeatherMap, con icone disegnate per l'e-ink.
-- **Una citazione che cambia con la giornata.** Scelta in base al meteo e all'orario, oppure programmata per un giorno e un'ora precisi. Il carattere si adatta alla lunghezza, così il testo non viene mai tagliato.
-- **Configurazione dal telefono.** Al primo avvio il display mostra un codice QR: lo inquadri, il telefono si collega e si apre da sola la pagina di configurazione.
-- **Si aggiorna da solo.** Firmware, pagine web e icone arrivano dalle release di GitHub, verificati e con ritorno automatico alla versione precedente se qualcosa va storto.
-- **Continua a funzionare offline.** L'orologio RTC mantiene l'ora anche senza internet; se la rete di casa cade, AtmoVerse riprova da solo a ricollegarsi.
-- **Batteria sotto controllo.** Percentuale, carica e autonomia misurate con un sensore INA219.
+- **Weather at a glance.** Temperature, feels-like, humidity, wind and pressure from OpenWeatherMap, with icons drawn for e-ink.
+- **A literary clock.** At many minutes of the day it shows a quote from a book that mentions that exact time. Otherwise it picks a quote that suits the weather and the time of day, or one you scheduled for a given day and hour. The font adapts to the length, so quotes are never cut.
+- **Setup from your phone.** On first start the display shows a QR code: scan it, the phone joins AtmoVerse's network and the setup page opens by itself.
+- **Updates itself.** Firmware, web pages and icons come from GitHub releases, each file verified with SHA-256, with automatic rollback if a new firmware fails to start.
+- **Lasts on battery.** On battery the WiFi is switched on only when needed and the board sleeps between minute refreshes. Touching a case screw wakes the web page for 10 minutes.
+- **Two languages.** Display and web pages in Italian or English, chosen in the settings.
+- **Keeps working offline.** A DS3231 real-time clock keeps the time without internet; if the home network drops, AtmoVerse reconnects by itself.
 
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/images/display-configurazione.png" alt="Schermata di configurazione con codice QR"><br>
-      <sub><b>Prima configurazione</b> · inquadra il QR e segui i tre passi</sub>
+      <img src="docs/images/display-configurazione.png" alt="Setup screen with QR code"><br>
+      <sub><b>First setup</b> · scan the QR code and follow three steps</sub>
     </td>
     <td align="center" width="50%">
-      <img src="docs/images/display-citazione-lunga.png" alt="Citazione lunga con carattere adattivo"><br>
-      <sub><b>Carattere adattivo</b> · le citazioni lunghe restano intere</sub>
+      <img src="docs/images/display-citazione-lunga.png" alt="Long quote with adaptive font"><br>
+      <sub><b>Adaptive font</b> · long quotes stay whole</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/display-aggiornamento.png" alt="Update in progress screen"><br>
+      <sub><b>Updates</b> · progress, files and remaining time</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/display-batteria-scarica.png" alt="Empty battery screen"><br>
+      <sub><b>Battery empty</b> · the board sleeps until it is charged</sub>
     </td>
   </tr>
 </table>
 
-<sub>Le immagini sono generate dal codice con i font reali del display (<code>tools/anteprima_display.py</code>); dati di esempio.</sub>
+<sub>Images are rendered from the code with the display's real fonts (<code>tools/anteprima_display.py</code>), with sample data, in Italian.</sub>
 
 ---
 
 ## Hardware
 
-| Componente | Modello | Collegamento |
+| Part | Model | Connection |
 |---|---|---|
-| Scheda | WEMOS LOLIN32 (ESP32, 4 MB flash) | — |
-| Display | e-ink 5,83″ 648×480, GDEW0583T8 | SPI (VSPI): BUSY 4 · RST 16 · DC 17 · CS 5 · SCK 18 · MOSI 23 |
-| Scheda SD | microSD FAT32 | SPI (HSPI): CS 14 · SCK 27 · MOSI 26 · MISO 25 |
-| Orologio | DS3231 | I²C (Wire1): SDA 13 · SCL 15 |
-| Batteria | 2 celle LiPo 3500 mAh in parallelo | misurate da INA219 su I²C (Wire): SDA 32 · SCL 33, indirizzo 0x41 |
+| Board | WEMOS LOLIN32 (ESP32, 4 MB flash) | — |
+| Display | 5.83″ e-ink 648×480, GDEW0583T8 (bare panel + driver board) | SPI (VSPI): BUSY 4 · RST 16 · DC 17 · CS 5 · SCK 18 · MOSI 23 |
+| SD card | microSD FAT32 module | SPI (HSPI): CS 14 · SCK 27 · MOSI 26 · MISO 25 |
+| Clock | DS3231 | I²C (Wire1): SDA 13 · SCL 15 |
+| Battery | LiPo pack, 2 × 3500 mAh in parallel (66 × 43 × 13 mm) | measured by INA219 on I²C (Wire): SDA 32 · SCL 33, address 0x41 |
+| Touch button | a case screw wired to GPIO2 (touch T2) | ring terminal under the screw |
+
+### Case
+
+A two-part desk case with soft rounded lines and a cylindrical stand that tilts the display by 15°. The front frame holds the panel; the back cover carries the stand and cradles for the battery and modules, and closes with four M3 screws into heat-set inserts.
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/images/case.png" alt="Case on the desk"><br><sub><b>On the desk</b></sub></td>
+    <td align="center" width="50%"><img src="docs/images/case-inside.png" alt="Case exploded view"><br><sub><b>Inside</b> · frame and back cover</sub></td>
+  </tr>
+</table>
+
+- Print-ready files: [`cad/stampa/`](cad/stampa) (STL and STEP). Print the frame face down; print the back cover standing on its bottom edge, with supports under the cylinder.
+- Parametric source: [`cad/model_build.py`](cad/model_build.py) (build123d).
+- Hardware: 4 × M3 screws, 4 × M3 heat-set inserts (Ø 4 mm), one M3 ring terminal for the touch screw.
+- The e-paper driver board size is still a placeholder (45 × 30 mm): adjust `DRV_W`, `DRV_H` in the source.
 
 ---
 
-## Installazione
+## Installation
 
-### 1. Primo caricamento del firmware (una sola volta)
+### 1. First firmware upload (once)
 
-Serve un solo caricamento via USB: da lì in poi AtmoVerse si aggiorna da solo.
+One USB upload is enough: from then on AtmoVerse updates itself.
 
-Requisiti: [Arduino CLI](https://arduino.github.io/arduino-cli/) o Arduino IDE con core **esp32 3.3.8** e le librerie
+Requirements: [Arduino CLI](https://arduino.github.io/arduino-cli/) or Arduino IDE with **esp32 core 3.3.8** and these libraries:
 
-| Libreria | Versione |
+| Library | Version |
 |---|---|
 | GxEPD2 | 1.6.9 |
 | Adafruit GFX Library · Adafruit BusIO | 1.12.6 · 1.17.4 |
@@ -67,134 +95,165 @@ Requisiti: [Arduino CLI](https://arduino.github.io/arduino-cli/) o Arduino IDE c
 | RTClib | 2.1.4 |
 | Adafruit INA219 | 1.2.3 |
 
-Collega la scheda e lancia, da PowerShell nella cartella del progetto:
+Connect the board and run, from PowerShell in the project folder:
 
 ```powershell
 .\upload_lolin32_bigapp.ps1 -Port COM4
 ```
 
-Lo script usa `partitions.csv`, che divide la memoria in due aree da 1,9 MB: servono agli aggiornamenti automatici.
+The script uses `partitions.csv`, which splits the flash into two 1.9 MB app slots needed by the automatic updates.
 
-### 2. Scheda SD
+### 2. SD card
 
-Basta una microSD formattata FAT32, anche vuota: pagine web, icone e font vengono scaricati da GitHub al primo collegamento.
+Any FAT32 microSD, even empty: web pages, icons and fonts are downloaded from GitHub the first time AtmoVerse goes online.
 
-### 3. Prima configurazione
+### 3. First setup
 
-1. Accendi AtmoVerse: senza una rete configurata mostra la schermata con il codice QR.
-2. Inquadra il QR con la fotocamera del telefono. Il telefono si collega alla rete `AtmoVerse_AP_xxxx` e si apre la pagina di configurazione (altrimenti apri `http://192.168.4.1`).
-3. Inserisci rete WiFi di casa, città e [API key di OpenWeatherMap](https://openweathermap.org/api) (gratuita) e tocca **Salva**.
+1. Switch AtmoVerse on: with no network configured it shows the QR code screen.
+2. Scan the QR code with your phone camera. The phone joins `AtmoVerse_AP_xxxx` and the setup page opens (otherwise open `http://192.168.4.1`).
+3. Enter your home WiFi, your city and an [OpenWeatherMap API key](https://openweathermap.org/api) (free), then tap **Save**.
 
-AtmoVerse si riavvia, si collega, scarica ciò che manca e mostra il meteo.
+AtmoVerse restarts, connects, downloads what is missing and shows the weather. The interface language can be changed later in **Settings → Language**.
 
 ---
 
-## Citazioni
+## Quotes
 
-Le citazioni sono in `quotes.json` sulla SD e si modificano dall'editor web (`/quotes-editor.html`). Per ogni aggiornamento del display la citazione viene scelta così:
+For every display refresh the quote is chosen in this order:
 
-1. **Programmata**, se ce n'è una attiva: con ora, durata, giorni della settimana o data (ogni anno o una volta sola).
-2. **A orario**: una frase che cita l'ora attuale, dai file `/orari/00.txt … 23.txt` (facoltativi).
-3. **Meteo**: una citazione adatta al tempo e al momento della giornata.
+1. **Scheduled**, if one is active: with a start time and duration, days of the week, or a date (every year or once).
+2. **Literary clock**: a quote that mentions the current time, from `/orari/00.txt … 23.txt` on the SD card (optional).
+3. **Weather**: a quote that suits the weather and the time of day.
 
-Esempio di citazione programmata in `quotes.json`:
+Everything is edited from the web editor (`/quotes-editor.html`), which has two tabs:
+
+- **Weather and scheduled** — the quotes in `quotes.json`.
+- **Literary clock** — one hour at a time, with the covered minutes for each hour and a warning on quotes too long for the display (checked by the board with the real fonts).
+
+Example of a scheduled quote in `quotes.json`:
 
 ```json
 "programmate": [
-  { "text": "Buongiorno! Ogni mattina è una pagina bianca.", "author": "Anonimo",
+  { "text": "Good morning! Every morning is a blank page.", "author": "Anonymous",
     "ora": "07:00", "durata": 90, "giorni": "lun,mar,mer,gio,ven" }
 ]
 ```
 
-I file `/orari` si generano da un CSV `HH:MM|frase|testo|opera|autore` e restano solo sulla SD, fuori dal repository:
+The `/orari` files can also be generated from a CSV `HH:MM|phrase|text|work|author`. They live on the SD card only and are never part of the repository or of the updates:
 
 ```bash
-python tools/prepara_citazioni_orarie.py citazioni.csv E:/
+python tools/prepara_citazioni_orarie.py quotes.csv E:/
 ```
 
 ---
 
-## Aggiornamenti automatici
+## Power
 
-All'avvio e ogni 6 ore AtmoVerse legge `manifest.json` dall'ultima release e scarica solo ciò che è cambiato.
+| Power source | Behaviour |
+|---|---|
+| **Charger connected** | Everything always on: WiFi, web page, display refresh every minute. |
+| **Battery** | WiFi off except for short windows: weather and time every 30 minutes, update check every 6 hours. Between minute refreshes the ESP32 is in light sleep. |
+| **Battery, after a touch** | Touching the screw wakes the board: WiFi and web page stay on for 10 minutes, extended by every request. A WiFi icon next to the city shows when the WiFi is on. |
 
-- **File della SD** (`sd_files/`): verificati con SHA-256, preparati in `/upd` e applicati tutti insieme, anche dopo un'interruzione.
-- **Firmware**: scritto nella seconda area di memoria. Se la nuova versione non supera i primi 60 secondi, il bootloader torna a quella precedente e la versione difettosa non viene più scaricata.
-- **File personali** (configurazione, `quotes.json`, `layout.json`, `/orari`): mai sovrascritti.
+Plugging or unplugging the charger is detected within 2 seconds. The touch threshold is recalibrated at every change of power source, and false touches are ignored.
 
-Tutti i download avvengono in HTTPS con verifica del certificato del server.
-
-### Pubblicare una nuova versione
-
-```bash
-git tag v2.1.1
-git push origin v2.1.1
-```
-
-La GitHub Action [`release.yml`](.github/workflows/release.yml) compila il firmware, genera il manifest con [`tools/make_manifest.py`](tools/make_manifest.py) e pubblica la release. I dispositivi la installano al controllo successivo, oppure subito con **Controlla ora** nella pagina Info.
+Battery levels: a warning in the footer at 15%, and at 5% the display shows an empty-battery screen and the board sleeps, checking every 30 minutes until it is charged. A new firmware is not installed below 25% unless the charger is connected.
 
 ---
 
-## Interfaccia web
+## Automatic updates
 
-Raggiungibile all'indirizzo IP mostrato in basso sul display (in configurazione: `http://192.168.4.1`). Pensata prima di tutto per lo smartphone.
+At start-up and every 6 hours AtmoVerse checks the latest release and downloads only what changed.
+
+- **Chain of trust.** The release information comes from `api.github.com` with a verified certificate, including the SHA-256 of `manifest.json`. The manifest is accepted only if its hash matches, and it carries the SHA-256 of the firmware and of every SD file. GitHub serves release files from a CDN whose Let's Encrypt "Root YR" chain the ESP32 certificate bundle cannot verify, so those downloads are encrypted but checked by hash instead.
+- **SD files** (`sd_files/`): prepared in `/upd` and applied all together, even after an interruption. The release the SD card matches is remembered, so the periodic check skips re-hashing every file (a manual check from the web page always does the full check).
+- **Firmware**: written to the second app slot, 3 attempts. If the new version does not survive its first 60 seconds, the bootloader goes back to the previous one and the faulty version is never downloaded again.
+- **Personal files** (settings, `quotes.json`, `layout.json`, `/orari`): never overwritten.
+- If the SD card is full, the display explains how much space is needed.
+
+### Publishing a new version
+
+```bash
+git tag v2.1.11
+git push origin v2.1.11
+```
+
+The GitHub Action [`release.yml`](.github/workflows/release.yml) builds the firmware, generates the manifest with [`tools/make_manifest.py`](tools/make_manifest.py) and publishes the release. Devices install it at their next check, or immediately with **Settings → Check for updates**.
+
+---
+
+## Web interface
+
+Reachable at the IP address shown at the bottom of the display (during setup: `http://192.168.4.1`). Designed for smartphones first. The pages are written in Italian and translated to English by [`sd_files/www/i18n.js`](sd_files/www/i18n.js) when English is selected.
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/images/web-index.png" alt="Home con meteo e citazione"><br><sub><b>Home</b></sub></td>
-    <td align="center" width="33%"><img src="docs/images/web-settings.png" alt="Impostazioni"><br><sub><b>Impostazioni</b></sub></td>
-    <td align="center" width="33%"><img src="docs/images/web-quotes-editor.png" alt="Editor delle citazioni"><br><sub><b>Citazioni</b></sub></td>
+    <td align="center" width="33%"><img src="docs/images/web-index.png" alt="Home with weather and quote"><br><sub><b>Home</b></sub></td>
+    <td align="center" width="33%"><img src="docs/images/web-settings.png" alt="Settings"><br><sub><b>Settings</b></sub></td>
+    <td align="center" width="33%"><img src="docs/images/web-quotes-editor.png" alt="Quote editor"><br><sub><b>Quotes</b></sub></td>
   </tr>
 </table>
 
-| API | Descrizione |
+| API | Description |
 |---|---|
-| `GET /api/weather` | Dati meteo correnti |
-| `GET/POST /api/settings` | Legge o salva la configurazione. L'API key non viene mai restituita; password e API key lasciate vuote restano invariate |
-| `GET /api/wifi-scan` | Reti WiFi visibili |
-| `GET/POST /api/quotes` | Legge o salva le citazioni |
-| `POST /api/update/check` | Controlla subito gli aggiornamenti |
+| `GET /api/weather` | Current weather |
+| `GET/POST /api/settings` | Read or save the settings. The API key is never returned; an empty password or API key keeps the stored one |
+| `GET /api/wifi/scan` | Visible WiFi networks |
+| `GET/POST /api/quotes` | Read or save the weather and scheduled quotes |
+| `GET /api/orari` | Literary clock summary: quotes and covered minutes per hour |
+| `GET /api/orari?h=8` · `?h=8&fit=1` | One hour of the literary clock, or which of its quotes fit the display |
+| `POST /api/orari?h=8` | Save one hour (plain text, max 64 KB, written via a temporary file) |
+| `GET /api/battery` | Voltage, current, percentage, charging |
+| `POST /api/update/check` | Check for updates now |
 
-> L'interfaccia web non ha una password: chiunque sia collegato alla rete di casa può modificare le impostazioni. Usa AtmoVerse solo su reti di cui ti fidi.
+> The web interface has no password: anyone on your home network can change the settings. Use AtmoVerse only on networks you trust.
 
 ---
 
-## Architettura
+## Architecture
 
-L'ESP32 ha due core, usati così:
+The ESP32's two cores are used like this:
 
-| Core | Cosa esegue |
+| Core | Runs |
 |---|---|
-| **Core 1** · loop principale | Web server e captive portal, meteo, aggiornamenti, citazioni, batteria, RTC, accesso alla SD |
-| **Core 0** · task del display | Disegno e refresh del pannello e-ink (circa 4 s), a bassa priorità accanto allo stack WiFi |
+| **Core 1** · main loop | Web server and captive portal, weather, updates, quotes, battery, RTC, SD card, power management |
+| **Core 0** · display task | Drawing and refreshing the e-ink panel (about 4.5 s), at low priority next to the WiFi stack |
 
-Il loop prepara una "fotografia" della schermata (dati, citazione, icona già letta dalla SD) e la consegna al task del display, poi torna subito a servire la rete: durante un refresh l'interfaccia web continua a rispondere. Il task del display non accede mai alla SD né alla rete; l'unico dato condiviso è la schermata in attesa, protetta da un mutex.
+The loop prepares a snapshot of the screen (data, quote, icon already read from the SD card) and hands it to the display task, then goes straight back to the network: the web page keeps answering during a refresh. The display task never touches the SD card or the network; the only shared data is the pending screen, protected by a mutex. The display and the SD card use separate SPI buses, so they really work in parallel.
 
-## Struttura del progetto
+The CPU runs at 80 MHz, downloads included: raising it to 240 MHz during downloads made the HTTPS connections fail.
 
-| File | Contenuto |
+## Project layout
+
+| File | Contents |
 |---|---|
-| `AtmoVerse_2.0.ino` | Avvio, loop principale, rete e aggiornamenti periodici |
-| `DisplayTask.cpp` | Task del display sul core 0 e consegna delle schermate |
-| `Screens.cpp` | Schermate del display: layout, tipografia, citazione adattiva |
-| `Display.cpp` | Preparazione delle schermate nel loop (dati, citazione, icona) |
-| `Updater.cpp` | Aggiornamento automatico da GitHub con rollback |
-| `WeatherUtils.cpp` | Meteo da OpenWeatherMap (HTTPS) |
-| `QuotesManager.cpp` | Scelta delle citazioni |
-| `WebServer.cpp` · `WebMinimal.cpp` | Interfaccia web, API e pagina di configurazione minima nel firmware |
-| `NetworkUtils.cpp` | WiFi, modalità AP, fuso orario |
-| `BatteryManager.cpp` · `RTCManager.cpp` | Batteria (INA219) e orologio (DS3231) |
-| `sd_files/` | Contenuto della SD distribuito con gli aggiornamenti |
-| `tools/` | Anteprima del display, manifest, citazioni a orario |
+| `AtmoVerse_2.0.ino` | Start-up, main loop, network and periodic tasks |
+| `DisplayTask.cpp` | Display task on core 0 |
+| `Screens.cpp` | Display screens: layout, typography, adaptive quote, WiFi icon |
+| `Display.cpp` | Building the screens in the loop (data, quote, icon) |
+| `EcoPower.cpp` | Battery power saving, WiFi windows, light sleep, touch button |
+| `Language.cpp` | Interface language |
+| `Updater.cpp` | Automatic updates from GitHub with rollback |
+| `WeatherUtils.cpp` | Weather from OpenWeatherMap (HTTPS) |
+| `QuotesManager.cpp` | Quote selection |
+| `QRCodeHelper.cpp` | QR codes with the ESP-IDF `esp_qrcode` component |
+| `WebServer.cpp` · `WebMinimal.cpp` | Web interface, API and the minimal setup page built into the firmware |
+| `NetworkUtils.cpp` | WiFi, access point mode, time zone |
+| `BatteryManager.cpp` · `RTCManager.cpp` | Battery (INA219) and clock (DS3231) |
+| `sd_files/` | SD card contents distributed with the updates |
+| `cad/` | Case source and print files |
+| `tools/` | Display previews, manifest, literary clock files |
 
 ---
 
-## Crediti
+## Credits
 
-- Icone meteo: [Weather Icons](https://erikflowers.github.io/weather-icons/) di Erik Flowers (SIL OFL 1.1), convertite in bitmap per l'e-ink.
-- Caratteri: FreeUniversal e Lucida Sans tramite [U8g2](https://github.com/olikraus/u8g2).
-- Dati meteo: [OpenWeatherMap](https://openweathermap.org).
+- Weather icons: [Weather Icons](https://erikflowers.github.io/weather-icons/) by Erik Flowers (SIL OFL 1.1), converted to bitmaps for e-ink.
+- Fonts: FreeUniversal and Lucida Sans through [U8g2](https://github.com/olikraus/u8g2).
+- Weather data: [OpenWeatherMap](https://openweathermap.org).
+- Case modelled with [build123d](https://github.com/gumyr/build123d) and [Amagine3D](https://github.com/amagine-ai/Amagine3D).
+- Design inspired by literary clocks such as [Author Clock](https://www.authorandco.com/).
 
-## Licenza
+## License
 
 [MIT](LICENSE) © overthemax
