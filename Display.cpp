@@ -187,7 +187,8 @@ void updateDisplay() {
   m.weatherUpdateOk = lastWeatherUpdateSuccess;
   m.city = config.city;
   m.metric = strlen(config.units) == 0 || strcmp(config.units, "metric") == 0;
-  if (WiFi.status() == WL_CONNECTED) m.ip = WiFi.localIP().toString();
+  m.wifiOn = WiFi.status() == WL_CONNECTED;
+  if (m.wifiOn) m.ip = WiFi.localIP().toString();
 
   // Citazione e icona si leggono dalla SD qui, nel loop: il task del display
   // non accede mai alla SD

@@ -24,6 +24,8 @@ static ScreenModel renderModel;
 static bool hasPending = false;
 static volatile bool rendering = false;
 
+// Sempre refresh completo: provato il refresh parziale (2.1.7), su questo
+// pannello il risultato non era buono
 static void renderScreen(const ScreenModel& m) {
   display.setFullWindow();
   display.firstPage();
@@ -37,6 +39,7 @@ static void renderScreen(const ScreenModel& m) {
       case SCREEN_BATTERY: drawBatteryScreen(m); break;
     }
   } while (display.nextPage());
+  display.powerOff();  // Pannello non alimentato tra un aggiornamento e l'altro
 }
 
 static void displayTask(void*) {

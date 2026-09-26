@@ -318,6 +318,9 @@ static void reportProgress(bool force = false) {
 // cifrata ma senza verifica del certificato: l'integrità è garantita dallo
 // SHA-256 di ogni file, letto dal manifest scaricato da github.com con
 // certificato verificato. Un file alterato viene scartato.
+// Dal 2026 anche il firmware delle release arriva da un CDN con la stessa
+// catena (release-assets.githubusercontent.com): stessa soluzione, il firmware
+// si avvia solo se dimensione e SHA-256 coincidono con il manifest.
 struct FileSession {
   WiFiClientSecure tls;
   HTTPClient http;
@@ -325,6 +328,8 @@ struct FileSession {
     tls.setInsecure();
     http.setReuse(true);  // Stessa connessione per tutti i file (un solo handshake)
     http.setTimeout(20000);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);  // github.com -> CDN
+    http.setUserAgent("AtmoVerse/" ATMOVERSE_VERSION);
   }
 };
 
@@ -406,35 +411,47 @@ static bool downloadToFile(FileSession* session, const String& url, const String
 
 // Scrive il firmware nella seconda area del flash; la imposta come area di
 // avvio solo se dimensione e SHA-256 corrispondono al manifest
+static const int FIRMWARE_ATTEMPTS = 3;
+
 static bool downloadFirmware(const String& url, size_t size, const String& expectedSha) {
-  if (!Update.begin(size)) {
-    Serial.println("[UPDATE] Spazio insufficiente per il firmware");
-    return false;
-  }
+  for (int attempt = 1; attempt <= FIRMWARE_ATTEMPTS; attempt++) {
+    if (!Update.begin(size)) {
+      Serial.println("[UPDATE] Spazio insufficiente per il firmware");
+      return false;
+    }
 
-  mbedtls_sha256_context ctx;
-  mbedtls_sha256_init(&ctx);
-  mbedtls_sha256_starts(&ctx, 0);
-  size_t total = 0;
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    mbedtls_sha256_starts(&ctx, 0);
+    size_t total = 0;
+    progress.bytesDone = 0;
 
-  bool ok = httpDownload(url, [&](const uint8_t* data, int len) {
-    mbedtls_sha256_update(&ctx, data, len);
-    total += len;
-    progress.bytesDone = total;
-    reportProgress();
-    return Update.write((uint8_t*)data, len) == (size_t)len;
-  });
+    // Connessione senza verifica del certificato (vedi FileSession): conta lo SHA-256
+    FileSession* session = new FileSession();
+    bool ok = sessionDownload(*session, url, [&](const uint8_t* data, int len) {
+      mbedtls_sha256_update(&ctx, data, len);
+      total += len;
+      progress.bytesDone = total;
+      reportProgress();
+      return Update.write((uint8_t*)data, len) == (size_t)len;
+    });
+    session->tls.stop();
+    delete session;
 
-  uint8_t digest[32];
-  mbedtls_sha256_finish(&ctx, digest);
-  mbedtls_sha256_free(&ctx);
+    uint8_t digest[32];
+    mbedtls_sha256_finish(&ctx, digest);
+    mbedtls_sha256_free(&ctx);
 
-  if (!ok || total != size || toHex(digest, 32) != expectedSha) {
-    Serial.println("[UPDATE] Firmware non valido, installazione annullata");
+    if (ok && total == size && toHex(digest, 32) == expectedSha) {
+      return Update.end();
+    }
+    Serial.printf("[UPDATE] Firmware non valido (tentativo %d/%d, %u di %u byte)\n", attempt,
+                  FIRMWARE_ATTEMPTS, (unsigned)total, (unsigned)size);
     Update.abort();
-    return false;
+    if (attempt < FIRMWARE_ATTEMPTS) delay(3000 * attempt);
   }
-  return Update.end();
+  Serial.println("[UPDATE] Firmware non valido, installazione annullata");
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -712,12 +729,18 @@ bool checkForUpdates(bool fullScan) {
   bool downloaded;
   bool parsed = false;
   if (sd) {
-    SD.remove(MANIFEST_TMP);
-    File f = SD.open(MANIFEST_TMP, FILE_WRITE);
-    downloaded = f && httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
-      return f.write(data, len) == (size_t)len;
-    });
-    if (f) f.close();
+    // Il manifest resta scaricato con certificato verificato (porta gli SHA-256
+    // di tutto il resto); la prima connessione TLS fallisce spesso: 3 tentativi
+    downloaded = false;
+    for (int attempt = 1; attempt <= 3 && !downloaded; attempt++) {
+      if (attempt > 1) delay(3000);
+      SD.remove(MANIFEST_TMP);
+      File f = SD.open(MANIFEST_TMP, FILE_WRITE);
+      downloaded = f && httpDownload(ATMOVERSE_UPDATE_MANIFEST_URL, [&](const uint8_t* data, int len) {
+        return f.write(data, len) == (size_t)len;
+      });
+      if (f) f.close();
+    }
     if (downloaded) {
       File in = SD.open(MANIFEST_TMP, FILE_READ);
       parsed = in && parseManifestHeader(in, h);

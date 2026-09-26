@@ -291,6 +291,19 @@ static void iconInkRows(const ScreenModel& m, int& first, int& last) {
   }
 }
 
+static void thickArc(int cx, int cy, int r, int fromDeg, int toDeg, int thickness);
+
+// Icona WiFi: punto e due archi a ventaglio. (x, baseline) = angolo in basso a
+// sinistra, alta circa quanto il testo dell'intestazione. Restituisce la larghezza.
+static int drawWifiIcon(int x, int baseline) {
+  const int size = 18;
+  int cx = x + size / 2, cy = baseline - 1;
+  display.fillCircle(cx, cy - 1, 2, GxEPD_BLACK);
+  thickArc(cx, cy, 8, 225, 315, 2);
+  thickArc(cx, cy, 14, 225, 315, 2);
+  return size;
+}
+
 void drawMainScreen(const ScreenModel& m) {
   initText(u8g2);
   const int W = display.width();
@@ -309,7 +322,10 @@ void drawMainScreen(const ScreenModel& m) {
     textLeft(MARGIN, 44, String(DAYS[t.tm_wday]) + " " + String(t.tm_mday) + " " + MONTHS[t.tm_mon]);
   }
   u8g2.setFont(FONT_BODY);
-  textRight(W - MARGIN, 44, displayText(m.city));
+  String city = displayText(m.city);
+  textRight(W - MARGIN, 44, city);
+  // WiFi acceso: icona a sinistra della città
+  if (m.wifiOn) drawWifiIcon(W - MARGIN - textWidth(city) - 12 - 18, 44);
   display.drawFastHLine(MARGIN, 60, W - 2 * MARGIN, GxEPD_BLACK);
 
   // Ora
