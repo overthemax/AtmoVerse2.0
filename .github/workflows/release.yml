@@ -33,7 +33,7 @@ jobs:
           arduino-cli core update-index --additional-urls "$URL"
           arduino-cli core install esp32:esp32@3.3.8 --additional-urls "$URL"
           arduino-cli lib install "GxEPD2@1.6.9" "ArduinoJson@7.4.3" "RTClib@2.1.4" \
-            "Adafruit INA219@1.2.3" "Adafruit GFX Library@1.12.6" "Adafruit BusIO@1.17.4"
+            "Adafruit INA219@1.2.3" "Adafruit GFX Library@1.12.6" "Adafruit BusIO@1.17.4" \n            "U8g2_for_Adafruit_GFX@1.8.0"
 
       - name: Imposta la versione dal tag
         working-directory: AtmoVerse_2.0
