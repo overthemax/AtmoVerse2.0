@@ -476,6 +476,12 @@ void handleClientRequests() {
     dnsServer.processNextRequest();
   }
   
+  // WiFi spento dal risparmio energetico: le strutture di rete sono state
+  // liberate e interrogare il server manderebbe in crash la scheda
+  if (!apMode && WiFi.getMode() == WIFI_OFF) {
+    return;
+  }
+
   // Verifica se ci sono client che si connettono
   WiFiClient client = server.available();
   if (!client) {

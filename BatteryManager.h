@@ -32,6 +32,10 @@
 // Soglia di corrente (mA) oltre la quale la batteria è in carica/scarica
 #define BATTERY_CURRENT_THRESHOLD_MA 20.0f
 
+// Sotto questa corrente di scarica (mA) la scheda è alimentata dal caricatore
+// anche se la batteria, piena, non assorbe più corrente
+#define BATTERY_EXTERNAL_POWER_MAX_MA 8.0f
+
 // Livelli di avviso (con isteresi, calcolati sulla tensione a riposo filtrata).
 // Con la curva della batteria: 15% ~ 3,55 V, 5% ~ 3,44 V.
 #define BATTERY_LOW_PERCENT            15  // Avviso nel piè di pagina

@@ -131,13 +131,15 @@ void BatteryManager::measure() {
 
 void BatteryManager::detectChargingState() {
     // current_mA è positiva in scarica e negativa in carica (vedi readINA219)
-    if (current_mA < -BATTERY_CURRENT_THRESHOLD_MA) {
+    // "In carica" qui significa alimentata dal caricatore. A batteria la scheda
+    // sveglia assorbe sempre più di 20 mA: una corrente quasi nulla (o negativa)
+    // vuol dire che il caricatore è collegato, anche a carica terminata.
+    if (current_mA < BATTERY_EXTERNAL_POWER_MAX_MA) {
         isCharging = true;
     } else if (current_mA > BATTERY_CURRENT_THRESHOLD_MA) {
         isCharging = false;
     }
-    // Corrente vicina a zero: si mantiene lo stato precedente
-    // (a fine carica la corrente scende quasi a zero ma il caricatore è collegato)
+    // Tra le due soglie si mantiene lo stato precedente
 }
 
 int BatteryManager::getEstimatedTimeRemaining() {

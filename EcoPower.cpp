@@ -108,6 +108,7 @@ void ecoWiFiOffIfIdle() {
   if (WiFi.status() == WL_CONNECTED && millis() - wifiOnSince < WIFI_MIN_ON_MS) return;
   webWindow = false;
   Serial.println("[ECO] WiFi spento");
+  server.end();  // Chiude il server prima che la rete venga smontata
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
 }
