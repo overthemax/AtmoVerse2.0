@@ -241,6 +241,89 @@ def setup_screen(out):
     print(out)
 
 
+def update_screen(out, phase, done, total, pct, eta):
+    img = Image.new("1", (W, H), 1)
+    d = ImageDraw.Draw(img)
+    left(img, "fur20_tf", MARGIN, 52, "Aggiornamento in corso")
+    left(img, "luRS12_tf", MARGIN, 80, "AtmoVerse sta installando una nuova versione.")
+    hline(d, 96)
+    left(img, "luRS14_tf", MARGIN, 160, phase)
+    right(img, "fur35_tf", W - MARGIN, 172, f"{pct}%")
+    bar_y, bar_h, bar_w = 196, 22, W - 2 * MARGIN
+    d.rectangle([MARGIN, bar_y, MARGIN + bar_w - 1, bar_y + bar_h - 1], outline=0)
+    fill = (bar_w - 6) * pct // 100
+    if fill:
+        d.rectangle([MARGIN + 3, bar_y + 3, MARGIN + 2 + fill, bar_y + bar_h - 4], fill=0)
+    y = bar_y + bar_h + 36
+    if total:
+        left(img, "luRS12_tf", MARGIN, y, f"{done} di {total} file scaricati")
+        y += F["luRS12_tf"].line_height() + 4
+    left(img, "luRS12_tf", MARGIN, y, "Meno di un minuto" if eta < 60 else f"Circa {round(eta / 60)} minuti")
+    left(img, "luRS12_tf", MARGIN, H - 64, "Non spegnere il dispositivo:")
+    left(img, "luRS12_tf", MARGIN, H - 64 + F["luRS12_tf"].line_height(), "al termine si riavvia o torna al meteo da solo.")
+    left(img, "luRS08_tf", MARGIN, H - 12, "La schermata si aggiorna a ogni 10% di avanzamento.")
+    draw_battery(img, d, W - MARGIN, H - 12, 83, charging=True)
+    img.save(out)
+    print(out)
+
+
+def battery_screen(out, pct=4):
+    """Stessa geometria di drawTiredFace/drawBatteryScreen in Screens.cpp."""
+    import math
+    img = Image.new("1", (W, H), 1)
+    d = ImageDraw.Draw(img)
+
+    def dot(x, y, r):
+        d.ellipse([x - r, y - r, x + r, y + r], fill=0)
+
+    def tline(x0, y0, x1, y1, th):
+        steps = max(abs(x1 - x0), abs(y1 - y0), 1)
+        for i in range(steps + 1):
+            dot(x0 + (x1 - x0) * i // steps, y0 + (y1 - y0) * i // steps, th // 2)
+
+    def tarc(cx, cy, r, a0, a1, th):
+        for a in range(a0, a1 + 1, 2):
+            dot(cx + round(r * math.cos(math.radians(a))), cy + round(r * math.sin(math.radians(a))), th // 2)
+
+    cx, cy, r = W // 2, 150, 92
+    for i in range(4):
+        d.ellipse([cx - r + i, cy - r + i, cx + r - i, cy + r - i], outline=0)
+    eye_dx, eye_y, eye_w = r * 36 // 100, cy - r * 12 // 100, r * 22 // 100
+    for side in (-1, 1):
+        ex = cx + side * eye_dx
+        tline(ex - eye_w, eye_y, ex + eye_w, eye_y, 5)
+        pr = eye_w * 55 // 100
+        d.ellipse([ex - pr, eye_y + 2 - pr, ex + pr, eye_y + 2 + pr], fill=0)
+        d.rectangle([ex - eye_w, eye_y - eye_w, ex + eye_w, eye_y - 1], fill=1)
+        tline(ex - eye_w, eye_y, ex + eye_w, eye_y, 5)
+        tarc(ex, eye_y + eye_w * 40 // 100, eye_w * 85 // 100, 35, 145, 3)
+        by = eye_y - r * 26 // 100
+        tline(ex - side * eye_w, by - 6, ex + side * eye_w, by + 4, 5)
+    mouth_y, mouth_w = cy + r * 40 // 100, r * 34 // 100
+    px, py = cx - mouth_w, mouth_y
+    for x in range(cx - mouth_w, cx + mouth_w + 1, 2):
+        y = mouth_y + round(3 * math.sin((x - cx) * math.pi / mouth_w))
+        tline(px, py, x, y, 5)
+        px, py = x, y
+    sx, sy = cx + r * 78 // 100, cy - r * 48 // 100
+    d.ellipse([sx - 8, sy, sx + 8, sy + 16], fill=0)
+    d.polygon([(sx - 7, sy + 5), (sx + 7, sy + 5), (sx, sy - 12)], fill=0)
+
+    center(img, "fur20_tf", W // 2, 300, "Batteria scarica")
+    center(img, "luRS12_tf", W // 2, 336, "Collega il caricatore:")
+    center(img, "luRS12_tf", W // 2, 336 + F["luRS12_tf"].line_height(), "AtmoVerse ripartirà da solo.")
+    bw, bh = 64, 28
+    bx, by = W // 2 - bw // 2 - 20, 392
+    d.rectangle([bx, by, bx + bw - 1, by + bh - 1], outline=0)
+    d.rectangle([bx + 1, by + 1, bx + bw - 2, by + bh - 2], outline=0)
+    d.rectangle([bx + bw, by + 8, bx + bw + 4, by + bh - 9], fill=0)
+    fill = max((bw - 8) * pct // 100, 2)
+    d.rectangle([bx + 4, by + 4, bx + 3 + fill, by + bh - 5], fill=0)
+    left(img, "luBS14_tf", bx + bw + 14, by + 21, f"{pct}%")
+    img.save(out)
+    print(out)
+
+
 if __name__ == "__main__":
     outdir = sys.argv[1]
     Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -250,3 +333,5 @@ if __name__ == "__main__":
                 "and with a muffler wrapped round his throat, crept quietly out of his house.",
                 "Oscar Wilde, The Picture of Dorian Gray", f"{outdir}/display-citazione-lunga.png")
     setup_screen(f"{outdir}/display-configurazione.png")
+    battery_screen(f"{outdir}/display-batteria-scarica.png")
+    update_screen(f"{outdir}/display-aggiornamento.png", "File della SD", 98, 226, 43, 250)

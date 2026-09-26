@@ -38,6 +38,11 @@ void markFirmwareHealthy();
 // Esito dell'ultimo controllo, mostrato nella pagina Info
 String getUpdateStatusText();
 
+// Problema che richiede un intervento (es. SD piena), mostrato nel piè di
+// pagina del display finché un controllo successivo non va a buon fine.
+// Vuoto se non ci sono problemi.
+String getUpdateNotice();
+
 // GET HTTPS con certificato del server verificato (bundle di certificati
 // radice di ESP-IDF) e redirect seguiti. Usata anche per il meteo.
 // Restituisce il codice HTTP (200 = ok) oppure -1 se la connessione fallisce.

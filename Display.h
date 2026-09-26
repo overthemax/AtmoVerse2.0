@@ -27,7 +27,12 @@ void drawDateTime(int x, int y);
 void drawLastUpdate(int x, int y, time_t lastUpdate);
 void drawQuote(int x, int y, int maxWidth, int fontSize = 14);
 void showStatusOnDisplay(const char* msg);
-void showUpdateScreen();  // Download di un aggiornamento in corso
+// Download di un aggiornamento: fase, file, percentuale, secondi stimati (-1 = ignoti)
+void showUpdateProgress(const char* phase, int filesDone, int filesTotal, int percent, int etaSec);
+// Errore dell'aggiornamento che richiede un intervento (es. SD piena)
+void showUpdateError(const char* title, const char* text);
+// Batteria scarica: faccina stanca (resta visibile durante il sonno profondo)
+void showBatteryEmpty();
 
 // Funzioni per layout personalizzabili
 void drawDefaultLayout();  // Layout di default quando /layout.json non esiste

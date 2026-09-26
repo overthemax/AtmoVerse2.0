@@ -55,9 +55,6 @@ struct Config {
   int nightModeEndHour;           // DEPRECATO - non più utilizzato
   
   // Battery Management
-  bool batteryMonitorEnabled;     // Abilita monitoraggio batteria
-  int batteryADCPin;              // Pin ADC per lettura tensione (es: 34)
-  float batteryVoltageDivider;    // Rapporto voltage divider (es: 2.0)
   bool batteryShowOnDisplay;      // Mostra stato batteria su display
   
   // Weather Alerts

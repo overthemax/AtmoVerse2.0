@@ -77,9 +77,6 @@ static void populateConfigFromJson(const JsonDocument& doc) {
   }
   
   // Battery Management
-  config.batteryMonitorEnabled = doc["batteryMonitorEnabled"] | true;
-  config.batteryADCPin = doc["batteryADCPin"] | 34;
-  config.batteryVoltageDivider = doc["batteryVoltageDivider"] | 2.0;
   config.batteryShowOnDisplay = doc["batteryShowOnDisplay"] | true;
   
   // Weather Alerts
@@ -156,10 +153,7 @@ bool createDefaultConfig() {
   doc["nightModeEndHour"] = 7;
   // nightModeAutoTheme, dayTheme, nightTheme rimossi
   
-  // Battery (disabilitato di default - richiede voltage divider esterno)
-  doc["batteryMonitorEnabled"] = false;
-  doc["batteryADCPin"] = 34;  // GPIO34 per WEMOS Lolin32 Lite (evita conflitto con RESET_BUTTON_PIN=35)
-  doc["batteryVoltageDivider"] = 2.0;
+  // Batteria (misurata dall'INA219, se presente)
   doc["batteryShowOnDisplay"] = true;
   
   // Alerts
@@ -447,9 +441,6 @@ bool saveConfig() {
       (*doc)["maxNetworkRetries"] = config.maxNetworkRetries;
       
       // Battery Management
-      (*doc)["batteryMonitorEnabled"] = config.batteryMonitorEnabled;
-      (*doc)["batteryADCPin"] = config.batteryADCPin;
-      (*doc)["batteryVoltageDivider"] = config.batteryVoltageDivider;
       (*doc)["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
       
       // Weather Alerts

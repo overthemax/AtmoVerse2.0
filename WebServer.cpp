@@ -8,6 +8,7 @@
 #include "QuotesManager.h"
 #include "Display.h"
 #include "Updater.h"
+#include "BatteryManager.h"
 #include "Version.h"
 #include "AtmoVerseConstants.h" // Aggiunto per costanti JSON se necessarie
 #include <SD.h>
@@ -406,6 +407,26 @@ void handleClientRequests() {
     return;
   }
   
+  // Stato della batteria (INA219), di sola lettura
+  if (path == "/api/battery" && method == "GET") {
+    JsonDocument b;
+    b["available"] = battery.isAvailable();
+    if (battery.isAvailable()) {
+      b["voltage"] = battery.getVoltage();
+      b["current_mA"] = battery.getCurrent();      // positiva = scarica
+      b["percent"] = battery.getPercentage();
+      b["charging"] = battery.charging();
+      b["level"] = battery.getLevel() == BATTERY_LEVEL_CRITICAL ? "critical"
+                 : battery.getLevel() == BATTERY_LEVEL_LOW ? "low" : "ok";
+      b["remaining_min"] = battery.getEstimatedTimeRemaining();  // -1 = non stimabile
+    }
+    b["showOnDisplay"] = config.batteryShowOnDisplay;
+    String json;
+    serializeJson(b, json);
+    sendJsonResponse(client, json);
+    return;
+  }
+
   if (path == "/api/health" && method == "GET") {
     DynamicJsonDocument doc(1024);
     doc["status"] = "ok";
@@ -472,9 +493,6 @@ void handleClientRequests() {
     doc["nightModeEndHour"] = config.nightModeEndHour;
     
     // Battery Management
-    doc["batteryMonitorEnabled"] = config.batteryMonitorEnabled;
-    doc["batteryADCPin"] = config.batteryADCPin;
-    doc["batteryVoltageDivider"] = config.batteryVoltageDivider;
     doc["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
     
     // Weather Alerts
@@ -559,9 +577,6 @@ void handleClientRequests() {
     // nightModeAutoTheme, dayTheme, nightTheme rimossi
     
     // Battery Management
-    if (doc.containsKey("batteryMonitorEnabled")) config.batteryMonitorEnabled = doc["batteryMonitorEnabled"].as<bool>();
-    if (doc.containsKey("batteryADCPin")) config.batteryADCPin = doc["batteryADCPin"].as<int>();
-    if (doc.containsKey("batteryVoltageDivider")) config.batteryVoltageDivider = doc["batteryVoltageDivider"].as<float>();
     if (doc.containsKey("batteryShowOnDisplay")) config.batteryShowOnDisplay = doc["batteryShowOnDisplay"].as<bool>();
     
     // Weather Alerts
@@ -662,6 +677,7 @@ void handleClientRequests() {
     // L API key non viene mai restituita: la pagina sa solo se è impostata
     doc["api_key_set"] = strlen(config.api_key) > 0;
     doc["version"] = ATMOVERSE_VERSION;
+    doc["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
     doc["updateStatus"] = getUpdateStatusText();
     doc["timezone"] = config.gmtOffset_sec / 3600;
     doc["dst"] = config.daylightOffset_sec / 3600;
