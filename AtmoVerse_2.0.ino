@@ -294,16 +294,16 @@ void loop() {
   // Sincronizzazione NTP periodica ogni 30 minuti per calibrare il DS3231
   static unsigned long lastNTPSync = 0;
   const unsigned long NTP_SYNC_INTERVAL_MS = 30UL * 60UL * 1000UL; // 30 minuti
-  if (!apMode && WiFi.status() == WL_CONNECTED) {
-    if ((unsigned long)(currentMillis - lastNTPSync) >= NTP_SYNC_INTERVAL_MS) {
-      lastNTPSync = currentMillis;
-      struct tm timeinfo;
-      if (getLocalTime(&timeinfo, 5000)) { // 5 secondi timeout
-        syncToRTC();
-        Serial.println("[RTC] NTP sync periodico OK, RTC aggiornato");
-      } else {
-        Serial.println("[RTC] NTP sync periodico fallito");
-      }
+  // Il primo aggiornamento del DS3231 avviene appena l'ora NTP è disponibile
+  // (all'avvio può arrivare dopo i 5 s di attesa del setup), poi ogni 30 minuti.
+  // Senza attese: l'ora di sistema è già sincronizzata in background da SNTP.
+  static bool rtcSynced = false;
+  if (!apMode && WiFi.status() == WL_CONNECTED && time(nullptr) > 1700000000 &&
+      (!rtcSynced || (unsigned long)(currentMillis - lastNTPSync) >= NTP_SYNC_INTERVAL_MS)) {
+    lastNTPSync = currentMillis;
+    if (syncToRTC()) {
+      rtcSynced = true;
+      Serial.println("[RTC] RTC aggiornato con l'ora NTP");
     }
   }
   
