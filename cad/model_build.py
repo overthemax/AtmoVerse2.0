@@ -23,12 +23,12 @@ PANEL_W, PANEL_H, PANEL_T = 125.0, 99.3, 1.2      # GDEW0583T8, pannello nudo (m
 ACTIVE_W, ACTIVE_H = 118.8, 88.2                  # area visibile
 ACTIVE_OFF_Z = 2.0                                # area attiva spostata in alto (cavo piatto in basso)
 BATT_W, BATT_H, BATT_T = 66.0, 43.0, 13.0         # pacco LiPo (due celle già unite)
-MCU_L, MCU_W, MCU_T = 57.5, 25.4, 8.0             # WEMOS LOLIN32 in orizzontale, USB verso destra
+MCU_L, MCU_W, MCU_T = 50.5, 26.3, 8.0             # WEMOS LOLIN32 (misurata) in orizzontale, USB verso destra
 MCU_STANDOFF = 4.0                                # sotto la scheda: pin e saldature
 SD_W, SD_H = 51.0, 23.0                           # modulo SD
 INA_W, INA_H = 20.0, 20.0                         # INA219
 RTC_W, RTC_H = 17.0, 16.0                         # DS3231
-DRV_W, DRV_H, DRV_T = 45.0, 30.0, 6.0             # scheda driver e-paper: DA MISURARE
+DRV_W, DRV_H, DRV_T = 48.5, 22.7, 6.0             # scheda driver e-paper (misurata; spessore stimato)
 
 # --- Parametri del case ---
 WALL = 2.2          # pareti laterali e fronte
@@ -162,7 +162,7 @@ mcu_supports = union([
 ])
 # Colonna destra dal basso: LOLIN32, SD, INA219 + RTC. La scheda driver sta in
 # basso al centro: il cavo piatto del pannello esce lì ed è corto.
-right_x0 = mcu_x0 + 2
+right_x0 = WIDTH - WALL - 4.0 - max(SD_W, INA_W + 6 + RTC_W) - FRAME_CLR - FRAME_T  # colonna allineata alla parete destra
 SD_Z0 = MCU_Z0 + MCU_W + 4
 INA_Z0 = SD_Z0 + SD_H + 4
 RTC_X0 = right_x0 + INA_W + 6

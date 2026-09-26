@@ -74,7 +74,7 @@ A two-part desk case with soft rounded lines and a cylindrical stand that tilts 
 - Print-ready files: [`cad/stampa/`](cad/stampa) (STL and STEP). Print the frame face down; print the back cover standing on its bottom edge, with supports under the cylinder.
 - Parametric source: [`cad/model_build.py`](cad/model_build.py) (build123d).
 - Hardware: 4 × M3 screws, 4 × M3 heat-set inserts (Ø 4 mm), one M3 ring terminal for the touch screw.
-- The e-paper driver board size is still a placeholder (45 × 30 mm): adjust `DRV_W`, `DRV_H` in the source.
+- Module sizes are measured: LOLIN32 50.5 × 26.3 mm, e-paper driver 48.5 × 22.7 mm (its thickness, 6 mm, is estimated).
 
 ---
 
