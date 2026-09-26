@@ -724,19 +724,18 @@ void handleClientRequests() {
       getWeatherData();
     }
     
-    // Dati meteo con struttura adatta al frontend
-    weather["temp"] = currentWeather.temp > 0 ? currentWeather.temp : 15.0;
-    weather["feels_like"] = currentWeather.feels_like > 0 ? currentWeather.feels_like : 14.0;
-    weather["humidity"] = currentWeather.humidity > 0 ? currentWeather.humidity : 60;
-    weather["pressure"] = currentWeather.pressure > 0 ? currentWeather.pressure : 1013;
-    weather["wind_speed"] = currentWeather.wind_speed;
+    // Dati meteo reali: se mancano "valid" è false e la pagina lo mostra.
+    // (Prima venivano inventati valori, e le temperature <= 0 diventavano 15 °C)
+    weather["temp"] = currentWeather.temp;
+    weather["feels_like"] = currentWeather.feels_like;
+    weather["humidity"] = currentWeather.humidity;
+    weather["pressure"] = currentWeather.pressure;
+    weather["wind_speed"] = currentWeather.wind_speed;  // m/s (units=metric)
     weather["wind_deg"] = currentWeather.wind_deg;
-    
+
     // Condizione meteo
-    weather["condition"] = strlen(currentWeather.description) > 0 ? 
-                           currentWeather.description : "Nuvole Sparse";
-    weather["icon"] = strlen(currentWeather.icon) > 0 ? 
-                      currentWeather.icon : "03d";
+    weather["condition"] = currentWeather.description;
+    weather["icon"] = currentWeather.icon;
       
     // Timestamp ultimo aggiornamento
     char lastUpdateStr[30];
@@ -745,11 +744,11 @@ void handleClientRequests() {
     strftime(lastUpdateStr, sizeof(lastUpdateStr), "%H:%M - %d/%m/%Y", &lastUpdateTime);
     weather["last_update"] = lastUpdateStr;
     
-    weather["valid"] = true;
-    
+    weather["valid"] = currentWeather.valid;
+
     String json;
     serializeJson(doc, json);
-    
+
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: application/json");
     client.println("Content-Length: " + String(json.length()));
