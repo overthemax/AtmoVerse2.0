@@ -21,6 +21,8 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <esp_http_client.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <esp_crt_bundle.h>
 #include <esp_ota_ops.h>
 #include <mbedtls/sha256.h>
@@ -163,12 +165,7 @@ typedef std::function<bool(const uint8_t*, int)> ChunkSink;
 // Scarica un URL passando i dati a sink a blocchi. Segue i redirect (GitHub
 // rimanda i file delle release a un CDN) e verifica il certificato del server
 // con il bundle di certificati radice incluso in ESP-IDF.
-static bool httpDownload(const String& url, const ChunkSink& sink, int* statusOut = nullptr) {
-  // Nei log l'URL senza parametri: potrebbero contenere una API key
-  int q = url.indexOf('?');
-  String logUrl = (q >= 0) ? url.substring(0, q) : url;
-  if (statusOut) *statusOut = -1;
-
+static esp_http_client_handle_t newHttpsClient(const String& url) {
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
@@ -176,14 +173,23 @@ static bool httpDownload(const String& url, const ChunkSink& sink, int* statusOu
   cfg.buffer_size = 4096;     // Le risposte di GitHub hanno intestazioni lunghe
   cfg.buffer_size_tx = 2048;  // Gli URL firmati del CDN sono lunghi
   cfg.user_agent = "AtmoVerse/" ATMOVERSE_VERSION;
+  return esp_http_client_init(&cfg);
+}
 
-  esp_http_client_handle_t client = esp_http_client_init(&cfg);
-  if (!client) return false;
-
+// Esegue la richiesta sull'URL già impostato nel client, segue i redirect e
+// passa i dati a sink. Con keepOpen la connessione resta aperta per la
+// richiesta successiva allo stesso server (niente nuovo handshake TLS).
+static bool httpFetch(esp_http_client_handle_t client, const String& logUrl, const ChunkSink& sink,
+                      int* statusOut, bool keepOpen) {
+  if (statusOut) *statusOut = -1;
   bool ok = false;
   for (int redirects = 0; redirects <= 5; redirects++) {
-    if (esp_http_client_open(client, 0) != ESP_OK) {
-      Serial.println("[HTTPS] Connessione non riuscita: " + logUrl);
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+      Serial.printf("[HTTPS] Connessione non riuscita (%s, errno %d, heap %u, blocco max %u): %s\n",
+                    esp_err_to_name(err), esp_http_client_get_errno(client),
+                    (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(), logUrl.c_str());
+      esp_http_client_close(client);
       break;
     }
     esp_http_client_fetch_headers(client);
@@ -214,10 +220,26 @@ static bool httpDownload(const String& url, const ChunkSink& sink, int* statusOu
       }
       if (!sink(buf, n)) { ok = false; break; }
     }
-    esp_http_client_close(client);
+    if (!ok || !keepOpen) esp_http_client_close(client);
     break;
   }
+  return ok;
+}
 
+// Scarica un URL con una connessione dedicata. Segue i redirect (GitHub
+// rimanda i file delle release a un CDN) e verifica il certificato del server
+// con il bundle di certificati radice incluso in ESP-IDF.
+static bool httpDownload(const String& url, const ChunkSink& sink, int* statusOut = nullptr) {
+  // Nei log l'URL senza parametri: potrebbero contenere una API key
+  int q = url.indexOf('?');
+  String logUrl = (q >= 0) ? url.substring(0, q) : url;
+
+  esp_http_client_handle_t client = newHttpsClient(url);
+  if (!client) {
+    if (statusOut) *statusOut = -1;
+    return false;
+  }
+  bool ok = httpFetch(client, logUrl, sink, statusOut, false);
   esp_http_client_cleanup(client);
   return ok;
 }
@@ -234,7 +256,62 @@ int httpsGet(const String& url, String& body, size_t maxLen) {
 }
 
 // Scarica un file sulla SD verificandone dimensione e SHA-256; in caso di errore lo cancella
-static bool downloadToFile(const String& url, const String& dest, size_t expectedSize, const String& expectedSha) {
+// Connessione per i file della SD.
+// raw.githubusercontent.com usa la catena Let's Encrypt "Root YR" -> ISRG Root X1:
+// sull'ESP32 la verifica della firma RSA-4096 della radice fallisce
+// (esp-x509-crt-bundle, errore 0x4290), e la verifica non si può disattivare
+// nel client HTTP di ESP-IDF precompilato. Per questi file la connessione è
+// cifrata ma senza verifica del certificato: l'integrità è garantita dallo
+// SHA-256 di ogni file, letto dal manifest scaricato da github.com con
+// certificato verificato. Un file alterato viene scartato.
+struct FileSession {
+  WiFiClientSecure tls;
+  HTTPClient http;
+  FileSession() {
+    tls.setInsecure();
+    http.setReuse(true);  // Stessa connessione per tutti i file (un solo handshake)
+    http.setTimeout(20000);
+  }
+};
+
+static bool sessionDownload(FileSession& s, const String& url, const ChunkSink& sink) {
+  if (!s.http.begin(s.tls, url)) return false;
+  int code = s.http.GET();
+  if (code != 200) {
+    Serial.printf("[HTTPS] HTTP %d per %s (heap %u, blocco max %u)\n", code, url.c_str(),
+                  (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+    s.http.end();
+    return false;
+  }
+  int remaining = s.http.getSize();  // -1 se la dimensione non è indicata
+  NetworkClient* stream = s.http.getStreamPtr();
+  uint8_t buf[1024];
+  unsigned long lastData = millis();
+  bool ok = true;
+  while (remaining != 0) {
+    size_t avail = stream->available();
+    if (avail) {
+      int n = stream->readBytes(buf, min(avail, sizeof(buf)));
+      if (n <= 0) continue;
+      if (!sink(buf, n)) { ok = false; break; }
+      if (remaining > 0) remaining -= n;
+      lastData = millis();
+    } else if (!s.http.connected()) {
+      if (remaining > 0) ok = false;  // Chiuso prima della fine
+      break;
+    } else if (millis() - lastData > 20000) {
+      ok = false;
+      break;
+    } else {
+      delay(2);
+    }
+  }
+  s.http.end();  // Con setReuse la connessione resta aperta per il file successivo
+  return ok;
+}
+
+static bool downloadToFile(FileSession* session, const String& url, const String& dest,
+                           size_t expectedSize, const String& expectedSha) {
   ensureParentDirs(dest);
   SD.remove(dest);
   File f = SD.open(dest, FILE_WRITE);
@@ -245,11 +322,12 @@ static bool downloadToFile(const String& url, const String& dest, size_t expecte
   mbedtls_sha256_starts(&ctx, 0);
   size_t total = 0;
 
-  bool ok = httpDownload(url, [&](const uint8_t* data, int len) {
+  ChunkSink sink = [&](const uint8_t* data, int len) {
     mbedtls_sha256_update(&ctx, data, len);
     total += len;
     return f.write(data, len) == (size_t)len;
-  });
+  };
+  bool ok = session ? sessionDownload(*session, url, sink) : httpDownload(url, sink);
   f.close();
 
   uint8_t digest[32];
@@ -480,7 +558,12 @@ static bool downloadNeededFiles(const String& baseUrl) {
     return false;
   }
 
+  // Una sola connessione HTTPS per tutti i file (stesso server): un handshake
+  // TLS invece di uno per file, più veloce e con meno frammentazione della memoria
+  FileSession* session = new FileSession();
+
   bool ok = true;
+  int downloaded = 0;
   while (list.available()) {
     String line = list.readStringUntil('\n');
     int a = line.indexOf('|');
@@ -490,13 +573,25 @@ static bool downloadNeededFiles(const String& baseUrl) {
     size_t size = line.substring(a + 1, b).toInt();
     String sha = line.substring(b + 1);
     sha.trim();
-    if (!downloadToFile(baseUrl + path, String(STAGING_DIR) + path, size, sha)) {
+    bool done = false;
+    for (int attempt = 1; attempt <= 3 && !done; attempt++) {
+      done = downloadToFile(session, baseUrl + path, String(STAGING_DIR) + path, size, sha);
+      if (!done) {
+        session->http.end();
+        session->tls.stop();  // Il tentativo successivo riapre la connessione
+        delay(1000 * attempt);
+      }
+    }
+    if (!done) {
       lastStatus = "Download non riuscito: " + path;
       ok = false;
       break;
     }
     pending.println(path);
+    if (++downloaded % 25 == 0) Serial.printf("[UPDATE] File scaricati: %d\n", downloaded);
   }
+  session->tls.stop();
+  delete session;
   pending.close();
   list.close();
   return ok;
