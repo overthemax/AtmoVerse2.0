@@ -158,6 +158,73 @@ static void sendOrariFit(WiFiClient& client, const String& path) {
   sendJsonResponse(client, json);
 }
 
+// POST /api/quotes/raw: quotes.json già nel formato del firmware
+// ({"categoria": [{text, author, ...}]}), scritto sulla SD mentre arriva.
+// La raccolta supera facilmente i 40 KB: tenerla in RAM e convertirla
+// esauriva la memoria. Il file viene verificato (JSON valido con un oggetto
+// di categorie) leggendolo dalla SD senza caricarlo, poi sostituisce quello vecchio.
+static const int QUOTES_MAX_FILE = 256 * 1024;
+
+static void saveQuotesRaw(WiFiClient& client, int contentLength) {
+  if (contentLength <= 0 || contentLength > QUOTES_MAX_FILE) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"File troppo grande o vuoto\"}");
+    return;
+  }
+  const char* tmp = "/quotes.tmp";
+  SD.remove(tmp);
+  File f = SD.open(tmp, FILE_WRITE);
+  if (!f) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere sulla SD\"}");
+    return;
+  }
+  int received = 0;
+  bool writeOk = true;
+  uint8_t buf[512];
+  unsigned long lastData = millis();
+  while (received < contentLength && millis() - lastData < 5000) {
+    int avail = client.available();
+    if (avail <= 0) {
+      if (!client.connected()) break;
+      delay(2);
+      continue;
+    }
+    int n = client.read(buf, min((int)sizeof(buf), min(avail, contentLength - received)));
+    if (n <= 0) continue;
+    if (f.write(buf, n) != (size_t)n) writeOk = false;
+    received += n;
+    lastData = millis();
+  }
+  f.close();
+  if (!writeOk || received != contentLength) {
+    SD.remove(tmp);
+    sendJsonResponse(client, writeOk ? "{\"success\":false,\"message\":\"Dati incompleti\"}"
+                                     : "{\"success\":false,\"message\":\"SD piena o non scrivibile\"}");
+    return;
+  }
+
+  // Verifica senza caricare il contenuto: il filtro non tiene nessun campo
+  File in = SD.open(tmp, FILE_READ);
+  JsonDocument filter;
+  filter["__nessuno__"] = true;
+  JsonDocument check;
+  DeserializationError err = in ? deserializeJson(check, in, DeserializationOption::Filter(filter))
+                                : DeserializationError::InvalidInput;
+  if (in) in.close();
+  if (err || !check.is<JsonObject>()) {
+    SD.remove(tmp);
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"JSON non valido\"}");
+    return;
+  }
+  SD.remove("/quotes.json");  // QUOTES_JSON_PATH è definito più avanti nel file
+  if (!SD.rename(tmp, "/quotes.json")) {
+    sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile sostituire quotes.json\"}");
+    return;
+  }
+  Serial.printf("[WEB] Citazioni salvate su /quotes.json (%d byte)\n", received);
+  lastDisplayUpdate = 0;
+  sendJsonResponse(client, "{\"success\":true}");
+}
+
 // POST /api/orari?h=8: il corpo (testo, righe "MM|testo|Autore, Opera") va
 // direttamente su un file temporaneo e sostituisce quello dell'ora solo se
 // è arrivato per intero
@@ -1098,6 +1165,16 @@ void handleClientRequests() {
     } else {
       sendJsonResponse(client, "{\"success\":false}", 405);
     }
+    return;
+  }
+
+  // Citazioni: file intero nel formato del firmware, scritto sulla SD mentre arriva
+  if (path == "/api/quotes/raw" && method == "POST") {
+    if (!initSD()) {
+      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}", 503);
+      return;
+    }
+    saveQuotesRaw(client, contentLength);
     return;
   }
 

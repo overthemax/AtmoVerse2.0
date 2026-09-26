@@ -779,13 +779,26 @@
       }
       
       try {
-        const response = await fetch('/api/quotes', {
+        // Formato del firmware: {categoria: [{text, author, ...}]}, senza campi vuoti.
+        // La scheda lo scrive sulla SD mentre arriva (la raccolta supera i 40 KB).
+        const out = {};
+        for (const q of quotes) {
+          const cat = q.category || 'motivazione';
+          const item = {};
+          for (const [k, v] of Object.entries(q)) {
+            if (k === 'category' || v === '' || v === null || v === undefined) continue;
+            item[k] = v;
+          }
+          (out[cat] = out[cat] || []).push(item);
+        }
+        const response = await fetch('/api/quotes/raw', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(quotes)
+          body: JSON.stringify(out)
         });
-        
-        if (response.ok) {
+        const res = await response.json().catch(() => ({}));
+
+        if (response.ok && res.success) {
           showMessage(`✅ Salvate ${quotes.length} citazioni su /quotes.json`, 'success');
         } else {
           showMessage('❌ Errore durante il salvataggio', 'error');

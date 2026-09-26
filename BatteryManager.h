@@ -94,6 +94,8 @@ public:
     int getPercentage() { return percentage; }
     BatteryState getState() { return state; }
     bool charging() { return isCharging; }
+    // Caricatore collegato e carica terminata (batteria al 100%)
+    bool chargeComplete() { return isCharging && state == BATTERY_FULL && percentage >= 100; }
     bool isLow() { return state == BATTERY_LOW || state == BATTERY_CRITICAL; }
     bool isCritical() { return state == BATTERY_CRITICAL; }
     BatteryLevel getLevel() { return level; }  // Livello di avviso con isteresi

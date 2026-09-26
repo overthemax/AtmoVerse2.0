@@ -99,8 +99,10 @@ void BatteryManager::measure() {
     detectChargingState();
 
     if (isCharging) {
-        // Fine carica: il caricatore riduce la corrente quasi a zero a 4,2 V
-        bool chargeDone = voltage >= 4.15f && fabsf(current_mA) < BATTERY_CURRENT_THRESHOLD_MA;
+        // Fine carica: il caricatore porta la cella a 4,2 V e poi interrompe la
+        // corrente; a riposo la tensione si assesta sui 4,10-4,15 V (misurati
+        // 4,14 V a carica finita), quindi la soglia è 4,10 V a corrente quasi nulla
+        bool chargeDone = voltage >= 4.10f && fabsf(current_mA) < BATTERY_CURRENT_THRESHOLD_MA;
         if (percentage >= 95 || chargeDone) {
             state = BATTERY_FULL;
             if (chargeDone) percentage = 100;

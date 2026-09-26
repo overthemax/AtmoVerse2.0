@@ -52,6 +52,7 @@ struct ScreenModel {
   bool showBattery = false;
   int batteryPercent = 0;
   bool batteryCharging = false;
+  bool batteryFull = false;     // Caricatore collegato, carica terminata
 
   // Schermata di aggiornamento
   String updPhase;        // "File della SD" / "Nuovo firmware"

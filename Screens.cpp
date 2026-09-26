@@ -253,7 +253,8 @@ static void drawBatteryIndicator(const ScreenModel& m, int xRight, int baseline)
 
   u8g2.setFont(FONT_SMALL);
   String label = String(m.batteryPercent) + "%";
-  if (m.batteryCharging) label = String(TR("In carica", "Charging")) + MIDDOT + label;
+  if (m.batteryFull) label = String(TR("Carica completa", "Fully charged")) + MIDDOT + label;
+  else if (m.batteryCharging) label = String(TR("In carica", "Charging")) + MIDDOT + label;
   textRight(bx - 6, baseline, label);
 }
 

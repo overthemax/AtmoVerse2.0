@@ -46,6 +46,7 @@ static void fillBattery(ScreenModel& m) {
   m.showBattery = config.batteryShowOnDisplay && battery.isAvailable();
   m.batteryPercent = battery.getPercentage();
   m.batteryCharging = battery.charging();
+  m.batteryFull = battery.chargeComplete();
 }
 
 static void showMessage(const char* title, const char* text) {
