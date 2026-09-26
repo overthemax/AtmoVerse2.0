@@ -40,6 +40,10 @@
 #include "Updater.h"
 #include "Version.h"
 
+// Il loop esegue anche le connessioni HTTPS (meteo, aggiornamenti): lo
+// stack predefinito da 8 KB è al limite durante l'handshake TLS
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+
 // Aggiornamenti automatici da GitHub (vedi Updater.h)
 const unsigned long UPDATE_CHECK_MS     = 6UL * 60 * 60 * 1000;  // Controllo ogni 6 ore
 const unsigned long UPDATE_RETRY_MS     = 10UL * 60 * 1000;      // Nuovo tentativo dopo un errore
@@ -123,18 +127,8 @@ void setup() {
 
   // Serial.println("[SETUP] Inizializzazione display...");
   SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS); // VSPI per display
-  initDisplay();
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(NULL);
-    display.setCursor(10, 60);
-    display.print("AtmoVerse 2.0");
-    display.setCursor(10, 100);
-    display.print("Caricamento...");
-  } while (display.nextPage());
+  initDisplay();          // Avvia anche il task del display sul core 0
+  displayStartupScreen();
 
   delay(BOOT_SPLASH_DURATION_MS);
   
@@ -221,7 +215,6 @@ void setup() {
   // Inizializza RTC DS3231 - imposta subito il clock interno se disponibile
   rtcBegin();
 
-  displayStartupScreen();
 
   // --- Resto ---
   // Rete configurata ma non raggiungibile: modalità AP per la configurazione.
@@ -258,7 +251,7 @@ bool isPowerSavingMode() {
 
   // Ottieni l'ora corrente
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo, 0)) {
     return false; // Errore nel recupero dell'ora, assume modalità normale
   }
   

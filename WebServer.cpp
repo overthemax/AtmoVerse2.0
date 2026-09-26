@@ -20,6 +20,7 @@ static String readRequestBody(WiFiClient& client, int contentLength, int maxBody
   const int MAX_BODY = maxBody;
   String body;
   if (contentLength > MAX_BODY) contentLength = MAX_BODY;
+  if (contentLength > 0 && !body.reserve(contentLength)) return body;  // Memoria insufficiente
   unsigned long deadline = millis() + 3000;
   while (client.connected() && millis() < deadline) {
     while (client.available()) {
@@ -713,7 +714,7 @@ void handleClientRequests() {
     
     // Timestamp e ora locale
     struct tm timeinfo;
-    getLocalTime(&timeinfo);
+    getLocalTime(&timeinfo, 0);
     char localTimeStr[30];
     strftime(localTimeStr, sizeof(localTimeStr), "%H:%M - %d/%m/%Y", &timeinfo);
     time["local"] = localTimeStr;

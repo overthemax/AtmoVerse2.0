@@ -15,6 +15,7 @@
 #include "Updater.h"
 #include "Version.h"
 #include "Display.h"
+#include "DisplayTask.h"
 #include <SD.h>
 #include <Update.h>
 #include <Preferences.h>
@@ -371,13 +372,17 @@ static uint32_t savedCpuMhz = 0;
 
 static void beginDownloadPhase() {
   updateState = UPDATE_DOWNLOADING;
+  showUpdateScreen();
+  // Il cambio di frequenza vale per entrambi i core: si attende che il task
+  // del display abbia finito di trasmettere al pannello via SPI
+  waitDisplayIdle(15000);
   savedCpuMhz = getCpuFrequencyMhz();
   setCpuFrequencyMhz(240);
-  showUpdateScreen();
 }
 
 static void endDownloadPhase() {
   updateState = UPDATE_IDLE;
+  // Qui il display è fermo (l'ultima richiesta è la schermata di aggiornamento)
   if (savedCpuMhz > 0) setCpuFrequencyMhz(savedCpuMhz);
   updateDisplay();  // Torna alla schermata normale
 }
