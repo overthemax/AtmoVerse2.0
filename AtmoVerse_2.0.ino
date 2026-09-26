@@ -399,10 +399,11 @@ void loop() {
   // Se viene installato un nuovo firmware, checkForUpdates() riavvia.
   if (!apMode && WiFi.status() == WL_CONNECTED && time(nullptr) > 1700000000 &&
       (updateDue || updateCheckRequested || currentMillis - lastUpdateCheck >= updateWaitMs)) {
+    bool manualCheck = updateCheckRequested;  // Dalla pagina web: verifica completa dei file
     updateDue = false;
     updateCheckRequested = false;
     lastUpdateCheck = currentMillis;
-    updateWaitMs = checkForUpdates() ? UPDATE_CHECK_MS : UPDATE_RETRY_MS;
+    updateWaitMs = checkForUpdates(manualCheck) ? UPDATE_CHECK_MS : UPDATE_RETRY_MS;
   }
 
   // Esegui aggiornamenti solo quando non siamo in modalità AP
@@ -437,10 +438,26 @@ void loop() {
       }
     }
     
-    // Aggiorna il display in base all'intervallo configurato
-    if ((unsigned long)(currentMillis - lastDisplayUpdate) >= getDisplayRefreshIntervalMs()) {
-      lastDisplayUpdate = currentMillis;
-      updateDisplay(); // Aggiornamento completo del display una volta al minuto
+    // Aggiorna il display allo scatto del minuto (non a 60 s dal boot, altrimenti
+    // l'ora mostrata può restare indietro fino a quasi un minuto)
+    static int lastShownMinute = -1;
+    unsigned long refreshMs = getDisplayRefreshIntervalMs();
+    bool refreshDue;
+    struct tm nowTm;
+    if (getLocalTime(&nowTm, 0)) {
+      int minuteOfDay = nowTm.tm_hour * 60 + nowTm.tm_min;
+      int stepMin = max(1, (int)(refreshMs / 60000UL));
+      refreshDue = lastDisplayUpdate == 0 ||
+                   (minuteOfDay != lastShownMinute &&
+                    (minuteOfDay % stepMin == 0 ||
+                     (unsigned long)(currentMillis - lastDisplayUpdate) >= refreshMs + 60000UL));
+      if (refreshDue) lastShownMinute = minuteOfDay;
+    } else {
+      refreshDue = (unsigned long)(currentMillis - lastDisplayUpdate) >= refreshMs;
+    }
+    if (refreshDue) {
+      lastDisplayUpdate = currentMillis ? currentMillis : 1;
+      updateDisplay();
     }
   } else {
     // In modalità AP il display mostra la schermata statica di configurazione

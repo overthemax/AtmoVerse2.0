@@ -23,6 +23,10 @@ enum TimeCategory {
 // Recupera una citazione basata sul momento del giorno e sulle condizioni meteo
 Quote getQuoteForDisplay();
 
+// Orologio letterario (/orari/HH.txt, righe "MM|testo|Autore, Opera"):
+// true se la citazione viene mostrata per intero dal display
+bool clockQuoteFits(const String& text, const String& author);
+
 // Ottiene la categoria temporale corrente
 TimeCategory getCurrentTimeCategory();
 

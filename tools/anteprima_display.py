@@ -129,8 +129,16 @@ def hline(d, y):
 
 def draw_icon(img, name, x, y, scale=2):
     icon = Image.open(f"{ICONS}/{name}.bmp").convert("1")
+    if isinstance(y, tuple):
+        # Come Screens.cpp: centra il disegno reale tra y[0] e y[1]
+        from PIL import ImageOps as _ops
+        box = _ops.invert(icon.convert("L")).getbbox() or (0, 0, icon.width, icon.height)
+        ink = (box[3] - box[1]) * scale
+        y = y[0] + (y[1] - y[0] - ink) // 2 - box[1] * scale
     icon = icon.resize((icon.width * scale, icon.height * scale), Image.NEAREST)
-    img.paste(icon, (x, y))
+    # Solo i pixel neri, come il firmware (lo sfondo dell'icona non copre la grafica)
+    from PIL import ImageOps
+    img.paste(0, (x, y), ImageOps.invert(icon.convert("L")))
 
 
 def draw_battery(img, d, xr, baseline, pct, charging=False):
@@ -146,14 +154,14 @@ def draw_battery(img, d, xr, baseline, pct, charging=False):
 
 
 def draw_quote(img, text, author):
-    top, bottom = 346, 452
+    top, bottom = 308, 452
     width, height = W - 2 * MARGIN, bottom - top
     text = "\xab" + text + "\xbb"
     for tf, af in QUOTE_STYLES:
         lines = wrap(tf, text, width)
-        alines = wrap(af, author, width)[:2] if author else []
+        alines = wrap(af, author, width) if author else []
         total = len(lines) * F[tf].line_height() + (4 + len(alines) * F[af].line_height() if alines else 0)
-        if len(lines) <= 8 and total <= height:
+        if len(lines) <= 8 and len(alines) <= 3 and total <= height:
             break
     y = top + (height - total) // 2
     for l in lines:
@@ -163,7 +171,7 @@ def draw_quote(img, text, author):
         y += 4
         for l in alines:
             y += F[af].line_height()
-            center(img, af, W // 2, y - 4 + F[af].descent, l)
+            right(img, af, W - MARGIN, y - 4 + F[af].descent, l)
     return tf
 
 
@@ -173,16 +181,16 @@ def main_screen(quote, author, out):
     left(img, "fur17_tf", MARGIN, 44, "Venerd\xec 26 settembre")
     right(img, "luRS14_tf", W - MARGIN, 44, "Roma")
     hline(d, 60)
-    left(img, "fur49_tn", MARGIN - 2, 136, "10:42")
-    left(img, "fur35_tf", MARGIN, 204, "18\xb0")
-    left(img, "luRS14_tf", MARGIN, 238, "Nubi sparse")
-    draw_icon(img, "wi-day-cloudy", W - MARGIN - 200, 66)
+    left(img, "fur49_tn", MARGIN - 2, 118, "10:42")
+    left(img, "fur35_tf", MARGIN, 180, "18\xb0")
+    left(img, "luRS14_tf", MARGIN, 210, "Nubi sparse")
+    draw_icon(img, "wi-day-cloudy", W - MARGIN - 200, (62, 247))
     colw = (W - 2 * MARGIN) // 4
     for i, (lab, val) in enumerate([("Percepita", "17\xb0"), ("Umidit\xe0", "62%"),
                                     ("Vento", "12 km/h"), ("Pressione", "1016 hPa")]):
-        left(img, "luRS10_tf", MARGIN + i * colw, 292, lab)
-        left(img, "luBS14_tf", MARGIN + i * colw, 318, val)
-    hline(d, 334)
+        left(img, "luRS10_tf", MARGIN + i * colw, 260, lab)
+        left(img, "luBS14_tf", MARGIN + i * colw, 284, val)
+    hline(d, 298)
     style = draw_quote(img, quote, author)
     left(img, "luRS08_tf", MARGIN, H - 12, "Aggiornato alle 10:30")
     center(img, "luRS08_tf", W // 2, H - 12, "192.168.1.23")

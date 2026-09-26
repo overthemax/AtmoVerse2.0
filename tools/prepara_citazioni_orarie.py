@@ -61,7 +61,7 @@ def main():
     total = 0
     for hh in range(24):
         lines = per_hour.get(hh, [])
-        (dest / f"{hh:02d}.txt").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        (dest / f"{hh:02d}.txt").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8", newline="\n")
         total += len(lines)
 
     minutes = {(h, l[:2]) for h, ls in per_hour.items() for l in ls}
