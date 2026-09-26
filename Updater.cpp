@@ -17,6 +17,7 @@
 #include "Display.h"
 #include "BatteryManager.h"
 #include "DisplayTask.h"
+#include "Language.h"
 #include <SD.h>
 #include <Update.h>
 #include <Preferences.h>
@@ -564,10 +565,12 @@ static void finishWithError(const String& message) {
   if (sdAvailable() && SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
   endDownloadPhase();  // Torna alla schermata principale
   if (sdWriteFailed) {
-    reportBlockingError("Aggiornamento non riuscito",
-                        "Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata. "
-                        "Libera spazio o sostituisci la scheda: AtmoVerse riprova da solo.",
-                        "SD piena o danneggiata: aggiornamento sospeso");
+    reportBlockingError(TR("Aggiornamento non riuscito", "Update failed"),
+                        TR("Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata. "
+                           "Libera spazio o sostituisci la scheda: AtmoVerse riprova da solo.",
+                           "Cannot write to the SD card: it is full or damaged. "
+                           "Free some space or replace the card: AtmoVerse retries by itself."),
+                        TR("SD piena o danneggiata: aggiornamento sospeso", "SD full or damaged: update paused"));
   }
 }
 
@@ -854,9 +857,10 @@ bool checkForUpdates(bool fullScan) {
     if (neededCount < 0) {
       SD.remove(MANIFEST_TMP);
       removeTree(STAGING_DIR);
-      reportBlockingError("Aggiornamento non riuscito",
-                          "Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata.",
-                          "SD piena o danneggiata: aggiornamento sospeso");
+      reportBlockingError(TR("Aggiornamento non riuscito", "Update failed"),
+                          TR("Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata.",
+                             "Cannot write to the SD card: it is full or damaged."),
+                          TR("SD piena o danneggiata: aggiornamento sospeso", "SD full or damaged: update paused"));
       return false;
     }
   }
@@ -869,10 +873,13 @@ bool checkForUpdates(bool fullScan) {
     uint64_t required = neededDisk + 512 * 1024;
     if (freeBytes < required) {
       removeTree(STAGING_DIR);
-      reportBlockingError("Spazio insufficiente sulla SD",
-                          "Per l'aggiornamento servono " + formatMB(required) + ", liberi " + formatMB(freeBytes) +
-                          ". Libera spazio sulla scheda: AtmoVerse riprova da solo.",
-                          "SD piena: servono " + formatMB(required) + ", liberi " + formatMB(freeBytes));
+      reportBlockingError(TR("Spazio insufficiente sulla SD", "Not enough space on the SD card"),
+                          String(TR("Per l'aggiornamento servono ", "The update needs ")) + formatMB(required) +
+                          TR(", liberi ", ", free ") + formatMB(freeBytes) +
+                          TR(". Libera spazio sulla scheda: AtmoVerse riprova da solo.",
+                             ". Free some space on the card: AtmoVerse retries by itself."),
+                          String(TR("SD piena: servono ", "SD full: needs ")) + formatMB(required) +
+                          TR(", liberi ", ", free ") + formatMB(freeBytes));
       return false;
     }
   }
@@ -893,9 +900,9 @@ bool checkForUpdates(bool fullScan) {
   // 4. Download: il display mostra la schermata di aggiornamento
   Serial.printf("[UPDATE] Da scaricare: firmware %s, file %d\n", firmwareNewer ? h.version.c_str() : "no", neededCount);
   if (neededCount > 0) {
-    startProgress("File della SD", neededCount, neededBytes);
+    startProgress(TR("File della SD", "SD card files"), neededCount, neededBytes);
   } else {
-    startProgress("Nuovo firmware", 0, h.fwSize);
+    startProgress(TR("Nuovo firmware", "New firmware"), 0, h.fwSize);
   }
   beginDownloadPhase();
 
@@ -906,7 +913,7 @@ bool checkForUpdates(bool fullScan) {
 
   if (firmwareNewer) {
     if (neededCount > 0) {
-      startProgress("Nuovo firmware", 0, h.fwSize);
+      startProgress(TR("Nuovo firmware", "New firmware"), 0, h.fwSize);
       reportProgress(true);
     }
     if (h.fwUrl.length() == 0 || h.fwSize == 0 || !downloadFirmware(h.fwUrl, h.fwSize, h.fwSha)) {

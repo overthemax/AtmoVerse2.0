@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#7a5429">
   <title>Impostazioni - AtmoVerse 2.0</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js"></script>
 </head>
 <body>
   <div class="container">
@@ -185,6 +186,7 @@
     <!-- Actions -->
     <div class="card actions-row">
       <button class="btn btn-success" onclick="saveSettings()">Salva Configurazione</button>
+      <button class="btn btn-primary" onclick="checkUpdates()">Controlla aggiornamenti</button>
       <button class="btn btn-danger" onclick="if(confirm('Riavviare il dispositivo?')) restartDevice()">Riavvia</button>
       <button class="btn btn-secondary" onclick="location.href='index.html'">Annulla</button>
     </div>
@@ -299,6 +301,17 @@
         showMessage(`✅ Trovate ${networks.length} reti`, 'success');
       } catch (error) {
         showMessage('❌ Errore scansione: ' + error.message, 'error');
+      }
+    }
+
+    // Controllo aggiornamenti: il dispositivo lo esegue subito (verifica completa dei file)
+    async function checkUpdates() {
+      try {
+        const r = await fetch('/api/update/check', {method: 'POST'});
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        showMessage("🔍 Controllo aggiornamenti avviato: il display mostra l'avanzamento se c'è una nuova versione", 'info');
+      } catch (error) {
+        showMessage('❌ Errore: ' + error.message, 'error');
       }
     }
 

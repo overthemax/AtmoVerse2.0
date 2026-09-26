@@ -13,6 +13,7 @@
 #include "Screens.h"
 #include "Hardware.h"
 #include "QRCodeHelper.h"
+#include "Language.h"
 #include "AtmoVerseConstants.h"
 #include <U8g2_for_Adafruit_GFX.h>
 #include <time.h>
@@ -54,9 +55,12 @@ static const QuoteStyle QUOTE_STYLES[] = {
 };
 static const int QUOTE_STYLE_COUNT = sizeof(QUOTE_STYLES) / sizeof(QUOTE_STYLES[0]);
 
-static const char* DAYS[] = {"Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"};
-static const char* MONTHS[] = {"gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
-                               "agosto", "settembre", "ottobre", "novembre", "dicembre"};
+static const char* DAYS_IT[] = {"Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"};
+static const char* MONTHS_IT[] = {"gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
+                                  "agosto", "settembre", "ottobre", "novembre", "dicembre"};
+static const char* DAYS_EN[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+static const char* MONTHS_EN[] = {"January", "February", "March", "April", "May", "June", "July",
+                                  "August", "September", "October", "November", "December"};
 
 static const char* DEGREE = "\xC2\xB0";   // °
 static const char* MIDDOT = " \xC2\xB7 "; // ·
@@ -249,7 +253,7 @@ static void drawBatteryIndicator(const ScreenModel& m, int xRight, int baseline)
 
   u8g2.setFont(FONT_SMALL);
   String label = String(m.batteryPercent) + "%";
-  if (m.batteryCharging) label = "In carica" + String(MIDDOT) + label;
+  if (m.batteryCharging) label = String(TR("In carica", "Charging")) + MIDDOT + label;
   textRight(bx - 6, baseline, label);
 }
 
@@ -319,7 +323,10 @@ void drawMainScreen(const ScreenModel& m) {
   // Intestazione
   u8g2.setFont(FONT_HEADER);
   if (timeOk) {
-    textLeft(MARGIN, 44, String(DAYS[t.tm_wday]) + " " + String(t.tm_mday) + " " + MONTHS[t.tm_mon]);
+    // "Venerdì 26 settembre" / "Friday 26 September"
+    textLeft(MARGIN, 44, uiItalian()
+        ? String(DAYS_IT[t.tm_wday]) + " " + String(t.tm_mday) + " " + MONTHS_IT[t.tm_mon]
+        : String(DAYS_EN[t.tm_wday]) + " " + String(t.tm_mday) + " " + MONTHS_EN[t.tm_mon]);
   }
   u8g2.setFont(FONT_BODY);
   String city = displayText(m.city);
@@ -338,7 +345,7 @@ void drawMainScreen(const ScreenModel& m) {
   textLeft(MARGIN, 180, temp + DEGREE);
 
   u8g2.setFont(FONT_BODY);
-  String condition = weatherOk ? displayText(w.description) : String("In attesa dei dati meteo");
+  String condition = weatherOk ? displayText(w.description) : String(TR("In attesa dei dati meteo", "Waiting for weather data"));
   if (condition.length() && condition[0] >= 'a' && condition[0] <= 'z') condition[0] = condition[0] - 32;
   textLeft(MARGIN, 210, condition);
 
@@ -364,7 +371,8 @@ void drawMainScreen(const ScreenModel& m) {
     wind = m.metric ? String((int)lroundf(w.wind_speed * 3.6f)) + " km/h"
                          : String((int)lroundf(w.wind_speed)) + " mph";
   }
-  const String labels[4] = {"Percepita", "Umidità", "Vento", "Pressione"};
+  const String labels[4] = {TR("Percepita", "Feels like"), TR("Umidità", "Humidity"),
+                            TR("Vento", "Wind"), TR("Pressione", "Pressure")};
   const String values[4] = {
     weatherOk ? String((int)lroundf(w.feels_like)) + DEGREE : String("--"),
     weatherOk ? String((int)lroundf(w.humidity)) + "%" : String("--"),
@@ -395,10 +403,11 @@ void drawMainScreen(const ScreenModel& m) {
     struct tm u;
     localtime_r(&w.last_update, &u);
     String when = twoDigits(u.tm_hour) + ":" + twoDigits(u.tm_min);
-    textLeft(MARGIN, footerY, m.weatherUpdateOk ? "Aggiornato alle " + when
-                                                       : "Meteo non aggiornato" + String(MIDDOT) + "ultimo alle " + when);
+    textLeft(MARGIN, footerY, m.weatherUpdateOk
+        ? String(TR("Aggiornato alle ", "Updated at ")) + when
+        : String(TR("Meteo non aggiornato", "Weather not updated")) + MIDDOT + TR("ultimo alle ", "last at ") + when);
   } else if (!m.weatherUpdateOk) {
-    textLeft(MARGIN, footerY, "Meteo non disponibile");
+    textLeft(MARGIN, footerY, TR("Meteo non disponibile", "Weather unavailable"));
   }
   if (m.ip.length()) {
     textCenter(W / 2, footerY, m.ip);
@@ -417,9 +426,9 @@ void drawSetupScreen(const ScreenModel& m) {
   const int W = display.width();
 
   u8g2.setFont(FONT_TITLE);
-  textLeft(MARGIN, 52, "Configurazione");
+  textLeft(MARGIN, 52, TR("Configurazione", "Setup"));
   u8g2.setFont(FONT_TEXT);
-  textLeft(MARGIN, 80, "AtmoVerse non è collegato a una rete WiFi.");
+  textLeft(MARGIN, 80, TR("AtmoVerse non è collegato a una rete WiFi.", "AtmoVerse is not connected to a WiFi network."));
   display.drawFastHLine(MARGIN, 96, W - 2 * MARGIN, GxEPD_BLACK);
 
   // QR code a destra: collega il telefono alla rete di configurazione
@@ -434,15 +443,18 @@ void drawSetupScreen(const ScreenModel& m) {
     int x = qrLeft + (qrArea - size) / 2;
     qr.drawQRCode(display, x, 116, module);
     u8g2.setFont(FONT_LABEL);
-    textCenter(qrLeft + qrArea / 2, 116 + size + 24, "Inquadra per collegarti");
+    textCenter(qrLeft + qrArea / 2, 116 + size + 24, TR("Inquadra per collegarti", "Scan to connect"));
   }
 
   // Passi a sinistra
   const int textW = qrLeft - MARGIN - 32;
   const char* steps[] = {
-    "Inquadra il codice QR con la fotocamera del telefono: il telefono si collega alla rete di AtmoVerse.",
-    "Si apre da sola la pagina di configurazione. Se non compare, apri il browser su http://",
-    "Scegli la rete WiFi di casa, inserisci città e API key di OpenWeatherMap e tocca Salva.",
+    TR("Inquadra il codice QR con la fotocamera del telefono: il telefono si collega alla rete di AtmoVerse.",
+       "Scan the QR code with your phone camera: the phone joins the AtmoVerse network."),
+    TR("Si apre da sola la pagina di configurazione. Se non compare, apri il browser su http://",
+       "The setup page opens by itself. If it does not, open your browser at http://"),
+    TR("Scegli la rete WiFi di casa, inserisci città e API key di OpenWeatherMap e tocca Salva.",
+       "Choose your home WiFi, enter your city and OpenWeatherMap API key, then tap Save."),
   };
   int y = 132;
   for (int i = 0; i < 3; i++) {
@@ -463,21 +475,23 @@ void drawSetupScreen(const ScreenModel& m) {
   // Collegamento manuale
   y += 6;
   u8g2.setFont(FONT_LABEL);
-  textLeft(MARGIN, y, "Collegamento manuale");
+  textLeft(MARGIN, y, TR("Collegamento manuale", "Manual connection"));
   y += 24;
   u8g2.setFont(FONT_TEXT);
-  textLeft(MARGIN, y, "Rete  " + apName);
+  textLeft(MARGIN, y, String(TR("Rete  ", "Network  ")) + apName);
   y += lineHeight();
   textLeft(MARGIN, y, String("Password  ") + ATMOVERSE_AP_PASSWORD);
 
-  drawServiceFooter(m, "Quando la rete di casa torna disponibile, AtmoVerse si ricollega da solo.");
+  drawServiceFooter(m, TR("Quando la rete di casa torna disponibile, AtmoVerse si ricollega da solo.",
+                          "When your home network is back, AtmoVerse reconnects by itself."));
 }
 
 static String formatEta(int seconds) {
-  if (seconds < 0) return "Stima del tempo in corso...";
-  if (seconds < 60) return "Meno di un minuto";
+  if (seconds < 0) return TR("Stima del tempo in corso...", "Estimating time...");
+  if (seconds < 60) return TR("Meno di un minuto", "Less than a minute");
   int minutes = (seconds + 30) / 60;
-  return minutes == 1 ? String("Circa 1 minuto") : "Circa " + String(minutes) + " minuti";
+  if (minutes == 1) return TR("Circa 1 minuto", "About 1 minute");
+  return String(TR("Circa ", "About ")) + String(minutes) + TR(" minuti", " minutes");
 }
 
 void drawUpdateScreen(const ScreenModel& m) {
@@ -487,14 +501,14 @@ void drawUpdateScreen(const ScreenModel& m) {
 
   // Titolo
   u8g2.setFont(FONT_TITLE);
-  textLeft(MARGIN, 52, "Aggiornamento in corso");
+  textLeft(MARGIN, 52, TR("Aggiornamento in corso", "Updating"));
   u8g2.setFont(FONT_TEXT);
-  textLeft(MARGIN, 80, "AtmoVerse sta installando una nuova versione.");
+  textLeft(MARGIN, 80, TR("AtmoVerse sta installando una nuova versione.", "AtmoVerse is installing a new version."));
   display.drawFastHLine(MARGIN, 96, W - 2 * MARGIN, GxEPD_BLACK);
 
   // Fase e percentuale
   u8g2.setFont(FONT_BODY);
-  textLeft(MARGIN, 160, m.updPhase.length() ? m.updPhase : String("Preparazione"));
+  textLeft(MARGIN, 160, m.updPhase.length() ? m.updPhase : String(TR("Preparazione", "Preparing")));
   u8g2.setFont(FONT_TEMP);
   textRight(W - MARGIN, 172, String(m.updPercent) + "%");
 
@@ -510,16 +524,19 @@ void drawUpdateScreen(const ScreenModel& m) {
   u8g2.setFont(FONT_TEXT);
   int y = barY + barH + 36;
   if (m.updFilesTotal > 0) {
-    textLeft(MARGIN, y, String(m.updFilesDone) + " di " + String(m.updFilesTotal) + " file scaricati");
+    textLeft(MARGIN, y, String(m.updFilesDone) + TR(" di ", " of ") + String(m.updFilesTotal) +
+                        TR(" file scaricati", " files downloaded"));
     y += lineHeight() + 4;
   }
   textLeft(MARGIN, y, formatEta(m.updEtaSec));
 
   // Avvertenza
   u8g2.setFont(FONT_TEXT);
-  textLeft(MARGIN, H - 64, "Non spegnere il dispositivo:");
-  textLeft(MARGIN, H - 64 + lineHeight(), "al termine si riavvia o torna al meteo da solo.");
-  drawServiceFooter(m, "La schermata si aggiorna a ogni 10% di avanzamento.");
+  textLeft(MARGIN, H - 64, TR("Non spegnere il dispositivo:", "Do not switch off the device:"));
+  textLeft(MARGIN, H - 64 + lineHeight(), TR("al termine si riavvia o torna al meteo da solo.",
+                                               "when done it restarts or returns to the weather by itself."));
+  drawServiceFooter(m, TR("La schermata si aggiorna a ogni 10% di avanzamento.",
+                          "This screen refreshes every 10% of progress."));
 }
 
 void drawMessageScreen(const ScreenModel& m) {
@@ -617,10 +634,10 @@ void drawBatteryScreen(const ScreenModel& m) {
   drawTiredFace(W / 2, 150, 92);
 
   u8g2.setFont(FONT_TITLE);
-  textCenter(W / 2, 300, "Batteria scarica");
+  textCenter(W / 2, 300, TR("Batteria scarica", "Battery empty"));
   u8g2.setFont(FONT_TEXT);
-  textCenter(W / 2, 336, "Collega il caricatore:");
-  textCenter(W / 2, 336 + lineHeight(), "AtmoVerse ripartirà da solo.");
+  textCenter(W / 2, 336, TR("Collega il caricatore:", "Plug in the charger:"));
+  textCenter(W / 2, 336 + lineHeight(), TR("AtmoVerse ripartirà da solo.", "AtmoVerse will restart by itself."));
 
   // Batteria vuota con la percentuale
   const int bw = 64, bh = 28;

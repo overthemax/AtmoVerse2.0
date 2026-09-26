@@ -1,4 +1,5 @@
 #include "Display.h"
+#include "Language.h"
 #include "Hardware.h"
 #include <SD.h>
 #include <ArduinoJson.h>
@@ -104,7 +105,7 @@ void initDisplay() {
 
 // Funzione per visualizzare la schermata di avvio
 void displayStartupScreen() {
-  showMessage("AtmoVerse", "Avvio in corso...");
+  showMessage("AtmoVerse", TR("Avvio in corso...", "Starting..."));
 }
 
 // Disegna la temperatura con font GFX grande (24pt) invece di BMP
@@ -204,7 +205,7 @@ void updateDisplay() {
 
   m.notice = getUpdateNotice();
   if (m.notice.length() == 0 && battery.getLevel() != BATTERY_LEVEL_OK) {
-    m.notice = "Batteria scarica: collega il caricatore";
+    m.notice = TR("Batteria scarica: collega il caricatore", "Battery low: plug in the charger");
   }
   fillBattery(m);
   showScreen(m);
@@ -704,17 +705,20 @@ void drawWeatherIcon(int x, int y, int weatherId, bool isNight, int iconSize) {
 
 // Funzione per visualizzare messaggi di errore
 void displayError(const char* message) {
-  showMessage("Errore", message);
+  showMessage(TR("Errore", "Error"), message);
 }
 
 // Funzione per mostrare schermata SD mancante
 void showSDCardMissing() {
-  showMessage("Scheda SD non trovata", "Inserisci una microSD formattata FAT32 e riavvia AtmoVerse.");
+  showMessage(TR("Scheda SD non trovata", "SD card not found"),
+              TR("Inserisci una microSD formattata FAT32 e riavvia AtmoVerse.",
+                 "Insert a FAT32 microSD card and restart AtmoVerse."));
 }
 
 // Mostra conferma visiva di salvataggio configurazione
 void showConfigSaved() {
-  showMessage("Impostazioni salvate", "AtmoVerse si riavvia tra pochi istanti.");
+  showMessage(TR("Impostazioni salvate", "Settings saved"),
+              TR("AtmoVerse si riavvia tra pochi istanti.", "AtmoVerse restarts in a moment."));
   // Subito dopo il chiamante riavvia: il messaggio deve essere sul pannello
   waitDisplayIdle(10000);
 }
