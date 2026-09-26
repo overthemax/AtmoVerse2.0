@@ -8,7 +8,6 @@
 #include <Fonts/FreeSerif9pt7b.h>
 #include <Fonts/FreeSerif12pt7b.h>
 #include <Fonts/FreeSerifBoldItalic12pt7b.h>  // Font serif grassetto corsivo
-#include "KAUFMANN20pt7b.h"                      // Font calligrafico Kaufmann per citazioni
 #include <Fonts/FreeSansBold12pt7b.h>    // Font sans-serif più moderno e leggibile
 #include <Fonts/FreeSansBold18pt7b.h>    // Font sans-serif grande per citazioni
 #include <Fonts/FreeSansBold24pt7b.h>    // Font sans-serif 24pt per temperatura
