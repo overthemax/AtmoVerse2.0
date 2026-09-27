@@ -46,6 +46,9 @@ static unsigned long wifiOnSince = 0;
 static bool wifiFailed = false;
 static unsigned long wifiFailedAt = 0;
 
+// Nothing to do in the interrupt: touches are read by ecoPollTouch and ecoSleep
+static void IRAM_ATTR onTouchInterrupt() {}
+
 // The idle value changes a lot between USB (PC ground) and battery: the
 // threshold is recomputed at every power change (see ecoPowerChanged)
 void ecoBegin() {
@@ -58,6 +61,14 @@ void ecoBegin() {
   }
   touch_value_t rest = sum / 16;
   touchThreshold = rest * 2 / 3;
+  // The wake-up from light sleep uses the channel's own threshold: on the
+  // ESP32 the touch driver of core 3.x ignores the one passed to
+  // touchSleepWakeUpEnable and keeps its default, 1.5% below the reading at
+  // boot. On battery the idle value is lower than that (boot is usually on
+  // USB), so the board woke up continuously, every wake-up was a false touch
+  // and after three the touch wake-up was switched off. Attaching an
+  // interrupt is the driver's way to set the channel threshold.
+  touchAttachInterrupt(TOUCH_PIN, onTouchInterrupt, touchThreshold);
   currentIdle = rest;
   lowestReading = rest;
   if (battery.isAvailable() && !battery.charging()) {
