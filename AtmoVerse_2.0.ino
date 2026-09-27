@@ -424,6 +424,8 @@ void loop() {
       ecoSleep(60000);
       return;
     }
+  } else {
+    ecoLogTouch();
   }
 
   // Short delay to keep the web server responsive

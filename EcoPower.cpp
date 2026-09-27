@@ -63,6 +63,23 @@ static bool touchConfirmed() {
   return below >= 3;
 }
 
+// With the charger plugged in a touch does nothing (everything is already
+// on), but it is logged: that way the wiring can be tested over USB
+void ecoLogTouch() {
+  static unsigned long lastCheck = 0;
+  static bool touched = false;
+  if (touchThreshold == 0 || millis() - lastCheck < 200) return;
+  lastCheck = millis();
+  touch_value_t value = touchRead(TOUCH_PIN);
+  if (value >= touchThreshold) {
+    touched = false;
+  } else if (!touched && touchConfirmed()) {
+    touched = true;
+    Serial.printf("[ECO] Touch on GPIO%d: value %u, threshold %u (on the charger: no action)\n",
+                  TOUCH_PIN, (unsigned)value, (unsigned)touchThreshold);
+  }
+}
+
 bool ecoActive() {
   return battery.isAvailable() && !battery.charging() && !apMode && strlen(config.ssid) > 0;
 }

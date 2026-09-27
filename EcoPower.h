@@ -41,4 +41,7 @@ void ecoWiFiOffIfIdle();
 // and the display idle. A touch wakes the board and opens the web page.
 void ecoSleep(unsigned long maxMs);
 
+// With the charger plugged in: logs a touch on the serial port (wiring test)
+void ecoLogTouch();
+
 #endif // ECO_POWER_H
