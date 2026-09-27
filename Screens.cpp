@@ -107,26 +107,36 @@ static String displayText(String s) {
   return s;
 }
 
-// Splits the text into lines at most maxWidth wide (current font).
-// Returns the number of lines needed; stores at most maxLines.
+// Splits the text into lines at most maxWidth wide (current font), also
+// breaking at every '\n'. Returns the number of lines needed; stores at most
+// maxLines.
 static int wrapText(Text& t, const String& s, int maxWidth, String* lines, int maxLines) {
   int count = 0;
   String line;
   int start = 0;
   while (start < (int)s.length()) {
     int space = s.indexOf(' ', start);
+    int newline = s.indexOf('\n', start);
     if (space < 0) space = s.length();
-    String word = s.substring(start, space);
-    start = space + 1;
-    if (word.length() == 0) continue;
+    bool breakAfter = newline >= 0 && newline < space;
+    int end = breakAfter ? newline : space;
+    String word = s.substring(start, end);
+    start = end + 1;
 
-    String candidate = line.length() ? line + " " + word : word;
-    if (line.length() && textWidth(t, candidate) > maxWidth) {
+    if (word.length()) {
+      String candidate = line.length() ? line + " " + word : word;
+      if (line.length() && textWidth(t, candidate) > maxWidth) {
+        if (count < maxLines) lines[count] = line;
+        count++;
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    if (breakAfter && line.length()) {
       if (count < maxLines) lines[count] = line;
       count++;
-      line = word;
-    } else {
-      line = candidate;
+      line = "";
     }
   }
   if (line.length()) {
@@ -185,11 +195,31 @@ static int chooseQuoteStyle(Text& t, const String& text, const String& author, i
   return -1;
 }
 
+// Poetry quoted on one line separates the verses with " / "; the quote
+// editor lets the user type "\n". Both become line breaks when the quote
+// still fits the box that way, otherwise the verses run on with " / ".
+static String quoteLayout(Text& t, const String& quote, const String& author, int width, int height,
+                          int* style) {
+  String verses = quote;
+  verses.replace(" / ", "\n");
+  verses.replace("\\n", "\n");
+  verses = "\xC2\xAB" + verses + "\xC2\xBB";  // «text»
+  *style = chooseQuoteStyle(t, verses, author, width, height);
+  if (*style >= 0) return verses;
+
+  String flat = quote;
+  flat.replace("\\n", " / ");
+  flat = "\xC2\xAB" + flat + "\xC2\xBB";
+  *style = chooseQuoteStyle(t, flat, author, width, height);
+  return flat;
+}
+
 bool quoteFitsDisplay(const String& text, const String& author) {
   initText(measure);
   const int width = display.width() - 2 * MARGIN;
-  String t = "\xC2\xAB" + displayText(text) + "\xC2\xBB";
-  return chooseQuoteStyle(measure, t, displayText(author), width, QUOTE_BOTTOM - QUOTE_TOP) >= 0;
+  int style;
+  quoteLayout(measure, displayText(text), displayText(author), width, QUOTE_BOTTOM - QUOTE_TOP, &style);
+  return style >= 0;
 }
 
 static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
@@ -198,10 +228,9 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
   const int cx = display.width() / 2;
   if (quoteText.length() == 0) return;
 
-  String text = "\xC2\xAB" + displayText(quoteText) + "\xC2\xBB";  // «text»
   String author = displayText(quoteAuthor);
-
-  int style = chooseQuoteStyle(u8g2, text, author, width, height);
+  int style;
+  String text = quoteLayout(u8g2, displayText(quoteText), author, width, height, &style);
   bool truncated = style < 0;
   if (truncated) style = QUOTE_STYLE_COUNT - 1;
 

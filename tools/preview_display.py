@@ -110,16 +110,19 @@ def center(img, f, cx, y, t): F[f].draw(img, cx - F[f].width(t) // 2, y, t)
 
 
 def wrap(f, text, maxw):
-    lines, line = [], ""
-    for word in text.split():
-        cand = (line + " " + word) if line else word
-        if line and F[f].width(cand) > maxw:
+    """As wrapText in Screens.cpp: word wrap, plus a break at every newline."""
+    lines = []
+    for verse in text.split("\n"):
+        line = ""
+        for word in verse.split():
+            cand = (line + " " + word) if line else word
+            if line and F[f].width(cand) > maxw:
+                lines.append(line)
+                line = word
+            else:
+                line = cand
+        if line:
             lines.append(line)
-            line = word
-        else:
-            line = cand
-    if line:
-        lines.append(line)
     return lines
 
 
@@ -153,16 +156,25 @@ def draw_battery(img, d, xr, baseline, pct, charging=False):
     right(img, "luRS08_tf", bx - 6, baseline, label)
 
 
-def draw_quote(img, text, author):
-    top, bottom = 308, 452
-    width, height = W - 2 * MARGIN, bottom - top
-    text = "\xab" + text + "\xbb"
+def choose_style(text, author, width, height):
+    """As chooseQuoteStyle in Screens.cpp; None if no style fits."""
     for tf, af in QUOTE_STYLES:
         lines = wrap(tf, text, width)
         alines = wrap(af, author, width) if author else []
         total = len(lines) * F[tf].line_height() + (4 + len(alines) * F[af].line_height() if alines else 0)
         if len(lines) <= 8 and len(alines) <= 3 and total <= height:
-            break
+            return tf, af, lines, alines, total
+    return None
+
+
+def draw_quote(img, text, author):
+    top, bottom = 300, 452
+    width, height = W - 2 * MARGIN, bottom - top
+    # As quoteLayout in Screens.cpp: one verse per line if it fits, else " / "
+    verses = "\xab" + text.replace(" / ", "\n").replace("\\n", "\n") + "\xbb"
+    flat = "\xab" + text.replace("\\n", " / ") + "\xbb"
+    tf, af, lines, alines, total = (choose_style(verses, author, width, height)
+                                    or choose_style(flat, author, width, height))
     y = top + (height - total) // 2
     for l in lines:
         y += F[tf].line_height()
