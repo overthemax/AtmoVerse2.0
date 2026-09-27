@@ -38,25 +38,4 @@ bool initSD();
 using DisplayType = GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>;
 extern DisplayType display;
 
-// Definizioni colori per 4-Gray (se non già definiti dalla libreria)
-#ifndef GxEPD_BLACK
-#define GxEPD_BLACK     0x00
-#endif
-#ifndef GxEPD_DARKGREY
-#define GxEPD_DARKGREY  0x01 // O 0x55 a seconda della mappatura
-#endif
-#ifndef GxEPD_LIGHTGREY
-#define GxEPD_LIGHTGREY 0x02 // O 0xAA
-#endif
-#ifndef GxEPD_WHITE
-#define GxEPD_WHITE     0x03 // O 0xFF
-#endif
-
-// Nota: GxEPD2_4G usa solitamente:
-// 0x0 = Nero
-// 0x1 = Grigio Scuro
-// 0x2 = Grigio Chiaro
-// 0x3 = Bianco
-// Assicuriamoci di usare questi valori se la libreria li aspetta così.
-
 #endif // HARDWARE_H

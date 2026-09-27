@@ -165,11 +165,6 @@ bool isWeatherDataValid() {
   return true;
 }
 
-// Restituisce il timestamp dell'ultimo aggiornamento meteo
-time_t getLastUpdateTime() {
-  return currentWeather.last_update;
-}
-
 // Funzione per determinare se è notte
 bool isNightTime() {
   time_t now;
@@ -180,56 +175,4 @@ bool isNightTime() {
   // Considera notte dalle 19:00 alle 7:00
   int currentHour = timeinfo.tm_hour;
   return (currentHour >= 19 || currentHour < 7);
-}
-
-// Ottiene la classe dell'icona meteo in base all'ID della condizione
-String getWeatherIconClass(int weatherId, bool isNight) {
-  // Converti ID OpenWeatherMap in classe FontAwesome
-  
-  // Temporale (200-299)
-  if (weatherId >= 200 && weatherId < 300) {
-    return "fas fa-bolt";
-  }
-  
-  // Pioggerella (300-399)
-  else if (weatherId >= 300 && weatherId < 400) {
-    return "fas fa-cloud-rain";
-  }
-  
-  // Pioggia (500-599)
-  else if (weatherId >= 500 && weatherId < 600) {
-    if (weatherId == 511) { // Pioggia ghiacciata
-      return "fas fa-cloud-meatball";
-    }
-    return "fas fa-cloud-showers-heavy";
-  }
-  
-  // Neve (600-699)
-  else if (weatherId >= 600 && weatherId < 700) {
-    return "fas fa-snowflake";
-  }
-  
-  // Atmosfera - nebbia, caligine (700-799)
-  else if (weatherId >= 700 && weatherId < 800) {
-    return "fas fa-smog";
-  }
-  
-  // Cielo sereno (800)
-  else if (weatherId == 800) {
-    return isNight ? "fas fa-moon" : "fas fa-sun";
-  }
-  
-  // Nuvoloso (801-899)
-  else if (weatherId > 800 && weatherId < 900) {
-    if (weatherId == 801) { // Poche nuvole
-      return isNight ? "fas fa-cloud-moon" : "fas fa-cloud-sun";
-    }
-    else if (weatherId == 802) { // Nubi sparse
-      return isNight ? "fas fa-cloud-moon" : "fas fa-cloud-sun";
-    }
-    return "fas fa-cloud";
-  }
-  
-  // Default
-  return "fas fa-cloud";
 }

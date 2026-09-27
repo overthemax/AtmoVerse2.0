@@ -3,7 +3,6 @@
 #include <SPI.h>
 #include <SD.h> // Aggiunto per SD
 #include <GxEPD2_BW.h> // Ripristinato a BW
-#include <GxEPD2_3C.h>
 #include "Debug.h"
 
 // Instanziazione del display GxEPD2 B/N, 5.83" GDEW0583T8

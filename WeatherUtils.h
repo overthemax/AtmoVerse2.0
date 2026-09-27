@@ -24,16 +24,11 @@ struct WeatherData {
 // Dati meteo correnti
 extern WeatherData currentWeather;
 
-// Intervallo di aggiornamento meteo (30 minuti)
-const unsigned long WEATHER_UPDATE_INTERVAL = 30 * 60 * 1000;
-
 // Funzioni per la gestione dei dati meteo
 bool getWeatherData();
 bool parseWeatherData(String& json);
 String urlEncodeParam(const char* text);
 bool isWeatherDataValid();
 bool isNightTime();
-time_t getLastUpdateTime();
-String getWeatherIconClass(int weatherId, bool isNight);
 
 #endif // WEATHER_UTILS_H

@@ -17,14 +17,9 @@ void serveWeatherIcon(WiFiClient& client, const String& path);
 void serveQRCode(WiFiClient& client);
 void sendResponse(WiFiClient& client, const String& contentType, const String& content, int statusCode = 200);
 void sendJsonResponse(WiFiClient& client, const String& jsonContent, int statusCode = 200);
-void sendRedirect(WiFiClient& client, const String& location);
 void performWiFiScan(WiFiClient& client);
 
 // Chiede al loop di controllare subito gli aggiornamenti (definita nel .ino)
 void requestUpdateCheck();
-
-// Stato UI controllato dalla Web GUI (endpoint /api/display-settings)
-extern String g_displayTheme; // "default" | "eink"
-extern String g_displayMode;  // "classic" | "focus"
 
 #endif // WEBSERVER_H

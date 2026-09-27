@@ -148,18 +148,6 @@ int BatteryManager::getEstimatedTimeRemaining() {
     return (int)(remainingMah / current_mA * 60.0f);
 }
 
-String BatteryManager::getStatusString() {
-    if (!ina219Available) return "Sensore batteria non disponibile";
-    String status = String(percentage) + "% (" + String(fabsf(current_mA), 0) + " mA)";
-    if (isCharging) {
-        status += " in carica";
-    } else {
-        int mins = getEstimatedTimeRemaining();
-        if (mins > 0) status += " ~" + String(mins / 60) + "h" + String(mins % 60) + "m";
-    }
-    return status;
-}
-
 void BatteryManager::updateLevel() {
     if (isCharging || !ina219Available) {
         level = BATTERY_LEVEL_OK;

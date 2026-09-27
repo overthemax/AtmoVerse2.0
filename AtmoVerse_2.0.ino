@@ -7,34 +7,19 @@
 // Librerie essenziali
 #include <Arduino.h>
 #include <SPI.h>
-#include <Wire.h>
 #include <SD.h>
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <WiFiServer.h>
-#include <DNSServer.h>
-#include <ArduinoJson.h>
 #include <time.h>
-
-// Librerie per E-Ink Display (GxEPD2)
-#include <GxEPD2_BW.h>
-#include <Fonts/FreeSans9pt7b.h>
 
 // Includere i moduli del progetto
 #include "Hardware.h"
 #include "Config.h"
-#include "NetworkUtils.h"  // Nuovo modulo per la rete
-#include "WeatherUtils.h"  // Nuovo modulo per i dati meteo
-#include "WebServer.h"     // Nuovo modulo per il server web
-#include "WebUIPages.h"    // Modulo per le interfacce web essenziali
-#include "WebMinimal.h"    // Modulo per le interfacce web minimali
-#include "SVGHelper.h"     // Modulo per gestione SVG
-#include "WeatherIcons.h"  // Modulo per icone OpenWeatherMap
+#include "NetworkUtils.h"
+#include "WeatherUtils.h"
+#include "WebServer.h"
 #include "Display.h"
-#include "Calendar.h"
 #include "AtmoVerseConstants.h"
-#include "AtmoSerialLogger.h"  // Nuovo sistema di logging
-#include "QuotesManager.h"    // Modulo per la gestione delle citazioni
+#include "QuotesManager.h"
 #include "BatteryManager.h"
 #include "RTCManager.h"
 #include "Updater.h"
@@ -106,42 +91,6 @@ int networkRetryCounter = 0;
 // Flag per indicare l'ultimo stato dell'aggiornamento meteo
 bool lastWeatherUpdateSuccess = true;
 
-// Istanza del logger
-AtmoSerialLogger Logger(sdSPI, SD_CS);
-
-// Funzione per resettare la configurazione e entrare in modalità AP
-void resetConfigAndEnterAP() {
-  // Rimozione del log Serial per risparmiare memoria
-  
-  // Cancella direttamente il file di configurazione
-  if (initSD()) {
-    if (SD.exists("conf.json")) {
-      if (SD.remove("conf.json")) {
-        // File di configurazione cancellato con successo
-      } else {
-        // Errore durante la cancellazione del file di configurazione
-      }
-    } else {
-      // File di configurazione non trovato
-    }
-  }
-  
-  // Resetta la configurazione in memoria
-  resetConfig();
-  
-  // Entra in modalità AP per permettere la riconfigurazione
-  startAccessPoint(true);
-
-  // Mostra schermata AP grafica sul display
-  showAPModeInfo();
-
-  String apSSID = WiFi.softAPSSID();
-  showStatusOnDisplay(String("RESET OK\nAP: " + apSSID + "\n192.168.4.1").c_str());
-  delay(AP_INFO_DISPLAY_DURATION_MS);
-  showAPModeInfo();
-}
-
-
 // Setup iniziale
 void setup() {
   // Riduce frequenza CPU a 80MHz per risparmio energetico (WiFi funziona fino a 80MHz)
@@ -153,62 +102,48 @@ void setup() {
 
   // Dopo un sonno per batteria scarica: se lo è ancora si torna a dormire qui
   checkBatteryAfterSleep();
-  // Serial.println("\n\n=== AtmoVerse 2.0 Startup ===");
   
   // Attesa per stabilizzazione sistema prima di inizializzare SD
   delay(500);
   
   // --- SD CARD su HSPI - INIZIALIZZO PRIMA DELLA DISPLAY ---
   // Inizializzazione centralizzata SD PRIMA per evitare conflitti SPI
-  // Serial.println("[SETUP] Inizializzazione SD card...");
   bool sdAvailable = initSD();
   
   // --- DISPLAY: Inizializza e mostra schermata di boot DOPO SD ---
   delay(BOOT_DELAY_MS);
 
-  // Serial.println("[SETUP] Inizializzazione display...");
   SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS); // VSPI per display
   initDisplay();          // Avvia anche il task del display sul core 0
   displayStartupScreen();
 
   delay(BOOT_SPLASH_DURATION_MS);
   
-  // --- VERIFICA SD ---
-  if (!sdAvailable) {
-    // Serial.println("ATTENZIONE: SD Card non rilevata o errore inizializzazione!");
-    // Serial.println("Il sistema funzionerà in modalità AP per la configurazione iniziale.");
-  }
-
   // Verifica se esiste il file di configurazione (solo se SD disponibile)
   bool configFileExists = false;
   if (sdAvailable) {
     configFileExists = SD.exists("/conf.json") || SD.exists("conf.json");
-    // Serial.printf("[SETUP] File configurazione esiste sulla SD: %s\n", configFileExists ? "SI" : "NO");
   }
 
   // Carica la configurazione
-  bool configLoaded = loadConfig();
+  loadConfig();
   
   // Verifica se la configurazione ha SSID impostato
   bool hasSSID = strlen(config.ssid) > 0;
-  // Serial.printf("[SETUP] SSID presente in config: %s\n", hasSSID ? "SI" : "NO");
 
   
   // Se esiste il file e la configurazione è stata caricata, ma non è valida,
   // potrebbe esserci un errore di lettura. Proviamo a rileggerla fino a 3 volte.
   if (configFileExists && !hasSSID && sdAvailable) {
-    // Serial.println("[SETUP] File esiste ma SSID vuoto, tento rilettura...");
     // Prova a rileggere fino a CONFIG_READ_MAX_RETRIES volte prima di dare per persa la configurazione
     for (int i = 0; i < CONFIG_READ_MAX_RETRIES; i++) {
-      // Serial.printf("[SETUP] Tentativo di rilettura #%d\n", i+1);
       delay(CONFIG_RETRY_DELAY_MS);
       
       // Ricarica la configurazione
-      configLoaded = loadConfig();
+      loadConfig();
       hasSSID = strlen(config.ssid) > 0;
       
       if (hasSSID) {
-        // Serial.println("[SETUP] Configurazione caricata con successo al retry");
         break;
       }
     }
@@ -226,14 +161,9 @@ void setup() {
   // Verifica finale di validità della configurazione
   if (!checkConfigValidity()) {
     // Configurazione non valida, avvio AP
-    // Serial.println("[SETUP] ⚠️ Config non valida - avvio AP mode per configurazione");
     startAccessPoint(true);
-    // Serial.println("[SETUP] startAccessPoint completato");
     showAPModeInfo();
-    // Serial.println("[SETUP] showAPModeInfo completato - fine setup");
     return;
-  } else {
-    // Serial.println("[SETUP] ✓ Configurazione valida, procedo con connessione WiFi");
   }
 
   // Se non esisteva il file di configurazione ma è stato creato il default, salvalo
@@ -278,9 +208,6 @@ void setup() {
   getWeatherData();
   updateDisplay();
 }
-
-// Contatore per il loop principale
-long loopCounter = 0;
 
 // Determina se siamo in modalità risparmio energetico
 bool isPowerSavingMode() {
@@ -495,9 +422,6 @@ void loop() {
     lastWebServerCheck = currentMillis;
     handleClientRequests(); // Gestisce sia server che DNS captive portal
   }
-  
-  // DISABILITATO: Controlla la connessione WiFi e passa in modalità AP se necessario
-  // checkWiFiConnection();
   
   // A batteria, col WiFi spento: si dorme fino allo scatto del minuto
   if (eco) {

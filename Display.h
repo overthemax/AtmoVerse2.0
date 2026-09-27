@@ -21,7 +21,6 @@ void updateDisplay();         // Main screen: time, weather, quote, battery
 void displaySetupScreen(String apName, String ipAddress);
 void showAPModeInfo();
 
-void showStatusOnDisplay(const char* msg);  // Simple text message
 void showConfigSaved();                     // "Settings saved", waits until it is on the panel
 
 // Update download: phase, files, percentage, estimated seconds (-1 = unknown)

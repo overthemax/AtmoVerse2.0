@@ -24,44 +24,24 @@ static void populateConfigFromJson(const JsonDocument& doc) {
   config.daylightOffset_sec = doc["dst_offset"] | ATMOVERSE_DEFAULT_DST_OFFSET;
   strlcpy(config.ntpServer, doc["ntp_server"] | ATMOVERSE_DEFAULT_NTP, sizeof(config.ntpServer));
   config.use24hFormat = doc["use24hFormat"] | true;
-  // theme rimosso - usa /layout.json sulla SD per personalizzare
-  config.weatherUpdateInterval = doc["weatherUpdateInterval"] | 30;
-  config.weatherPowerSavingUpdateInterval = doc["weatherPowerSavingUpdateInterval"] | 120;
   config.displayRefreshIntervalSec = doc["displayRefreshIntervalSec"] | 60;
   config.displayRefreshIntervalSecPowerSaving = doc["displayRefreshIntervalSecPowerSaving"] | 300;
-  config.apTimeRefreshIntervalSec = doc["apTimeRefreshIntervalSec"] | 60;
-  // quotePosX e quotePosY rimossi - ora gestiti dal layout editor
-  
-  // Nuove configurazioni avanzate
-  
-  // Night Mode deprecato - mantieni i campi per compatibilità ma non più utilizzati
-  config.nightModeEnabled = doc["nightModeEnabled"] | false;
-  config.nightModeStartHour = doc["nightModeStartHour"] | 22;
-  config.nightModeEndHour = doc["nightModeEndHour"] | 7;
-  // nightModeAutoTheme, nightTheme, dayTheme rimossi - usa /layout.json
-  
-  // Power Saving con fallback ai valori di nightMode se non presenti
-  config.powerSavingEnabled = doc["powerSavingEnabled"] | config.nightModeEnabled;
-  config.powerSavingStartHour = doc["powerSavingStartHour"] | config.nightModeStartHour;
-  config.powerSavingEndHour = doc["powerSavingEndHour"] | config.nightModeEndHour;
+
+  // Risparmio energetico notturno
+  config.powerSavingEnabled = doc["powerSavingEnabled"] | false;
+  config.powerSavingStartHour = doc["powerSavingStartHour"] | 22;
+  config.powerSavingEndHour = doc["powerSavingEndHour"] | 7;
   
   // Intervalli critici con fallback garantiti
   int normalInterval = doc["normalUpdateInterval"] | 0;
   if (normalInterval <= 0) {
-    // Fallback a weatherUpdateInterval se presente
+    // Configurazioni vecchie: intervallo nel campo weatherUpdateInterval
     int legacyInterval = doc["weatherUpdateInterval"] | 0;
-    if (legacyInterval > 0) {
-       config.normalUpdateInterval = legacyInterval;
-    } else {
-       config.normalUpdateInterval = 30;
-    }
+    config.normalUpdateInterval = legacyInterval > 0 ? legacyInterval : 30;
   } else {
     config.normalUpdateInterval = normalInterval;
   }
-  
-  // Allinea weatherUpdateInterval per coerenza
-  config.weatherUpdateInterval = config.normalUpdateInterval;
-  
+
   int powerSavingInterval = doc["powerSavingUpdateInterval"] | 0;
   if (powerSavingInterval <= 0) {
     config.powerSavingUpdateInterval = 120;
@@ -78,22 +58,6 @@ static void populateConfigFromJson(const JsonDocument& doc) {
   
   // Battery Management
   config.batteryShowOnDisplay = doc["batteryShowOnDisplay"] | true;
-  
-  // Weather Alerts
-  config.alertsEnabled = doc["alertsEnabled"] | true;
-  config.alertTempHigh = doc["alertTempHigh"] | 35.0;
-  config.alertTempLow = doc["alertTempLow"] | 0.0;
-  config.alertWindHigh = doc["alertWindHigh"] | 50.0;
-  config.alertRain = doc["alertRain"] | true;
-  config.alertSnow = doc["alertSnow"] | true;
-  config.alertStorm = doc["alertStorm"] | true;
-  config.alertShowOnDisplay = doc["alertShowOnDisplay"] | true;
-  strlcpy(config.alertWebhookUrl, doc["alertWebhookUrl"] | "", sizeof(config.alertWebhookUrl));
-  
-  // History / Statistics
-  config.historyEnabled = doc["historyEnabled"] | true;
-  config.historyKeepDays = doc["historyKeepDays"] | 30;
-  config.historyShowOnDisplay = doc["historyShowOnDisplay"] | false;
 }
 
 // Percorso del file di configurazione sulla SD (percorso assoluto per ESP32)
@@ -123,18 +87,10 @@ bool createDefaultConfig() {
   doc["dst_offset"] = 3600;
   doc["ntp_server"] = "pool.ntp.org";
   doc["use24hFormat"] = true;
-  // theme rimosso - usa /layout.json per personalizzare il display
   
   // Intervalli aggiornamento
-  doc["weatherUpdateInterval"] = 30;
-  doc["weatherPowerSavingUpdateInterval"] = 120;
   doc["displayRefreshIntervalSec"] = 60;
   doc["displayRefreshIntervalSecPowerSaving"] = 300;
-  doc["apTimeRefreshIntervalSec"] = 60;
-  
-  // Posizione citazione
-  doc["quotePosX"] = 35;
-  doc["quotePosY"] = 190;
   
   // Power Saving
   doc["powerSavingEnabled"] = false;
@@ -145,32 +101,9 @@ bool createDefaultConfig() {
   
   // Rete
   doc["maxNetworkRetries"] = 3;
-  doc["showLastDataOnError"] = true;
-  
-  // Night Mode deprecato - non più utilizzato
-  doc["nightModeEnabled"] = false;
-  doc["nightModeStartHour"] = 22;
-  doc["nightModeEndHour"] = 7;
-  // nightModeAutoTheme, dayTheme, nightTheme rimossi
   
   // Batteria (misurata dall'INA219, se presente)
   doc["batteryShowOnDisplay"] = true;
-  
-  // Alerts
-  doc["alertsEnabled"] = true;
-  doc["alertTempHigh"] = 35.0;
-  doc["alertTempLow"] = 0.0;
-  doc["alertWindHigh"] = 50.0;
-  doc["alertRain"] = true;
-  doc["alertSnow"] = true;
-  doc["alertStorm"] = true;
-  doc["alertShowOnDisplay"] = true;
-  doc["alertWebhookUrl"] = "";
-  
-  // History
-  doc["historyEnabled"] = true;
-  doc["historyKeepDays"] = 30;
-  doc["historyShowOnDisplay"] = false;
   
   // Scrivi il file
   File file = SD.open("/conf.json", FILE_WRITE);
@@ -291,57 +224,16 @@ bool loadConfig() {
     config.daylightOffset_sec = ATMOVERSE_DEFAULT_DST_OFFSET;
     strcpy(config.ntpServer, ATMOVERSE_DEFAULT_NTP);
     config.use24hFormat = true;
-    // Tema rimosso - ora si usa solo layout.json
     // Default intervalli meteo
-    config.weatherUpdateInterval = 30;
-    config.weatherPowerSavingUpdateInterval = 120;
     // Default refresh display (secondi)
     config.displayRefreshIntervalSec = 60;
     config.displayRefreshIntervalSecPowerSaving = 300;
-    config.apTimeRefreshIntervalSec = 60;
-    // Default posizione citazione
-    config.quotePosX = 35;
-    config.quotePosY = 190;
   }
   
   if (!checkConfigValidity()) {
     return false;
   }
   return success;
-}
-
-// Funzione per stampare il contenuto di conf.json per debug
-void printConfigFile() {
-  
-  if (!initSD()) {
-    return;
-  }
-  
-  // Percorsi possibili per il file di configurazione
-  const char* paths[] = {
-    "/conf.json",
-    "conf.json",
-    "/config.json",
-    "config.json"
-  };
-  
-  bool fileFound = false;
-  
-  for (int i = 0; i < 4; i++) {
-    File file = SD.open(paths[i], FILE_READ);
-    if (file) {
-      
-      while (file.available()) {
-      }
-      
-      file.close();
-      fileFound = true;
-      break;
-    }
-  }
-  
-  if (!fileFound) {
-  }
 }
 
 // Controlla che i campi fondamentali della config siano validi
@@ -364,10 +256,6 @@ bool checkConfigValidity() {
   }
   
   return true;
-}
-
-// Funzione vuota per compatibilità, non fa nulla
-void logToSD(const char* msg) {
 }
 
 // Salva la configurazione
@@ -416,23 +304,10 @@ bool saveConfig() {
       (*doc)["dst_offset"] = config.daylightOffset_sec;
       (*doc)["ntp_server"] = config.ntpServer;
       (*doc)["use24hFormat"] = config.use24hFormat;
-      // theme rimosso - usa /layout.json
-      // Intervalli meteo
-      (*doc)["weatherUpdateInterval"] = config.weatherUpdateInterval;
-      (*doc)["weatherPowerSavingUpdateInterval"] = config.weatherPowerSavingUpdateInterval;
       // Intervalli refresh display (secondi)
       (*doc)["displayRefreshIntervalSec"] = config.displayRefreshIntervalSec;
       (*doc)["displayRefreshIntervalSecPowerSaving"] = config.displayRefreshIntervalSecPowerSaving;
-      (*doc)["apTimeRefreshIntervalSec"] = config.apTimeRefreshIntervalSec;
-      // Posizione citazione
-      (*doc)["quotePosX"] = config.quotePosX;
-      (*doc)["quotePosY"] = config.quotePosY;
       
-      // Night Mode deprecato e Power Saving
-      (*doc)["nightModeEnabled"] = config.nightModeEnabled;
-      (*doc)["nightModeStartHour"] = config.nightModeStartHour;
-      (*doc)["nightModeEndHour"] = config.nightModeEndHour;
-      // nightModeAutoTheme, dayTheme, nightTheme rimossi
       (*doc)["powerSavingEnabled"] = config.powerSavingEnabled;
       (*doc)["powerSavingStartHour"] = config.powerSavingStartHour;
       (*doc)["powerSavingEndHour"] = config.powerSavingEndHour;
@@ -442,22 +317,6 @@ bool saveConfig() {
       
       // Battery Management
       (*doc)["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
-      
-      // Weather Alerts
-      (*doc)["alertsEnabled"] = config.alertsEnabled;
-      (*doc)["alertTempHigh"] = config.alertTempHigh;
-      (*doc)["alertTempLow"] = config.alertTempLow;
-      (*doc)["alertWindHigh"] = config.alertWindHigh;
-      (*doc)["alertRain"] = config.alertRain;
-      (*doc)["alertSnow"] = config.alertSnow;
-      (*doc)["alertStorm"] = config.alertStorm;
-      (*doc)["alertShowOnDisplay"] = config.alertShowOnDisplay;
-      (*doc)["alertWebhookUrl"] = config.alertWebhookUrl;
-      
-      // Historical Statistics
-      (*doc)["historyEnabled"] = config.historyEnabled;
-      (*doc)["historyKeepDays"] = config.historyKeepDays;
-      (*doc)["historyShowOnDisplay"] = config.historyShowOnDisplay;
       
       // Serializza il JSON nel file
       
@@ -503,40 +362,4 @@ bool saveConfig() {
   }
   
   return success;
-}
-
-// Ripristina la configurazione predefinita
-bool resetConfig() {
-  DEBUG_TRACE();
-  strcpy(config.ssid, "");
-  strcpy(config.password, "");
-  strcpy(config.api_key, "");
-  strcpy(config.city, "Rome");
-  config.gmtOffset_sec = 3600;  // Default: GMT+1
-  config.daylightOffset_sec = 3600;  // Default: 1 ora
-  strcpy(config.ntpServer, "pool.ntp.org");
-  config.use24hFormat = true;
-  strcpy(config.units, "metric");
-  strcpy(config.language, "it");
-  
-  // Inizializza le impostazioni per il risparmio energetico
-  config.powerSavingEnabled = true;         // Attiva per default
-  config.powerSavingStartHour = 22;         // Dalle 22:00
-  config.powerSavingEndHour = 7;            // Alle 7:00
-  config.normalUpdateInterval = 30;         // Aggiornamento normale ogni 30 minuti
-  config.powerSavingUpdateInterval = 120;   // In risparmio energetico ogni 120 minuti (2 ore)
-  // Intervalli meteo
-  config.weatherUpdateInterval = 30;        // Aggiornamento meteo ogni 30 minuti
-  config.weatherPowerSavingUpdateInterval = 120; // In risparmio ogni 120 minuti
-  // Intervalli refresh display (secondi)
-  config.displayRefreshIntervalSec = 60;            // 60s in modalità normale
-  config.displayRefreshIntervalSecPowerSaving = 300; // 5 min in risparmio
-  config.apTimeRefreshIntervalSec = 60;              // 60s in AP
-  // theme rimosso - usa /layout.json per personalizzare
-  
-  // Inizializza le impostazioni per la gestione degli errori di rete
-  config.maxNetworkRetries = 3;            // 3 tentativi in caso di errore
-  config.showLastDataOnError = true;        // Mostra l'ultimo dato disponibile in caso di errore
-  
-  return saveConfig();
 }

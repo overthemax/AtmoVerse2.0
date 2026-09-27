@@ -1,7 +1,6 @@
 #include "NetworkUtils.h"
 #include "Config.h"
 #include "WebServer.h"
-#include "WebUIPages.h"
 #include "Debug.h"
 #include <WiFi.h>
 #include <SD.h>
@@ -120,9 +119,6 @@ void startAccessPoint(bool forceStart) {
   
   apMode = true;
   
-  // Mostra informazioni AP sul display
-  displayAPInfo(apSSID.c_str(), ATMOVERSE_AP_PASSWORD);
-
   // AVVIA IL SERVER WEB anche in AP
   setupServer();
   
@@ -133,28 +129,6 @@ void startAccessPoint(bool forceStart) {
 bool isWiFiConnected() {
   DEBUG_TRACE();
   return WiFi.status() == WL_CONNECTED;
-}
-
-// Verifica se è necessario riconnettersi al WiFi
-bool reconnectIfNeeded() {
-  DEBUG_TRACE();
-  if (WiFi.status() != WL_CONNECTED) {
-    // Rimozione stampe debug
-    return reconnectToWiFi();
-  }
-  return true;  // Già connesso
-}
-
-// Tenta di riconnettersi alla rete WiFi salvata
-bool reconnectToWiFi() {
-  DEBUG_TRACE();
-  if (!loadConfig()) {
-    // Rimozione stampe debug
-    return false;
-  }
-  
-  // Utilizzo della variabile globale config definita in Config.cpp
-  return connectToWiFi(config.ssid, config.password);
 }
 
 // Connessione a una rete WiFi specifica - versione robusta con protezione anti-crash
@@ -235,50 +209,4 @@ bool setupWiFi() {
   
   // Tenta di connettersi alla rete configurata
   return connectToWiFi(config.ssid, config.password);
-}
-
-// Restituisce l'IP locale corrente
-IPAddress getLocalIP() {
-  DEBUG_TRACE();
-  if (apMode) {
-    return WiFi.softAPIP();
-  } else {
-    return WiFi.localIP();
-  }
-}
-
-// Funzione per il controllo periodico della connessione WiFi
-void checkWiFiConnection() {
-  DEBUG_TRACE();
-  static unsigned long lastCheck = 0;
-  unsigned long currentMillis = millis();
-  
-  // Controlla ogni WIFI_CHECK_INTERVAL millisecondi
-  if (currentMillis - lastCheck >= WIFI_CHECK_INTERVAL) {
-    lastCheck = currentMillis;
-    
-    // Non controlliamo in modalità AP
-    if (apMode) {
-      return;
-    }
-    
-    // Se non connesso, tenta la riconnessione
-    if (WiFi.status() != WL_CONNECTED) {
-      // Rimozione stampe debug
-      
-      // Tenta di riconnettersi utilizzando le credenziali salvate
-      reconnectToWiFi();
-    }
-  }
-}
-
-// Funzione originale lasciata per compatibilità ma non utilizzata dalla nuova UI
-int performWiFiScanForPage() {
-  DEBUG_TRACE();
-  // Serial.println("[WIFI] Avvio scansione reti...");
-  int numNetworks = WiFi.scanNetworks();
-  // Serial.print("[WIFI] Scansione completata. Trovate ");
-  // Serial.print(numNetworks);
-  // Serial.println(" reti.");
-  return numNetworks;
 }

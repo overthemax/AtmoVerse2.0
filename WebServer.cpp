@@ -2,7 +2,6 @@
 #include "NetworkUtils.h"
 #include "Config.h"
 #include "WeatherUtils.h"
-#include "WebUIPages.h"
 #include "WebMinimal.h"
 #include "Hardware.h"
 #include "QuotesManager.h"
@@ -280,50 +279,6 @@ static void saveOrariHour(WiFiClient& client, const String& path, int contentLen
 
 // File citazioni su SD
 static const char* QUOTES_JSON_PATH = "/quotes.json";
-// File layout personalizzato su SD
-static const char* LAYOUT_JSON_PATH = "/layout.json";
-
-// Impostazioni runtime per tema e modalità display controllate dalla Web GUI
-// Nota: non persistiamo su SD/NVS per semplicità; sono volatili fino al riavvio
-String g_displayTheme = "default";   // "default" | "eink"
-String g_displayMode  = "classic";   // "classic" | "focus" | "custom"
-
-// Mappa le categorie lato UI a quelle usate dal firmware
-static String mapUiCategoryToFirmware(const String& uiCat) {
-  String c = uiCat;
-  String lc = c; lc.toLowerCase();
-
-  // Se arriva già una categoria firmware valida, restituiscila così com'è
-  if (lc == "temporale" || lc == "pioggia_leggera" || lc == "pioggia" ||
-      lc == "neve" || lc == "cielo_sereno" || lc == "poche_nuvole" ||
-      lc == "nuvole_sparse" || lc == "nuvole_abbondanti" || lc == "nebbia" ||
-      lc == "tempesta" || lc == "vento" || lc == "motivazione" ||
-      lc == "mattina" || lc == "pomeriggio" || lc == "sera" ||
-      lc == "programmate") {  // Citazioni a orario/data (vedi QuotesManager.cpp)
-    return lc;
-  }
-
-  // Alias storici / inglesi
-  if (lc == "nuvoloso" || lc == "nuvole" || lc == "clouds") return "nuvole_sparse";
-  if (lc == "sereno" || lc == "sole" || lc == "clear") return "cielo_sereno";
-
-  if (lc == "rain" || lc == "pioggia") return "pioggia";
-  if (lc == "drizzle" || lc == "pioggerella") return "pioggia_leggera";
-
-  if (lc == "temporale" || lc == "thunderstorm") return "temporale";
-  if (lc == "tempesta" || lc == "storm") return "tempesta";
-
-  if (lc == "neve" || lc == "snow") return "neve";
-  if (lc == "nebbia" || lc == "mist" || lc == "fog" || lc == "haze" || lc == "smoke") return "nebbia";
-  if (lc == "vento" || lc == "wind" || lc == "windy") return "vento";
-
-  if (lc == "any" || lc == "generiche" || lc == "motivazione") return "motivazione";
-  if (lc == "mattina" || lc == "morning") return "mattina";
-  if (lc == "pomeriggio" || lc == "afternoon") return "pomeriggio";
-  if (lc == "sera" || lc == "evening") return "sera";
-
-  return "motivazione";
-}
 
 // Funzione helper per convertire carattere esadecimale in valore
 static int hexCharToValue(char c) {
@@ -719,44 +674,20 @@ void handleClientRequests() {
     // Intervalli refresh display (secondi)
     doc["displayRefreshIntervalSec"] = config.displayRefreshIntervalSec;
     doc["displayRefreshIntervalSecPowerSaving"] = config.displayRefreshIntervalSecPowerSaving;
-    doc["apTimeRefreshIntervalSec"] = config.apTimeRefreshIntervalSec;
     doc["maxNetworkRetries"] = config.maxNetworkRetries;
     // Intervalli meteo
-    doc["weatherUpdateInterval"] = config.weatherUpdateInterval;
-    doc["weatherPowerSavingUpdateInterval"] = config.weatherPowerSavingUpdateInterval;
     // Intervalli refresh display (secondi)
     doc["displayRefreshIntervalSec"] = config.displayRefreshIntervalSec;
     doc["displayRefreshIntervalSecPowerSaving"] = config.displayRefreshIntervalSecPowerSaving;
-    doc["apTimeRefreshIntervalSec"] = config.apTimeRefreshIntervalSec;
-    // Posizione citazione
-    doc["quotePosX"] = config.quotePosX;
-    doc["quotePosY"] = config.quotePosY;
     doc["apMode"] = apMode;
     doc["ipAddress"] = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
     
     // Night Mode
-    doc["nightModeEnabled"] = config.nightModeEnabled;
-    doc["nightModeStartHour"] = config.nightModeStartHour;
-    doc["nightModeEndHour"] = config.nightModeEndHour;
     
     // Battery Management
     doc["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
     
-    // Weather Alerts
-    doc["alertsEnabled"] = config.alertsEnabled;
-    doc["alertTempHigh"] = config.alertTempHigh;
-    doc["alertTempLow"] = config.alertTempLow;
-    doc["alertWindHigh"] = config.alertWindHigh;
-    doc["alertRain"] = config.alertRain;
-    doc["alertSnow"] = config.alertSnow;
-    doc["alertStorm"] = config.alertStorm;
-    doc["alertShowOnDisplay"] = config.alertShowOnDisplay;
-    doc["alertWebhookUrl"] = config.alertWebhookUrl;
     
-    // Historical Statistics
-    doc["historyEnabled"] = config.historyEnabled;
-    doc["historyKeepDays"] = config.historyKeepDays;
-    doc["historyShowOnDisplay"] = config.historyShowOnDisplay;
 
     String json;
     serializeJson(doc, json);
@@ -799,7 +730,6 @@ void handleClientRequests() {
     if (doc.containsKey("use24hFormat")) config.use24hFormat = doc["use24hFormat"].as<bool>();
     if (doc.containsKey("units")) strlcpy(config.units, doc["units"].as<String>().c_str(), sizeof(config.units));
     if (doc.containsKey("language")) strlcpy(config.language, doc["language"].as<String>().c_str(), sizeof(config.language));
-    // theme rimosso - usa /layout.json per personalizzare
     if (doc.containsKey("powerSavingEnabled")) config.powerSavingEnabled = doc["powerSavingEnabled"].as<bool>();
     if (doc.containsKey("powerSavingStartHour")) config.powerSavingStartHour = doc["powerSavingStartHour"].as<int>();
     if (doc.containsKey("powerSavingEndHour")) config.powerSavingEndHour = doc["powerSavingEndHour"].as<int>();
@@ -807,40 +737,15 @@ void handleClientRequests() {
     if (doc.containsKey("powerSavingUpdateInterval")) config.powerSavingUpdateInterval = doc["powerSavingUpdateInterval"].as<int>();
     if (doc.containsKey("maxNetworkRetries")) config.maxNetworkRetries = doc["maxNetworkRetries"].as<int>();
     // Intervalli meteo
-    if (doc.containsKey("weatherUpdateInterval")) config.weatherUpdateInterval = doc["weatherUpdateInterval"].as<int>();
-    if (doc.containsKey("weatherPowerSavingUpdateInterval")) config.weatherPowerSavingUpdateInterval = doc["weatherPowerSavingUpdateInterval"].as<int>();
     // Intervalli refresh display (secondi)
     if (doc.containsKey("displayRefreshIntervalSec")) config.displayRefreshIntervalSec = doc["displayRefreshIntervalSec"].as<int>();
     if (doc.containsKey("displayRefreshIntervalSecPowerSaving")) config.displayRefreshIntervalSecPowerSaving = doc["displayRefreshIntervalSecPowerSaving"].as<int>();
-    if (doc.containsKey("apTimeRefreshIntervalSec")) config.apTimeRefreshIntervalSec = doc["apTimeRefreshIntervalSec"].as<int>();
-    // Posizione citazione
-    if (doc.containsKey("quotePosX")) config.quotePosX = doc["quotePosX"].as<int>();
-    if (doc.containsKey("quotePosY")) config.quotePosY = doc["quotePosY"].as<int>();
     
-    // Night Mode deprecato - mantieni per compatibilità
-    if (doc.containsKey("nightModeEnabled")) config.nightModeEnabled = doc["nightModeEnabled"].as<bool>();
-    if (doc.containsKey("nightModeStartHour")) config.nightModeStartHour = doc["nightModeStartHour"].as<int>();
-    if (doc.containsKey("nightModeEndHour")) config.nightModeEndHour = doc["nightModeEndHour"].as<int>();
-    // nightModeAutoTheme, dayTheme, nightTheme rimossi
     
     // Battery Management
     if (doc.containsKey("batteryShowOnDisplay")) config.batteryShowOnDisplay = doc["batteryShowOnDisplay"].as<bool>();
     
-    // Weather Alerts
-    if (doc.containsKey("alertsEnabled")) config.alertsEnabled = doc["alertsEnabled"].as<bool>();
-    if (doc.containsKey("alertTempHigh")) config.alertTempHigh = doc["alertTempHigh"].as<float>();
-    if (doc.containsKey("alertTempLow")) config.alertTempLow = doc["alertTempLow"].as<float>();
-    if (doc.containsKey("alertWindHigh")) config.alertWindHigh = doc["alertWindHigh"].as<float>();
-    if (doc.containsKey("alertRain")) config.alertRain = doc["alertRain"].as<bool>();
-    if (doc.containsKey("alertSnow")) config.alertSnow = doc["alertSnow"].as<bool>();
-    if (doc.containsKey("alertStorm")) config.alertStorm = doc["alertStorm"].as<bool>();
-    if (doc.containsKey("alertShowOnDisplay")) config.alertShowOnDisplay = doc["alertShowOnDisplay"].as<bool>();
-    if (doc.containsKey("alertWebhookUrl")) strlcpy(config.alertWebhookUrl, doc["alertWebhookUrl"].as<String>().c_str(), sizeof(config.alertWebhookUrl));
     
-    // Historical Statistics
-    if (doc.containsKey("historyEnabled")) config.historyEnabled = doc["historyEnabled"].as<bool>();
-    if (doc.containsKey("historyKeepDays")) config.historyKeepDays = doc["historyKeepDays"].as<int>();
-    if (doc.containsKey("historyShowOnDisplay")) config.historyShowOnDisplay = doc["historyShowOnDisplay"].as<bool>();
 
     if (saveConfig()) {
       Serial.println("\n=======================================");
@@ -928,7 +833,6 @@ void handleClientRequests() {
     doc["updateStatus"] = getUpdateStatusText();
     doc["timezone"] = config.gmtOffset_sec / 3600;
     doc["dst"] = config.daylightOffset_sec / 3600;
-    // theme rimosso - usa /layout.json per personalizzare
     doc["use24hFormat"] = config.use24hFormat;
     doc["units"] = config.units;
     doc["language"] = config.language;
@@ -940,18 +844,9 @@ void handleClientRequests() {
     doc["normalUpdateInterval"] = config.normalUpdateInterval;
     doc["powerSavingUpdateInterval"] = config.powerSavingUpdateInterval;
     
-    // Night Mode deprecato - mantieni per compatibilit\u00e0
-    doc["nightModeEnabled"] = config.nightModeEnabled;
-    doc["nightModeStartHour"] = config.nightModeStartHour;
-    doc["nightModeEndHour"] = config.nightModeEndHour;
-    // nightModeAutoTheme, dayTheme, nightTheme rimossi
     
     // Aggiungi parametri di gestione errori di rete
     doc["maxNetworkRetries"] = config.maxNetworkRetries;
-    doc["showLastDataOnError"] = config.showLastDataOnError;
-    // Posizione citazione
-    doc["quotePosX"] = config.quotePosX;
-    doc["quotePosY"] = config.quotePosY;
     
     String json;
     serializeJson(doc, json);
@@ -1036,117 +931,6 @@ void handleClientRequests() {
     return;
   }
 
-  // API citazioni - restituisce tutte le citazioni organizzate per categoria
-  if (path == "/api/quotes/all" && method == "GET") {
-    // Inizializza SD centralizzata
-    if (!initSD()) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
-      return;
-    }
-
-    // Apri file citazioni
-    if (!SD.exists(QUOTES_JSON_PATH)) {
-      // Se non esiste, ritorna struttura vuota
-      sendJsonResponse(client, "{\"success\":true,\"quotes\":{}}");
-      return;
-    }
-
-    File f = SD.open(QUOTES_JSON_PATH, FILE_READ);
-    if (!f) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile aprire quotes.json\"}");
-      return;
-    }
-
-    // Carica JSON usando heap per evitare stack overflow
-    DynamicJsonDocument* src = new DynamicJsonDocument(12288);
-    DeserializationError err = deserializeJson(*src, f);
-    f.close();
-    if (err) {
-      delete src;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore parsing JSON citazioni\"}");
-      return;
-    }
-
-    // Costruisci risposta compatibile UI: array piatto di oggetti {text, author, category}
-    DynamicJsonDocument* out = new DynamicJsonDocument(12288);
-    JsonArray quotesArr = out->createNestedArray("quotes");
-
-    for (JsonPair kv : src->as<JsonObject>()) {
-      const char* cat = kv.key().c_str();
-      JsonArray arr = kv.value().as<JsonArray>();
-      for (JsonVariant v : arr) {
-        const char* text = v["text"] | v["quote"] | "";
-        const char* author = v["author"] | "";
-        
-        JsonObject quoteObj = quotesArr.createNestedObject();
-        quoteObj["text"] = text;
-        quoteObj["author"] = author;
-        quoteObj["category"] = cat;
-      }
-    }
-    delete src; // Libera memoria sorgente
-
-    String json;
-    serializeJson(*out, json);
-    delete out; // Libera memoria output
-    sendJsonResponse(client, json);
-    return;
-  }
-
-  // API citazioni - GET tutte le citazioni (formato array per Web GUI)
-  if (path == "/api/quotes" && method == "GET") {
-    if (!initSD()) {
-      sendJsonResponse(client, "[]");
-      return;
-    }
-    
-    if (!SD.exists(QUOTES_JSON_PATH)) {
-      sendJsonResponse(client, "[]");
-      return;
-    }
-    
-    File f = SD.open(QUOTES_JSON_PATH, FILE_READ);
-    if (!f) {
-      sendJsonResponse(client, "[]");
-      return;
-    }
-    
-    DynamicJsonDocument* src = new DynamicJsonDocument(16384);
-    DeserializationError err = deserializeJson(*src, f);
-    f.close();
-    
-    if (err) {
-      delete src;
-      sendJsonResponse(client, "[]");
-      return;
-    }
-    
-    // Converti da formato oggetto {categoria: [{text, author}]} a array [{text, author, category}]
-    DynamicJsonDocument* out = new DynamicJsonDocument(16384);
-    JsonArray outArr = out->to<JsonArray>();
-    
-    for (JsonPair kv : src->as<JsonObject>()) {
-      const char* cat = kv.key().c_str();
-      JsonArray arr = kv.value().as<JsonArray>();
-      for (JsonVariant v : arr) {
-        JsonObject quoteObj = outArr.createNestedObject();
-        quoteObj["text"] = v["text"] | "";
-        quoteObj["author"] = v["author"] | "";
-        quoteObj["category"] = cat;
-        if (v.containsKey("time")) {
-          quoteObj["time"] = v["time"];
-        }
-      }
-    }
-    delete src;
-    
-    String json;
-    serializeJson(*out, json);
-    delete out;
-    sendJsonResponse(client, json);
-    return;
-  }
-  
   // Orologio letterario: riepilogo, lettura e salvataggio di un'ora
   if (path == "/api/orari") {
     if (!initSD()) {
@@ -1181,327 +965,6 @@ void handleClientRequests() {
       return;
     }
     saveQuotesRaw(client, contentLength);
-    return;
-  }
-
-  // API citazioni - POST salva tutte le citazioni (da formato array Web GUI a formato oggetto firmware)
-  if (path == "/api/quotes" && method == "POST") {
-    // L'editor invia tutte le citazioni: quotes.json può superare i 48 KB
-    String body = readRequestBody(client, contentLength, 98304);
-    
-    if (body.length() == 0) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
-      return;
-    }
-    if (contentLength > 0 && (int)body.length() < contentLength) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Dati incompleti o troppo grandi\"}");
-      return;
-    }
-    
-    JsonDocument src;
-    DeserializationError err = deserializeJson(src, body);
-    body = String();  // Libera memoria prima di costruire il file
-    if (err) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore parsing JSON\"}");
-      return;
-    }
-    
-    if (!initSD()) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
-      return;
-    }
-    
-    // Da array [{category, text, author, ...}] a oggetto {categoria: [{text, author, ...}]}.
-    // Si conservano TUTTI i campi di ogni citazione (time, season, e per le
-    // programmate ora, durata, giorni, data), tranne "category" e i valori vuoti.
-    JsonDocument out;
-    for (JsonObject v : src.as<JsonArray>()) {
-      String cat = v["category"] | "motivazione";
-      cat = mapUiCategoryToFirmware(cat);
-      
-      JsonArray catArr = out[cat].is<JsonArray>() ? out[cat].as<JsonArray>() : out[cat].to<JsonArray>();
-      JsonObject quoteObj = catArr.add<JsonObject>();
-      for (JsonPair kv : v) {
-        if (strcmp(kv.key().c_str(), "category") == 0) continue;
-        if (kv.value().is<const char*>() && strlen(kv.value().as<const char*>()) == 0) continue;
-        quoteObj[kv.key()] = kv.value();
-      }
-    }
-    
-    // Scrittura su file temporaneo e sostituzione: se si interrompe, quotes.json resta integro
-    const char* tmpPath = "/quotes.tmp";
-    SD.remove(tmpPath);
-    File f = SD.open(tmpPath, FILE_WRITE);
-    if (!f) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere quotes.json\"}");
-      return;
-    }
-    size_t written = serializeJson(out, f);
-    f.close();
-    if (written == 0) {
-      SD.remove(tmpPath);
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore di scrittura\"}");
-      return;
-    }
-    SD.remove(QUOTES_JSON_PATH);
-    if (!SD.rename(tmpPath, QUOTES_JSON_PATH)) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile sostituire quotes.json\"}");
-      return;
-    }
-    
-    Serial.println("[WEB] Citazioni salvate su /quotes.json (convertite in formato firmware)");
-    sendJsonResponse(client, "{\"success\":true}");
-    return;
-  }
-
-  // API citazioni - aggiorna una citazione (PUT /api/quotes/{index})
-  if (path.startsWith("/api/quotes/") && method == "PUT") {
-    // Estrai indice dall'URL
-    int lastSlash = path.lastIndexOf('/');
-    int index = path.substring(lastSlash + 1).toInt();
-    
-    String body = readRequestBody(client, contentLength);
-    if (body.length() == 0) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
-      return;
-    }
-
-    DynamicJsonDocument doc(1024);
-    DeserializationError err = deserializeJson(doc, body);
-    if (err) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel parsing JSON\"}");
-      return;
-    }
-
-    String text = doc["text"].as<String>();
-    String author = doc.containsKey("author") ? doc["author"].as<String>() : String("");
-    String category = doc["category"].as<String>();
-    
-    text.trim();
-    author.trim();
-    category.trim();
-    
-    if (text.length() == 0 || category.length() == 0) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Campi text e category obbligatori\"}");
-      return;
-    }
-
-    if (!initSD()) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
-      return;
-    }
-
-    if (!SD.exists(QUOTES_JSON_PATH)) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"File citazioni inesistente\"}");
-      return;
-    }
-
-    // Carica file corrente
-    DynamicJsonDocument* db = new DynamicJsonDocument(12288);
-    File rf = SD.open(QUOTES_JSON_PATH, FILE_READ);
-    if (!rf) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile aprire quotes.json\"}");
-      return;
-    }
-    deserializeJson(*db, rf);
-    rf.close();
-
-    // Trova e aggiorna la citazione all'indice specificato (conteggio globale)
-    int currentIndex = 0;
-    bool found = false;
-    String foundCat = "";
-    int catIndex = 0;
-
-    for (JsonPair kv : db->as<JsonObject>()) {
-      JsonArray arr = kv.value().as<JsonArray>();
-      for (int i = 0; i < arr.size(); i++) {
-        if (currentIndex == index) {
-          found = true;
-          foundCat = kv.key().c_str();
-          catIndex = i;
-          break;
-        }
-        currentIndex++;
-      }
-      if (found) break;
-    }
-
-    if (!found) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Citazione non trovata\"}");
-      return;
-    }
-
-    // Rimuovi dalla categoria vecchia
-    JsonArray oldArr = (*db)[foundCat].as<JsonArray>();
-    oldArr.remove(catIndex);
-
-    // Aggiungi alla nuova categoria
-    if (!db->containsKey(category) || !(*db)[category].is<JsonArray>()) {
-      db->remove(category);
-      db->createNestedArray(category);
-    }
-    JsonArray newArr = (*db)[category].as<JsonArray>();
-    JsonObject o = newArr.createNestedObject();
-    o["text"] = text;
-    if (author.length() > 0) o["author"] = author;
-
-    // Salva
-    File wf = SD.open(QUOTES_JSON_PATH, FILE_WRITE);
-    if (!wf) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere quotes.json\"}");
-      return;
-    }
-    serializeJson(*db, wf);
-    wf.close();
-    delete db;
-
-    sendJsonResponse(client, "{\"success\":true,\"message\":\"Citazione aggiornata\"}");
-    return;
-  }
-
-  // API citazioni - elimina una citazione (DELETE /api/quotes/{index})
-  if (path.startsWith("/api/quotes/") && method == "DELETE") {
-    // Estrai indice dall'URL
-    int lastSlash = path.lastIndexOf('/');
-    int index = path.substring(lastSlash + 1).toInt();
-
-    if (!initSD()) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
-      return;
-    }
-
-    if (!SD.exists(QUOTES_JSON_PATH)) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"File citazioni inesistente\"}");
-      return;
-    }
-
-    // Carica file corrente
-    DynamicJsonDocument* db = new DynamicJsonDocument(12288);
-    File rf = SD.open(QUOTES_JSON_PATH, FILE_READ);
-    if (!rf) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile aprire quotes.json\"}");
-      return;
-    }
-    deserializeJson(*db, rf);
-    rf.close();
-
-    // Trova e rimuovi la citazione all'indice specificato (conteggio globale)
-    int currentIndex = 0;
-    bool found = false;
-    
-    for (JsonPair kv : db->as<JsonObject>()) {
-      JsonArray arr = kv.value().as<JsonArray>();
-      for (int i = 0; i < arr.size(); i++) {
-        if (currentIndex == index) {
-          arr.remove(i);
-          found = true;
-          break;
-        }
-        currentIndex++;
-      }
-      if (found) break;
-    }
-
-    if (!found) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Citazione non trovata\"}");
-      return;
-    }
-
-    // Salva
-    File wf = SD.open(QUOTES_JSON_PATH, FILE_WRITE);
-    if (!wf) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere quotes.json\"}");
-      return;
-    }
-    serializeJson(*db, wf);
-    wf.close();
-    delete db;
-
-    sendJsonResponse(client, "{\"success\":true,\"message\":\"Citazione eliminata\"}");
-    return;
-  }
-
-  // API citazioni - elimina una citazione per indice (OLD endpoint - mantienilo per compatibilità)
-  if (path == "/api/quotes/delete" && method == "POST") {
-    String body = readRequestBody(client, contentLength);
-    if (body.length() == 0) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
-      return;
-    }
-
-    DynamicJsonDocument doc(512);
-    DeserializationError err = deserializeJson(doc, body);
-    if (err) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel parsing JSON\"}");
-      return;
-    }
-
-    String uiCat = doc["category"].as<String>();
-    String cat = mapUiCategoryToFirmware(uiCat);
-    int index = doc["index"].as<int>();
-    if (index < 0) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Indice non valido\"}");
-      return;
-    }
-
-    if (!initSD()) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}");
-      return;
-    }
-
-    if (!SD.exists(QUOTES_JSON_PATH)) {
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"File citazioni inesistente\"}");
-      return;
-    }
-
-    DynamicJsonDocument* db = new DynamicJsonDocument(12288);
-    File rf = SD.open(QUOTES_JSON_PATH, FILE_READ);
-    if (!rf) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile aprire quotes.json\"}");
-      return;
-    }
-    DeserializationError perr = deserializeJson(*db, rf);
-    rf.close();
-    if (perr) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore parsing JSON citazioni\"}");
-      return;
-    }
-
-    if (!db->containsKey(cat) || !(*db)[cat].is<JsonArray>()) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Categoria non trovata\"}");
-      return;
-    }
-    JsonArray arr = (*db)[cat].as<JsonArray>();
-    if (index >= (int)arr.size()) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Indice fuori range\"}");
-      return;
-    }
-
-    // Rimuovi elemento
-    arr.remove(index);
-
-    // Salva su file
-    File wf = SD.open(QUOTES_JSON_PATH, FILE_WRITE);
-    if (!wf) {
-      delete db;
-      sendJsonResponse(client, "{\"success\":false,\"message\":\"Impossibile scrivere quotes.json\"}");
-      return;
-    }
-    serializeJson(*db, wf);
-    wf.close();
-    delete db;
-
-    sendJsonResponse(client, "{\"success\":true,\"message\":\"Citazione eliminata\"}");
     return;
   }
 
@@ -1637,25 +1100,12 @@ void handleClientRequests() {
     if (doc.containsKey("displayRefreshIntervalSecPowerSaving")) {
       config.displayRefreshIntervalSecPowerSaving = doc["displayRefreshIntervalSecPowerSaving"].as<int>();
     }
-    if (doc.containsKey("apTimeRefreshIntervalSec")) {
-      config.apTimeRefreshIntervalSec = doc["apTimeRefreshIntervalSec"].as<int>();
-    }
-    // Posizione citazione
-    if (doc.containsKey("quotePosX")) {
-      config.quotePosX = doc["quotePosX"].as<int>();
-    }
-    if (doc.containsKey("quotePosY")) {
-      config.quotePosY = doc["quotePosY"].as<int>();
-    }
     
     // Parametri di gestione degli errori di rete
     if (doc.containsKey("maxNetworkRetries")) {
       config.maxNetworkRetries = doc["maxNetworkRetries"].as<int>();
     }
     
-    if (doc.containsKey("showLastDataOnError")) {
-      config.showLastDataOnError = doc["showLastDataOnError"].as<bool>();
-    }
 
     // Salva la configurazione aggiornata
     if (saveConfig()) {
@@ -1729,186 +1179,6 @@ void handleClientRequests() {
     return;
   }
   
-  // Gestione pagina Layout Editor
-  if (path == "/layout" && method == "GET") {
-    // Serve layout.html se esiste, altrimenti errore
-    if (!serveFileFromSD(client, "/layout.html")) {
-       sendResponse(client, "text/plain", "Layout editor file not found. Please copy layout.html to /www/ on SD card.", 404);
-    }
-    return;
-  }
-
-  // Gestione pagina Editor Citazioni
-  if (path == "/quotes" && method == "GET") {
-    // Serve quotes.html se esiste
-    if (!serveFileFromSD(client, "/quotes.html")) {
-       sendResponse(client, "text/plain", "Quotes editor file (quotes.html) not found on SD card.", 404);
-    }
-    return;
-  }
-
-  // API Layout: GET (Carica)
-  if (path == "/api/layout" && method == "GET") {
-      if (!initSD()) {
-          sendJsonResponse(client, "{\"success\":false,\"message\":\"SD Error\"}");
-          return;
-      }
-      if (SD.exists(LAYOUT_JSON_PATH)) {
-          File f = SD.open(LAYOUT_JSON_PATH, FILE_READ);
-          if (f) {
-              String json = f.readString();
-              f.close();
-              sendJsonResponse(client, json);
-          } else {
-             sendJsonResponse(client, "{}");
-          }
-      } else {
-          // Default layout JSON se non esiste - mostra layout di esempio
-          String defaultLayout = R"({
-  "grid": {
-    "cols": 24,
-    "row_height": 20,
-    "margin": 4
-  },
-  "items": [
-    {
-      "id": "city_1",
-      "type": "city",
-      "x": 1,
-      "y": 0,
-      "w": 10,
-      "h": 2,
-      "z": 1,
-      "visible": true,
-      "font_size": 16,
-      "align": "left"
-    },
-    {
-      "id": "weather_icon_1",
-      "type": "weather_icon",
-      "x": 1,
-      "y": 2,
-      "w": 8,
-      "h": 8,
-      "z": 1,
-      "visible": true,
-      "icon_size": 160
-    },
-    {
-      "id": "temperature_1",
-      "type": "temperature",
-      "x": 10,
-      "y": 3,
-      "w": 6,
-      "h": 2,
-      "z": 1,
-      "visible": true,
-      "font_size": 18
-    },
-    {
-      "id": "humidity_1",
-      "type": "humidity",
-      "x": 10,
-      "y": 6,
-      "w": 5,
-      "h": 2,
-      "z": 1,
-      "visible": true,
-      "font_size": 14
-    },
-    {
-      "id": "pressure_1",
-      "type": "pressure",
-      "x": 16,
-      "y": 3,
-      "w": 6,
-      "h": 2,
-      "z": 1,
-      "visible": true,
-      "font_size": 14
-    },
-    {
-      "id": "wind_1",
-      "type": "wind",
-      "x": 16,
-      "y": 6,
-      "w": 6,
-      "h": 2,
-      "z": 1,
-      "visible": true,
-      "font_size": 14
-    },
-    {
-      "id": "quote_1",
-      "type": "quote",
-      "x": 1,
-      "y": 10,
-      "w": 22,
-      "h": 4,
-      "z": 1,
-      "visible": true,
-      "font_size": 12
-    },
-    {
-      "id": "footer_1",
-      "type": "footer_bar",
-      "x": 0,
-      "y": 21,
-      "w": 24,
-      "h": 3,
-      "z": 1,
-      "visible": true,
-      "font_size": 10
-    }
-  ]
-})";
-          sendJsonResponse(client, defaultLayout);
-      }
-      return;
-  }
-
-  // API Layout: POST (Salva)
-  if (path == "/api/layout" && method == "POST") {
-      String body = readRequestBody(client, contentLength);
-      
-      if (body.length() == 0) {
-          sendJsonResponse(client, "{\"success\":false,\"message\":\"Empty body\"}");
-          return;
-      }
-
-      // Parsing per validazione minima
-      DynamicJsonDocument doc(2048);
-      DeserializationError err = deserializeJson(doc, body);
-      if (err) {
-          sendJsonResponse(client, "{\"success\":false,\"message\":\"Invalid JSON\"}");
-          return;
-      }
-
-      if (!initSD()) {
-          sendJsonResponse(client, "{\"success\":false,\"message\":\"SD Error\"}");
-          return;
-      }
-
-      // Salva su file
-      File f = SD.open(LAYOUT_JSON_PATH, FILE_WRITE);
-      if (f) {
-          serializeJson(doc, f);
-          f.close();
-          
-          // Attiva modalità custom
-          g_displayMode = "custom";
-          Serial.println("[WEB] Layout salvato. Modalità display impostata su 'custom'");
-          
-          // Forza aggiornamento display immediato
-          lastDisplayUpdate = 0;
-          
-          sendJsonResponse(client, "{\"success\":true}");
-      } else {
-          sendJsonResponse(client, "{\"success\":false,\"message\":\"Write failed\"}");
-      }
-      return;
-  }
-
   // Servizio file dalla SD
   bool fileServed = false;
   
@@ -1998,17 +1268,6 @@ void sendResponse(WiFiClient& client, const String& contentType, const String& c
 // Invia una risposta JSON
 void sendJsonResponse(WiFiClient& client, const String& jsonContent, int statusCode) {
   sendResponse(client, "application/json", jsonContent, statusCode);
-}
-
-// Invia un reindirizzamento HTTP 302
-void sendRedirect(WiFiClient& client, const String& location) {
-  client.println("HTTP/1.1 302 Found");
-  client.println("Location: " + location);
-  client.println("Connection: close");
-  client.println();
-  client.flush();
-  delay(1);
-  client.stop();
 }
 
 // Gestisce la scansione WiFi e restituisce i risultati in JSON

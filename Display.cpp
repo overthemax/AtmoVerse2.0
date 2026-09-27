@@ -12,8 +12,7 @@
 #include "Config.h"
 #include "Language.h"
 #include "QuotesManager.h"
-#include "BMPHelper.h"
-#include "SVGHelper.h"
+#include "WeatherIconMap.h"
 #include "BatteryManager.h"
 #include "Screens.h"
 #include "DisplayTask.h"
@@ -51,12 +50,6 @@ void initDisplay() {
 
 void displayStartupScreen() {
   showMessage("AtmoVerse", TR("Avvio in corso...", "Starting..."));
-}
-
-void showStatusOnDisplay(const char* msg) {
-  String text = msg ? msg : "";
-  text.replace("\n", " ");
-  showMessage("", text.c_str());
 }
 
 void showUpdateProgress(const char* phase, int filesDone, int filesTotal, int percent, int etaSec) {
@@ -125,10 +118,10 @@ void updateDisplay() {
   Quote q = getQuoteForDisplay();
   m.quoteText = q.text;
   m.quoteAuthor = q.author;
-  if (currentWeather.valid && BMPHelper::begin()) {
-    WeatherIcon icon = SVGHelper::getIconFromWeatherID(currentWeather.weather_id, isNightTime(), currentWeather.wind_speed);
-    if (!loadIconBitmap(BMPHelper::getIconPath(icon), m)) {
-      Serial.printf("[DISPLAY] Cannot read icon: %s\n", BMPHelper::getIconPath(icon));
+  if (currentWeather.valid && initSD()) {
+    const char* iconPath = weatherIconPath(weatherIconFor(currentWeather.weather_id, isNightTime(), currentWeather.wind_speed));
+    if (!loadIconBitmap(iconPath, m)) {
+      Serial.printf("[DISPLAY] Cannot read icon: %s\n", iconPath);
     }
   }
 

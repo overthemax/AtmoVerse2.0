@@ -115,7 +115,6 @@ public:
     // Autonomia stimata in minuti (-1 se in carica o non stimabile)
     int getEstimatedTimeRemaining();
 
-    String getStatusString();
 };
 
 extern BatteryManager battery;
