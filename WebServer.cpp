@@ -655,6 +655,7 @@ void handleClientRequests() {
     // SD state (best effort) through the shared initSD
     bool sdOk = initSD();
     doc["sd_ok"] = sdOk;
+    ecoTouchStats(doc["touch"].to<JsonObject>());
 
     String json;
     serializeJson(doc, json);

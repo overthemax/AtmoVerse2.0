@@ -14,6 +14,7 @@
 #define ECO_POWER_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 // Call in setup() after battery.begin(): calibrates the touch button
 void ecoBegin();
@@ -41,7 +42,15 @@ void ecoWiFiOffIfIdle();
 // and the display idle. A touch wakes the board and opens the web page.
 void ecoSleep(unsigned long maxMs);
 
-// With the charger plugged in: logs a touch on the serial port (wiring test)
-void ecoLogTouch();
+// Reads the touch button while awake: on battery a touch opens the web page,
+// on the charger it is only logged on the serial port (wiring test)
+void ecoPollTouch();
+
+// true for 3 minutes after unplugging the charger: the board stays awake
+// and records the touch readings on battery (see ecoTouchStats)
+bool ecoTouchTestActive();
+
+// Touch button readings and counters, for the diagnostics page
+void ecoTouchStats(JsonObject out);
 
 #endif // ECO_POWER_H

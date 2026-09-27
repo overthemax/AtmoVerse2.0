@@ -102,6 +102,13 @@
     'Indirizzo IP': 'IP address', 'Segnale': 'Signal', 'Carica': 'Charge', 'In carica': 'Charging',
     'A batteria': 'On battery', 'Tensione': 'Voltage', 'Corrente': 'Current', 'Autonomia stimata': 'Estimated runtime',
     'Sensore': 'Sensor', 'Lettura non riuscita.': 'Reading failed.',
+    'Tasto a sfioramento': 'Touch button', 'Valore a riposo': 'Idle value', 'Soglia': 'Threshold',
+    'Valore più basso': 'Lowest value', 'A batteria: riposo / soglia': 'On battery: idle / threshold',
+    'Risvegli dal tocco': 'Touch wake-ups', 'Tocchi riconosciuti': 'Touches recognized',
+    'Falsi tocchi': 'False touches', 'Risveglio al tocco': 'Touch wake-up', 'Attivo': 'On',
+    'Disattivato': 'Off', 'Prova a batteria': 'Battery test', 'In corso': 'Running',
+    'Il valore scende quando tocchi la vite. Nei 3 minuti dopo che stacchi il caricatore la scheda resta sveglia e registra il valore più basso raggiunto.':
+      'The value drops when you touch the screw. For 3 minutes after you unplug the charger the board stays awake and records the lowest value reached.',
   };
 
   // Composite messages (with numbers or error details)

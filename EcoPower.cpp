@@ -23,6 +23,19 @@ static const unsigned long WEB_WINDOW_MS = 10UL * 60 * 1000;  // Web page after 
 static const unsigned long WIFI_MIN_ON_MS = 8000;             // Time for the NTP sync
 static const unsigned long WIFI_RETRY_MS = 15UL * 60 * 1000;  // After a failed connection
 
+// For 3 minutes after the charger is unplugged the board stays awake and
+// reads the touch button continuously: the idle value and the drop under a
+// finger change a lot on battery, and this is the only way to see them
+// (see ecoTouchStats, shown on the diagnostics page)
+static const unsigned long TOUCH_TEST_MS = 3UL * 60 * 1000;
+static unsigned long touchTestUntil = 0;
+
+// Touch statistics since boot, for the diagnostics page
+static touch_value_t batteryIdle = 0, batteryThreshold = 0;  // Last calibration on battery
+static touch_value_t currentIdle = 0;                         // Last calibration
+static touch_value_t lowestReading = 0;                       // Since the last calibration
+static uint16_t touchWakeups = 0, touchesConfirmed = 0, touchesFalse = 0;
+
 static touch_value_t touchThreshold = 0;
 static bool touchWakeEnabled = true;
 static int falseTouches = 0;
@@ -45,8 +58,33 @@ void ecoBegin() {
   }
   touch_value_t rest = sum / 16;
   touchThreshold = rest * 2 / 3;
+  currentIdle = rest;
+  lowestReading = rest;
+  if (battery.isAvailable() && !battery.charging()) {
+    batteryIdle = rest;
+    batteryThreshold = touchThreshold;
+    touchTestUntil = millis() + TOUCH_TEST_MS;
+  }
   Serial.printf("[ECO] Touch button on GPIO%d: idle %u, threshold %u\n", TOUCH_PIN,
                 (unsigned)rest, (unsigned)touchThreshold);
+}
+
+bool ecoTouchTestActive() {
+  return touchTestUntil != 0 && (long)(millis() - touchTestUntil) < 0;
+}
+
+void ecoTouchStats(JsonObject out) {
+  out["pin"] = TOUCH_PIN;
+  out["idle"] = (unsigned)currentIdle;
+  out["threshold"] = (unsigned)touchThreshold;
+  out["lowest"] = (unsigned)lowestReading;
+  out["battery_idle"] = (unsigned)batteryIdle;
+  out["battery_threshold"] = (unsigned)batteryThreshold;
+  out["wakeups"] = touchWakeups;
+  out["confirmed"] = touchesConfirmed;
+  out["false"] = touchesFalse;
+  out["wake_enabled"] = touchWakeEnabled;
+  out["test_active"] = ecoTouchTestActive();
 }
 
 void ecoPowerChanged() {
@@ -63,18 +101,28 @@ static bool touchConfirmed() {
   return below >= 3;
 }
 
-// With the charger plugged in a touch does nothing (everything is already
-// on), but it is logged: that way the wiring can be tested over USB
-void ecoLogTouch() {
+// Reads the touch button while the board is awake. On battery a touch opens
+// the web page; with the charger plugged in it does nothing (everything is
+// already on) but it is logged, so the wiring can be tested over USB.
+void ecoPollTouch() {
   static unsigned long lastCheck = 0;
   static bool touched = false;
-  if (touchThreshold == 0 || millis() - lastCheck < 200) return;
+  if (touchThreshold == 0 || millis() - lastCheck < 100) return;
   lastCheck = millis();
   touch_value_t value = touchRead(TOUCH_PIN);
+  if (value < lowestReading) lowestReading = value;
   if (value >= touchThreshold) {
     touched = false;
-  } else if (!touched && touchConfirmed()) {
-    touched = true;
+    return;
+  }
+  if (touched || !touchConfirmed()) return;
+  touched = true;
+  touchesConfirmed++;
+  if (ecoActive()) {
+    Serial.printf("[ECO] Touch (value %u): web page active for 10 minutes\n", (unsigned)value);
+    ecoOpenWebWindow();
+    lastDisplayUpdate = 0;  // Redraw at once: WiFi icon and address in the footer
+  } else {
     Serial.printf("[ECO] Touch on GPIO%d: value %u, threshold %u (on the charger: no action)\n",
                   TOUCH_PIN, (unsigned)value, (unsigned)touchThreshold);
   }
@@ -151,16 +199,21 @@ void ecoSleep(unsigned long maxMs) {
   esp_light_sleep_start();
 
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    touchWakeups++;
     if (touchConfirmed()) {
+      touchesConfirmed++;
       falseTouches = 0;
       Serial.println("[ECO] Touch: web page active for 10 minutes");
       ecoOpenWebWindow();
       lastDisplayUpdate = 0;  // Redraw at once: WiFi icon and address in the footer
-    } else if (++falseTouches >= MAX_FALSE_TOUCHES) {
-      touchWakeEnabled = false;
-      Serial.println("[ECO] Too many false touches: touch wake-up disabled until the next power change");
     } else {
-      Serial.println("[ECO] False touch ignored");
+      touchesFalse++;
+      if (++falseTouches >= MAX_FALSE_TOUCHES) {
+        touchWakeEnabled = false;
+        Serial.println("[ECO] Too many false touches: touch wake-up disabled until the next power change");
+      } else {
+        Serial.println("[ECO] False touch ignored");
+      }
     }
   }
 }

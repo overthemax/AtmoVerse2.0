@@ -417,15 +417,16 @@ void loop() {
   // one every 800 ms made each page take about 3 seconds to open
   handleClientRequests();
   
-  // On battery with WiFi off: sleep until the next minute
+  ecoPollTouch();
+
+  // On battery with WiFi off: sleep until the next minute (not during the
+  // touch test right after unplugging the charger, see EcoPower.cpp)
   if (eco) {
     ecoWiFiOffIfIdle();
-    if (WiFi.getMode() == WIFI_OFF && !updateCheckRequested) {
+    if (WiFi.getMode() == WIFI_OFF && !updateCheckRequested && !ecoTouchTestActive()) {
       ecoSleep(60000);
       return;
     }
-  } else {
-    ecoLogTouch();
   }
 
   // Short delay to keep the web server responsive

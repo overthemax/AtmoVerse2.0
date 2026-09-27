@@ -1,10 +1,21 @@
 #include "BatteryManager.h"
+#include <Preferences.h>
 
 // Global instance
 BatteryManager battery;
 
+// A learned "full" value below this is not trusted (e.g. a charge that ended
+// early because of a fault): the plain curve is used instead
+static const float MIN_FULL_PERCENT = 85.0f;
+
 void BatteryManager::begin() {
     Serial.println("[BATTERY] Starting...");
+    Preferences prefs;
+    if (prefs.begin("battery", true)) {
+        float stored = prefs.getFloat("full_pct", 100.0f);
+        if (stored >= MIN_FULL_PERCENT && stored <= 100.0f) fullPercent = stored;
+        prefs.end();
+    }
     ina219Available = initINA219();
     if (!ina219Available) {
         Serial.println("[BATTERY] INA219 not found: battery not monitored");
@@ -103,7 +114,8 @@ void BatteryManager::measure() {
 
     // Exponential filter: the percentage does not jump with the WiFi current peaks
     restVoltage = (restVoltage <= 0.0f) ? vRest : 0.7f * restVoltage + 0.3f * vRest;
-    percentage = voltageToPercentage(restVoltage);
+    float raw = voltageToPercentage(restVoltage);
+    percentage = min(100, (int)(raw * 100.0f / fullPercent + 0.5f));
 
     detectChargingState();
 
@@ -112,6 +124,7 @@ void BatteryManager::measure() {
         // current; at rest the voltage settles around 4.10-4.15 V (4.14 V measured
         // after a full charge), so the threshold is 4.10 V with almost no current
         bool chargeDone = voltage >= 4.10f && fabsf(current_mA) < BATTERY_CURRENT_THRESHOLD_MA;
+        if (chargeDone) learnFullPercent(raw);
         if (percentage >= 95 || chargeDone) {
             state = BATTERY_FULL;
             if (chargeDone) percentage = 100;
@@ -127,6 +140,19 @@ void BatteryManager::measure() {
     }
 
     updateLevel();
+}
+
+// While the charge is finished the resting voltage settles for a while:
+// the value is followed, and written to NVS only when it changes by 1 point
+void BatteryManager::learnFullPercent(float raw) {
+    if (raw < MIN_FULL_PERCENT || fabsf(raw - fullPercent) < 1.0f) return;
+    fullPercent = raw;
+    Preferences prefs;
+    if (prefs.begin("battery", false)) {
+        prefs.putFloat("full_pct", fullPercent);
+        prefs.end();
+    }
+    Serial.printf("[BATTERY] Full battery = %.0f%% on the voltage curve: now shown as 100%%\n", fullPercent);
 }
 
 void BatteryManager::detectChargingState() {

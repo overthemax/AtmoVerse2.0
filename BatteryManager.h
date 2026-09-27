@@ -70,6 +70,11 @@ private:
     float power_mW = 0.0f;
     float shuntVoltage_mV = 0.0f;
     int percentage = 0;
+    // What the voltage curve gives for this pack when it is full (a full
+    // LiPo rests at ~4.14 V, not at the curve's 4.20 V): learned at the end
+    // of every charge and kept in NVS. Percentages are scaled so that this
+    // value reads 100%, otherwise unplugging the charger jumped to ~96%.
+    float fullPercent = 100.0f;
     BatteryState state = BATTERY_UNKNOWN;
     BatteryLevel level = BATTERY_LEVEL_OK;
     bool isCharging = false;
@@ -82,6 +87,7 @@ private:
     void detectChargingState();
     void updateLevel();
     void measure();
+    void learnFullPercent(float raw);
 
 public:
     // Looks for the INA219 and takes a first reading at once

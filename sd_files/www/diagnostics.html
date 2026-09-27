@@ -33,6 +33,13 @@
     </div>
 
     <div class="card">
+      <h2 class="card-title">Tasto a sfioramento</h2>
+      <ul id="touch" class="status-list"><li><div class="spinner"></div></li></ul>
+      <p class="hint">Il valore scende quando tocchi la vite. Nei 3 minuti dopo che stacchi il caricatore
+        la scheda resta sveglia e registra il valore più basso raggiunto.</p>
+    </div>
+
+    <div class="card">
       <h2 class="card-title">Aggiornamenti</h2>
       <ul id="updates" class="status-list"><li><div class="spinner"></div></li></ul>
       <button class="btn btn-primary mt-4" onclick="checkUpdates()">Controlla aggiornamenti</button>
@@ -72,8 +79,21 @@
           ['Segnale', health.rssi > -127 ? health.rssi + ' dBm' : '—'],
         ]);
         $('updates').innerHTML = rows([['Stato', settings.updateStatus || '—']]);
+        const t = health.touch || {};
+        $('touch').innerHTML = rows([
+          ['Pin', 'GPIO' + t.pin],
+          ['Valore a riposo', t.idle],
+          ['Soglia', t.threshold],
+          ['Valore più basso', t.lowest],
+          ['A batteria: riposo / soglia', t.battery_idle ? t.battery_idle + ' / ' + t.battery_threshold : '—'],
+          ['Risvegli dal tocco', t.wakeups],
+          ['Tocchi riconosciuti', t.confirmed],
+          ['Falsi tocchi', t.false],
+          ['Risveglio al tocco', t.wake_enabled ? 'Attivo' : 'Disattivato'],
+          ['Prova a batteria', t.test_active ? 'In corso' : '—'],
+        ]);
       } catch (e) {
-        failed('device'); failed('network'); failed('updates');
+        failed('device'); failed('network'); failed('updates'); failed('touch');
       }
       try {
         const b = await fetch('/api/battery', { cache: 'no-store' }).then(r => r.json());
