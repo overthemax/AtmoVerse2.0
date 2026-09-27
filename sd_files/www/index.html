@@ -46,7 +46,7 @@
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const num = (v, d = 0) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '--';
 
-    // Codice icona OpenWeatherMap (01d, 10n, ...) -> simbolo
+    // OpenWeatherMap icon code (01d, 10n, ...) -> symbol
     function iconFor(code) {
       const c = (code || '').slice(0, 2), night = (code || '').endsWith('n');
       return { '01': night ? '☾' : '☀', '02': '⛅', '03': '☁', '04': '☁', '09': '☂', '10': '☔', '11': '⚡', '13': '❄', '50': '≋' }[c] || '☁';
@@ -87,7 +87,7 @@
           $('quote').textContent = '«' + q.text + '»';
           $('quote-author').textContent = q.author || '';
         }
-      } catch (e) { /* facoltativa */ }
+      } catch (e) { /* optional */ }
     }
 
     async function loadSystemStatus() {

@@ -6,14 +6,14 @@
 #include <DNSServer.h>
 #include "Config.h"
 
-// Istanze del server
+// Server instances
 extern DNSServer dnsServer;
 extern bool apMode;
 
-// Funzioni di configurazione e gestione rete
+// Network setup and management
 bool setupWiFi();
 void setupTimeServer();
-void applyTimezone();  // Solo fuso orario, senza NTP
+void applyTimezone();  // Time zone only, without NTP
 bool isWiFiConnected();
 bool connectToWiFi(const char* ssid, const char* password);
 void startAccessPoint(bool forceStart = false);

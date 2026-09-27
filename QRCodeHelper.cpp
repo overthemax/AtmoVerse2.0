@@ -1,8 +1,8 @@
 #include "QRCodeHelper.h"
-#include <qrcode.h>  // Componente esp_qrcode del core ESP32
+#include <qrcode.h>  // esp_qrcode component of the ESP32 core
 
-// esp_qrcode_generate() passa il risultato a una funzione senza contesto:
-// l'helper di destinazione è indicato qui per la durata della chiamata
+// esp_qrcode_generate() hands the result to a function without context:
+// the target helper is set here for the duration of the call
 static QRCodeHelper* qrTarget = nullptr;
 
 void qrCopyModules(const uint8_t* qrcode) {
@@ -22,7 +22,7 @@ void qrCopyModules(const uint8_t* qrcode) {
   }
 }
 
-// Nel formato WIFI: i caratteri \ ; , : " vanno preceduti da una barra
+// In the WIFI format the characters \ ; , : " need a backslash before them
 static String escapeWiFiField(const char* s) {
   String out;
   for (; *s; s++) {
@@ -50,7 +50,7 @@ bool QRCodeHelper::generateTextQR(const char* text) {
   qrTarget = nullptr;
 
   if (err != ESP_OK || size == 0) {
-    Serial.printf("[QR] Generazione non riuscita (errore %d)\n", (int)err);
+    Serial.printf("[QR] Generation failed (error %d)\n", (int)err);
     size = 0;
     return false;
   }

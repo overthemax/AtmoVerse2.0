@@ -1,15 +1,15 @@
 /**
  * @file Updater.cpp
- * @brief Aggiornamento automatico da GitHub Releases (vedi Updater.h)
+ * @brief Automatic update from GitHub Releases (see Updater.h)
  *
- * Formato di manifest.json (generato da tools/make_manifest.py):
+ * manifest.json format (made by tools/make_manifest.py):
  * {
  *   "version": "2.1.0",
  *   "firmware": { "url": "...firmware.bin", "size": 1385156, "sha256": "..." },
  *   "files_base_url": "https://raw.githubusercontent.com/<repo>/<tag>/sd_files",
  *   "files": [ { "path": "/www/index.html", "size": 4210, "sha256": "...", "keep": false } ]
  * }
- * "keep": true indica un file dell'utente (es. quotes.json): viene scaricato solo se manca.
+ * "keep": true marks a user file (e.g. quotes.json): it is downloaded only if missing.
  */
 
 #include "Updater.h"
@@ -34,27 +34,27 @@
 volatile UpdateState updateState = UPDATE_IDLE;
 
 static String lastStatus;  // Empty until the first check (see getUpdateStatusText)
-static String updateNotice;       // Vedi getUpdateNotice()
-static bool sdWriteFailed = false;  // L'ultimo downloadToFile è fallito scrivendo sulla SD
+static String updateNotice;       // See getUpdateNotice()
+static bool sdWriteFailed = false;  // The last downloadToFile failed while writing to the SD card
 
-// Area di preparazione sulla SD
+// Staging area on the SD card
 static const char* STAGING_DIR = "/upd";
-static const char* PENDING_LIST = "/upd/pending.txt";  // File da spostare al loro posto
-static const char* READY_MARKER = "/upd/ready";        // Presente solo se tutto è stato verificato
-// Release con cui i file della SD sono allineati: se coincide con l'ultima, il
-// controllo periodico non ricalcola lo SHA-256 di tutti i file (~95 s)
+static const char* PENDING_LIST = "/upd/pending.txt";  // Files to move into place
+static const char* READY_MARKER = "/upd/ready";        // Present only when everything has been verified
+// Release the SD files match: if it is the latest one, the periodic check
+// does not compute the SHA-256 of every file again (~95 s)
 static const char* SYNCED_RELEASE = "/sd_release.txt";
-static const char* STAGED_RELEASE = "/upd/release.txt";  // Diventa SYNCED_RELEASE quando i file sono applicati
+static const char* STAGED_RELEASE = "/upd/release.txt";  // Becomes SYNCED_RELEASE when the files are applied
 
-// Stato persistente (NVS) per riconoscere un firmware che non si è avviato
+// Persistent state (NVS) to recognize a firmware that did not start
 static const char* PREFS_NS = "updater";
-static const char* KEY_ATTEMPT = "attempt";  // Versione appena installata, non ancora confermata
-static const char* KEY_BAD = "bad";          // Versione che ha causato un rollback
+static const char* KEY_ATTEMPT = "attempt";  // Version just installed, not confirmed yet
+static const char* KEY_BAD = "bad";          // Version that caused a rollback
 
-static const size_t MAX_MANIFEST_SIZE = 65536;  // ~230 file, icone BMP comprese
+static const size_t MAX_MANIFEST_SIZE = 65536;  // ~230 files, BMP icons included
 
-// Il core Arduino chiede se la conferma del firmware va rimandata: sì, la
-// facciamo noi con markFirmwareHealthy() dopo 60 secondi di funzionamento
+// The Arduino core asks whether the firmware confirmation is postponed: yes,
+// we do it with markFirmwareHealthy() after 60 seconds of running
 extern "C" bool verifyRollbackLater() {
   return true;
 }
@@ -68,10 +68,10 @@ String getUpdateStatusText() {
 }
 
 // ---------------------------------------------------------------------------
-// Utility
+// Utilities
 // ---------------------------------------------------------------------------
 
-// Confronta due versioni "x.y.z" numericamente: <0 se a<b, 0 se uguali, >0 se a>b
+// Compares two "x.y.z" versions numerically: <0 if a<b, 0 if equal, >0 if a>b
 static int compareVersions(const char* a, const char* b) {
   int va[3] = {0, 0, 0};
   int vb[3] = {0, 0, 0};
@@ -113,7 +113,7 @@ static String sha256OfFile(const String& path) {
   return toHex(digest, sizeof(digest));
 }
 
-// Crea le cartelle mancanti del percorso di un file
+// Creates the missing folders of a file path
 static void ensureParentDirs(const String& filePath) {
   int slash = filePath.indexOf('/', 1);
   while (slash > 0) {
@@ -123,7 +123,7 @@ static void ensureParentDirs(const String& filePath) {
   }
 }
 
-// Cancella una cartella e tutto il suo contenuto
+// Deletes a folder and everything in it
 static void removeTree(const String& dirPath) {
   File dir = SD.open(dirPath);
   if (!dir) return;
@@ -169,28 +169,28 @@ static bool sdAvailable() {
 }
 
 // ---------------------------------------------------------------------------
-// Download HTTPS
+// HTTPS download
 // ---------------------------------------------------------------------------
 
 typedef std::function<bool(const uint8_t*, int)> ChunkSink;
 
-// Scarica un URL passando i dati a sink a blocchi. Segue i redirect (GitHub
-// rimanda i file delle release a un CDN) e verifica il certificato del server
-// con il bundle di certificati radice incluso in ESP-IDF.
+// Downloads a URL handing the data to sink in chunks. Follows redirects (GitHub
+// sends release files to a CDN) and verifies the server certificate
+// with the root certificate bundle included in ESP-IDF.
 static esp_http_client_handle_t newHttpsClient(const String& url) {
   esp_http_client_config_t cfg = {};
   cfg.url = url.c_str();
   cfg.crt_bundle_attach = esp_crt_bundle_attach;
   cfg.timeout_ms = 20000;
-  cfg.buffer_size = 4096;     // Le risposte di GitHub hanno intestazioni lunghe
-  cfg.buffer_size_tx = 2048;  // Gli URL firmati del CDN sono lunghi
+  cfg.buffer_size = 4096;     // GitHub responses have long headers
+  cfg.buffer_size_tx = 2048;  // The CDN's signed URLs are long
   cfg.user_agent = "AtmoVerse/" ATMOVERSE_VERSION;
   return esp_http_client_init(&cfg);
 }
 
-// Esegue la richiesta sull'URL già impostato nel client, segue i redirect e
-// passa i dati a sink. Con keepOpen la connessione resta aperta per la
-// richiesta successiva allo stesso server (niente nuovo handshake TLS).
+// Runs the request on the URL already set in the client, follows redirects and
+// hands the data to sink. With keepOpen the connection stays open for the
+// next request to the same server (no new TLS handshake).
 static bool httpFetch(esp_http_client_handle_t client, const String& logUrl, const ChunkSink& sink,
                       int* statusOut, bool keepOpen) {
   if (statusOut) *statusOut = -1;
@@ -198,7 +198,7 @@ static bool httpFetch(esp_http_client_handle_t client, const String& logUrl, con
   for (int redirects = 0; redirects <= 5; redirects++) {
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
-      Serial.printf("[HTTPS] Connessione non riuscita (%s, errno %d, heap %u, blocco max %u): %s\n",
+      Serial.printf("[HTTPS] Connection failed (%s, errno %d, heap %u, max block %u): %s\n",
                     esp_err_to_name(err), esp_http_client_get_errno(client),
                     (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(), logUrl.c_str());
       esp_http_client_close(client);
@@ -216,7 +216,7 @@ static bool httpFetch(esp_http_client_handle_t client, const String& logUrl, con
     }
 
     if (status != 200) {
-      Serial.printf("[HTTPS] HTTP %d per %s\n", status, logUrl.c_str());
+      Serial.printf("[HTTPS] HTTP %d for %s\n", status, logUrl.c_str());
       esp_http_client_close(client);
       break;
     }
@@ -238,11 +238,11 @@ static bool httpFetch(esp_http_client_handle_t client, const String& logUrl, con
   return ok;
 }
 
-// Scarica un URL con una connessione dedicata. Segue i redirect (GitHub
-// rimanda i file delle release a un CDN) e verifica il certificato del server
-// con il bundle di certificati radice incluso in ESP-IDF.
+// Downloads a URL with its own connection. Follows redirects (GitHub
+// sends release files to a CDN) and verifies the server certificate
+// with the root certificate bundle included in ESP-IDF.
 static bool httpDownload(const String& url, const ChunkSink& sink, int* statusOut = nullptr) {
-  // Nei log l'URL senza parametri: potrebbero contenere una API key
+  // The URL without parameters in the logs: they may hold an API key
   int q = url.indexOf('?');
   String logUrl = (q >= 0) ? url.substring(0, q) : url;
 
@@ -267,12 +267,12 @@ int httpsGet(const String& url, String& body, size_t maxLen) {
   return status;
 }
 
-// Scarica un file sulla SD verificandone dimensione e SHA-256; in caso di errore lo cancella
+// Downloads a file to the SD card checking its size and SHA-256; deletes it on error
 // ---------------------------------------------------------------------------
-// Avanzamento mostrato sul display
+// Progress shown on the display
 // ---------------------------------------------------------------------------
-// Un refresh completo dell'e-ink dura ~4 s: la schermata si aggiorna a ogni 10%
-// e non più di una volta ogni 20 s.
+// A full e-ink refresh takes ~4 s: the screen is updated every 10%
+// and at most once every 20 s.
 struct Progress {
   const char* phase = "";
   int filesDone = 0;
@@ -298,7 +298,7 @@ static void reportProgress(bool force = false) {
   unsigned long now = millis();
   if (!force && (pct < progress.shownPercent + 10 || now - progress.shownAt < 20000)) return;
 
-  // Tempo stimato dalla velocità media, dopo almeno 5 s di dati
+  // Time left from the average speed, after at least 5 s of data
   int eta = -1;
   unsigned long elapsed = now - progress.start;
   if (progress.bytesDone > 0 && elapsed > 5000) {
@@ -306,28 +306,28 @@ static void reportProgress(bool force = false) {
   }
   progress.shownPercent = pct;
   progress.shownAt = now;
-  Serial.printf("[UPDATE] %s: %d%% (file %d/%d, stima %d s)\n", progress.phase, pct,
+  Serial.printf("[UPDATE] %s: %d%% (file %d/%d, about %d s left)\n", progress.phase, pct,
                 progress.filesDone, progress.filesTotal, eta);
   showUpdateProgress(progress.phase, progress.filesDone, progress.filesTotal, pct, eta);
 }
 
-// Connessione per i file della SD.
-// raw.githubusercontent.com usa la catena Let's Encrypt "Root YR" -> ISRG Root X1:
-// sull'ESP32 la verifica della firma RSA-4096 della radice fallisce
-// (esp-x509-crt-bundle, errore 0x4290), e la verifica non si può disattivare
-// nel client HTTP di ESP-IDF precompilato. Per questi file la connessione è
-// cifrata ma senza verifica del certificato: l'integrità è garantita dallo
-// SHA-256 di ogni file, letto dal manifest scaricato da github.com con
-// certificato verificato. Un file alterato viene scartato.
-// Dal 2026 anche il firmware delle release arriva da un CDN con la stessa
-// catena (release-assets.githubusercontent.com): stessa soluzione, il firmware
-// si avvia solo se dimensione e SHA-256 coincidono con il manifest.
+// Connection for the SD files.
+// raw.githubusercontent.com uses the Let's Encrypt chain "Root YR" -> ISRG Root X1:
+// on the ESP32 the verification of the root's RSA-4096 signature fails
+// (esp-x509-crt-bundle, error 0x4290), and verification cannot be turned off
+// in ESP-IDF's precompiled HTTP client. For these files the connection is
+// encrypted but the certificate is not verified: integrity comes from the
+// SHA-256 of every file, read from the manifest downloaded from github.com
+// with a verified certificate. A tampered file is discarded.
+// Since 2026 the release firmware also comes from a CDN with the same chain
+// (release-assets.githubusercontent.com): same solution, the firmware
+// boots only if size and SHA-256 match the manifest.
 struct FileSession {
   WiFiClientSecure tls;
   HTTPClient http;
   FileSession() {
     tls.setInsecure();
-    http.setReuse(true);  // Stessa connessione per tutti i file (un solo handshake)
+    http.setReuse(true);  // One connection for all the files (a single handshake)
     http.setTimeout(20000);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);  // github.com -> CDN
     http.setUserAgent("AtmoVerse/" ATMOVERSE_VERSION);
@@ -338,12 +338,12 @@ static bool sessionDownload(FileSession& s, const String& url, const ChunkSink& 
   if (!s.http.begin(s.tls, url)) return false;
   int code = s.http.GET();
   if (code != 200) {
-    Serial.printf("[HTTPS] HTTP %d per %s (heap %u, blocco max %u)\n", code, url.c_str(),
+    Serial.printf("[HTTPS] HTTP %d for %s (heap %u, max block %u)\n", code, url.c_str(),
                   (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
     s.http.end();
     return false;
   }
-  int remaining = s.http.getSize();  // -1 se la dimensione non è indicata
+  int remaining = s.http.getSize();  // -1 if the size is not given
   NetworkClient* stream = s.http.getStreamPtr();
   uint8_t buf[1024];
   unsigned long lastData = millis();
@@ -357,7 +357,7 @@ static bool sessionDownload(FileSession& s, const String& url, const ChunkSink& 
       if (remaining > 0) remaining -= n;
       lastData = millis();
     } else if (!s.http.connected()) {
-      if (remaining > 0) ok = false;  // Chiuso prima della fine
+      if (remaining > 0) ok = false;  // Closed before the end
       break;
     } else if (millis() - lastData > 20000) {
       ok = false;
@@ -366,7 +366,7 @@ static bool sessionDownload(FileSession& s, const String& url, const ChunkSink& 
       delay(2);
     }
   }
-  s.http.end();  // Con setReuse la connessione resta aperta per il file successivo
+  s.http.end();  // With setReuse the connection stays open for the next file
   return ok;
 }
 
@@ -403,21 +403,21 @@ static bool downloadToFile(FileSession* session, const String& url, const String
   mbedtls_sha256_free(&ctx);
 
   if (!ok || total != expectedSize || toHex(digest, 32) != expectedSha) {
-    Serial.println("[UPDATE] File non valido: " + url);
+    Serial.println("[UPDATE] Invalid file: " + url);
     SD.remove(dest);
     return false;
   }
   return true;
 }
 
-// Scrive il firmware nella seconda area del flash; la imposta come area di
-// avvio solo se dimensione e SHA-256 corrispondono al manifest
+// Writes the firmware to the second flash slot; sets it as the boot slot
+// only if size and SHA-256 match the manifest
 static const int FIRMWARE_ATTEMPTS = 3;
 
 static bool downloadFirmware(const String& url, size_t size, const String& expectedSha) {
   for (int attempt = 1; attempt <= FIRMWARE_ATTEMPTS; attempt++) {
     if (!Update.begin(size)) {
-      Serial.println("[UPDATE] Spazio insufficiente per il firmware");
+      Serial.println("[UPDATE] Not enough space for the firmware");
       return false;
     }
 
@@ -427,7 +427,7 @@ static bool downloadFirmware(const String& url, size_t size, const String& expec
     size_t total = 0;
     progress.bytesDone = 0;
 
-    // Connessione senza verifica del certificato (vedi FileSession): conta lo SHA-256
+    // Connection without certificate verification (see FileSession): the SHA-256 is what counts
     FileSession* session = new FileSession();
     bool ok = sessionDownload(*session, url, [&](const uint8_t* data, int len) {
       mbedtls_sha256_update(&ctx, data, len);
@@ -446,24 +446,24 @@ static bool downloadFirmware(const String& url, size_t size, const String& expec
     if (ok && total == size && toHex(digest, 32) == expectedSha) {
       return Update.end();
     }
-    Serial.printf("[UPDATE] Firmware non valido (tentativo %d/%d, %u di %u byte)\n", attempt,
+    Serial.printf("[UPDATE] Invalid firmware (attempt %d/%d, %u of %u bytes)\n", attempt,
                   FIRMWARE_ATTEMPTS, (unsigned)total, (unsigned)size);
     Update.abort();
     if (attempt < FIRMWARE_ATTEMPTS) delay(3000 * attempt);
   }
-  Serial.println("[UPDATE] Firmware non valido, installazione annullata");
+  Serial.println("[UPDATE] Invalid firmware, installation cancelled");
   return false;
 }
 
 // ---------------------------------------------------------------------------
-// Aggiornamento dei file della SD
+// SD file update
 // ---------------------------------------------------------------------------
 
-// Sposta al loro posto i file preparati in /upd. Riprende da dove era rimasto
-// se un'interruzione lo ha fermato a metà (i file già spostati non sono più in /upd).
+// Moves the files prepared in /upd into place. Resumes where it stopped
+// if an interruption halted it halfway (the files already moved are no longer in /upd).
 static void applyPendingSdUpdate() {
   if (!SD.exists(READY_MARKER)) {
-    // Download interrotto prima della fine: i file parziali non vanno usati
+    // Download interrupted before the end: the partial files must not be used
     if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     return;
   }
@@ -492,11 +492,11 @@ static void applyPendingSdUpdate() {
     SD.rename(STAGED_RELEASE, SYNCED_RELEASE);
   }
   removeTree(STAGING_DIR);
-  Serial.printf("[UPDATE] File della SD aggiornati: %d\n", applied);
+  Serial.printf("[UPDATE] SD files updated: %d\n", applied);
 }
 
 // ---------------------------------------------------------------------------
-// API pubblica
+// Public API
 // ---------------------------------------------------------------------------
 
 void initUpdater() {
@@ -504,8 +504,8 @@ void initUpdater() {
   prefs.begin(PREFS_NS, false);
   String attempt = prefs.getString(KEY_ATTEMPT, "");
   if (attempt.length() > 0 && attempt != ATMOVERSE_VERSION) {
-    // Era stata installata "attempt", ma è in esecuzione un'altra versione:
-    // il bootloader ha ripristinato quella precedente
+    // "attempt" had been installed, but another version is running:
+    // the bootloader restored the previous one
     prefs.putString(KEY_BAD, attempt);
     prefs.remove(KEY_ATTEMPT);
     lastStatus = String(TR("La versione ", "Version ")) + attempt +
@@ -527,13 +527,13 @@ void markFirmwareHealthy() {
   prefs.begin(PREFS_NS, false);
   if (prefs.getString(KEY_ATTEMPT, "") == ATMOVERSE_VERSION) {
     prefs.remove(KEY_ATTEMPT);
-    Serial.println("[UPDATE] Firmware " ATMOVERSE_VERSION " confermato");
+    Serial.println("[UPDATE] Firmware " ATMOVERSE_VERSION " confirmed");
   }
   prefs.end();
 }
 
-// Errore che richiede un intervento: schermata dedicata (solo la prima volta,
-// non a ogni nuovo tentativo) e avviso nel piè di pagina finché non si risolve
+// Error that needs action: dedicated screen (only the first time,
+// not at every new attempt) and footer warning until it is solved
 static void reportBlockingError(const String& title, const String& text, const String& notice) {
   bool firstTime = updateNotice != notice;
   updateNotice = notice;
@@ -548,9 +548,9 @@ static String formatMB(uint64_t bytes) {
   return String(buf);
 }
 
-// I download restano a 80 MHz. Portando la CPU a 240 MHz durante i download
-// le connessioni HTTPS fallivano quasi sempre (HTTP -1, v2.1.8/2.1.9), mentre
-// le stesse richieste a 80 MHz riuscivano.
+// Downloads stay at 80 MHz. With the CPU at 240 MHz during downloads the
+// HTTPS connections failed almost every time (HTTP -1, v2.1.8/2.1.9), while
+// the same requests at 80 MHz worked.
 static void beginDownloadPhase() {
   updateState = UPDATE_DOWNLOADING;
   reportProgress(true);
@@ -558,14 +558,14 @@ static void beginDownloadPhase() {
 
 static void endDownloadPhase() {
   updateState = UPDATE_IDLE;
-  updateDisplay();  // Torna alla schermata normale
+  updateDisplay();  // Back to the normal screen
 }
 
 static void finishWithError(const String& message) {
   Serial.println("[UPDATE] " + message);
   lastStatus = message;
   if (sdAvailable() && SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
-  endDownloadPhase();  // Torna alla schermata principale
+  endDownloadPhase();  // Back to the main screen
   if (sdWriteFailed) {
     reportBlockingError(TR("Aggiornamento non riuscito", "Update failed"),
                         TR("Impossibile scrivere sulla scheda SD: spazio esaurito o scheda danneggiata. "
@@ -576,11 +576,11 @@ static void finishWithError(const String& message) {
   }
 }
 
-// Manifest e liste di lavoro stanno sulla SD, non in RAM: il manifest descrive
-// ~250 file (35 KB) e convertito tutto insieme in un documento JSON supera il
-// blocco di memoria libera più grande disponibile con WiFi e TLS attivi.
+// Manifest and work lists live on the SD card, not in RAM: the manifest describes
+// ~250 files (35 KB), and converted all at once into a JSON document it exceeds
+// the largest free memory block available with WiFi and TLS running.
 static const char* MANIFEST_TMP = "/manifest.tmp";
-static const char* NEEDED_LIST = "/upd/needed.txt";  // "percorso|dimensione|sha256" per riga
+static const char* NEEDED_LIST = "/upd/needed.txt";  // "path|size|sha256" per line
 
 struct ManifestHeader {
   String version;
@@ -588,16 +588,16 @@ struct ManifestHeader {
   String fwUrl;
   size_t fwSize = 0;
   String fwSha;
-  String filesDigest;  // Impronta dell'elenco dei file della SD (vuota nei manifest vecchi)
+  String filesDigest;  // Fingerprint of the SD file list (empty in old manifests)
 
-  // Contenuto di SYNCED_RELEASE dopo una sincronizzazione: l'impronta dei file
-  // se il manifest la riporta, altrimenti la versione. Con l'impronta, una
-  // release che cambia solo il firmware non fa ricontrollare la SD.
+  // Content of SYNCED_RELEASE after a sync: the files fingerprint if the
+  // manifest has it, otherwise the version. With the fingerprint, a release
+  // that changes only the firmware does not check the SD card again.
   String syncKey() const { return filesDigest.length() ? "files:" + filesDigest : version; }
 };
 
-// Legge solo versione, firmware e indirizzo dei file: l'elenco dei file viene
-// saltato dal filtro, senza occupare memoria
+// Reads only version, firmware and file address: the file list is skipped
+// by the filter, without using memory
 template <typename TInput>
 static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
   JsonDocument filter;
@@ -608,7 +608,7 @@ static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, input, DeserializationOption::Filter(filter));
   if (err) {
-    Serial.printf("[UPDATE] Manifest non leggibile: %s (memoria libera max %u byte)\n",
+    Serial.printf("[UPDATE] Cannot read the manifest: %s (largest free block %u bytes)\n",
                   err.c_str(), (unsigned)ESP.getMaxAllocHeap());
     return false;
   }
@@ -621,9 +621,9 @@ static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
   return h.version.length() > 0;
 }
 
-// Scorre l'elenco "files" del manifest salvato sulla SD una voce alla volta e
-// scrive in NEEDED_LIST quelle da scaricare. Restituisce quante sono, -1 se errore.
-// Su FAT ogni file occupa almeno un cluster: fino a 32 KB anche se piccolo
+// Walks the "files" list of the manifest saved on the SD card one entry at a time
+// and writes the ones to download to NEEDED_LIST. Returns how many, -1 on error.
+// On FAT every file takes at least one cluster: up to 32 KB even if small
 static const uint64_t FAT_CLUSTER_MAX = 32768;
 
 static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
@@ -647,7 +647,7 @@ static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
       size_t size = f["size"] | 0;
       bool keep = f["keep"] | false;
 
-      // Solo percorsi assoluti, senza risalire di cartella né toccare l'area di lavoro
+      // Absolute paths only, never going up a folder or touching the work area
       if (!path.startsWith("/") || path.indexOf("..") >= 0 || path.indexOf('|') >= 0 ||
           path.startsWith(STAGING_DIR) || sha.length() != 64) continue;
 
@@ -655,9 +655,9 @@ static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
       if (probe) {
         size_t have = probe.size();
         probe.close();
-        if (keep) continue;  // File dell'utente già presente
-        // Dimensione diversa: di sicuro da scaricare, senza rileggere il file
-        if (have == size && sha256OfFile(path) == sha) continue;  // Già aggiornato
+        if (keep) continue;  // User file already present
+        // Different size: surely to download, without reading the file again
+        if (have == size && sha256OfFile(path) == sha) continue;  // Already up to date
       }
       out.printf("%s|%u|%s\n", path.c_str(), (unsigned)size, sha.c_str());
       count++;
@@ -670,8 +670,8 @@ static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
   return count;
 }
 
-// Scarica in /upd i file elencati in NEEDED_LIST, verificandoli; annota in
-// PENDING_LIST quelli pronti da spostare al loro posto
+// Downloads to /upd the files listed in NEEDED_LIST, verifying them; records in
+// PENDING_LIST the ones ready to move into place
 static const int FILE_ATTEMPTS = 5;
 
 static bool downloadNeededFiles(const String& baseUrl) {
@@ -683,8 +683,8 @@ static bool downloadNeededFiles(const String& baseUrl) {
     return false;
   }
 
-  // Una sola connessione HTTPS per tutti i file (stesso server): un handshake
-  // TLS invece di uno per file, più veloce e con meno frammentazione della memoria
+  // A single HTTPS connection for all the files (same server): one TLS
+  // handshake instead of one per file, faster and with less memory fragmentation
   FileSession* session = new FileSession();
 
   bool ok = true;
@@ -699,14 +699,14 @@ static bool downloadNeededFiles(const String& baseUrl) {
     String sha = line.substring(b + 1);
     sha.trim();
     bool done = false;
-    // La prima connessione TLS fallisce spesso per memoria frammentata:
-    // 5 tentativi con attesa crescente (2, 4, 6, 8 s)
+    // The first TLS connection often fails because of fragmented memory:
+    // 5 attempts with a growing wait (2, 4, 6, 8 s)
     for (int attempt = 1; attempt <= FILE_ATTEMPTS && !done; attempt++) {
       done = downloadToFile(session, baseUrl + path, String(STAGING_DIR) + path, size, sha);
       if (!done) {
         session->http.end();
-        session->tls.stop();  // Il tentativo successivo riapre la connessione
-        if (sdWriteFailed) break;  // SD piena o guasta: riprovare non serve
+        session->tls.stop();  // The next attempt opens the connection again
+        if (sdWriteFailed) break;  // SD card full or faulty: retrying does not help
         if (attempt < FILE_ATTEMPTS) delay(2000 * attempt);
       }
     }
@@ -728,13 +728,13 @@ static bool downloadNeededFiles(const String& baseUrl) {
   return ok;
 }
 
-// Ultima release dall'API di GitHub (certificato verificabile dal bundle di
-// ESP-IDF): URL del manifest e suo SHA-256 ("digest" dell'asset)
+// Latest release from the GitHub API (certificate verifiable with the ESP-IDF
+// bundle): manifest URL and its SHA-256 (the asset's "digest")
 static bool fetchReleaseInfo(String& manifestUrl, String& manifestSha) {
   String body;
   int status = httpsGet(ATMOVERSE_RELEASE_API_URL, body, 32768);
   if (status != 200) {
-    Serial.printf("[UPDATE] API GitHub: HTTP %d\n", status);
+    Serial.printf("[UPDATE] GitHub API: HTTP %d\n", status);
     return false;
   }
   JsonDocument filter;
@@ -751,22 +751,22 @@ static bool fetchReleaseInfo(String& manifestUrl, String& manifestSha) {
     manifestSha = digest.substring(7);
     return manifestSha.length() == 64;
   }
-  Serial.println("[UPDATE] API GitHub: manifest.json non trovato nella release");
+  Serial.println("[UPDATE] GitHub API: manifest.json not found in the release");
   return false;
 }
 
 bool checkForUpdates(bool fullScan) {
-  Serial.println("[UPDATE] Controllo aggiornamenti...");
+  Serial.println("[UPDATE] Checking for updates...");
   bool sd = sdAvailable();
 
-  // 1. Manifest dell'ultima release: sulla SD se c'è, altrimenti in RAM
-  //    (senza SD servono solo i dati del firmware)
+  // 1. Manifest of the latest release: on the SD card if present, otherwise in RAM
+  //    (without an SD card only the firmware data is needed)
   ManifestHeader h;
   bool downloaded;
   bool parsed = false;
-  // L'URL e lo SHA-256 del manifest arrivano dall'API di GitHub, con
-  // certificato verificato; il manifest poi si scarica dal CDN (vedi
-  // FileSession) e vale solo se il suo SHA-256 coincide
+  // The manifest URL and SHA-256 come from the GitHub API, with a verified
+  // certificate; the manifest is then downloaded from the CDN (see
+  // FileSession) and is accepted only if its SHA-256 matches
   String manifestUrl, manifestSha;
   bool infoOk = false;
   for (int attempt = 1; attempt <= 3 && !infoOk; attempt++) {
@@ -809,7 +809,7 @@ bool checkForUpdates(bool fullScan) {
     mbedtls_sha256_finish(&ctx, digest);
     mbedtls_sha256_free(&ctx);
     if (ok && toHex(digest, 32) != manifestSha) {
-      Serial.println("[UPDATE] SHA-256 del manifest diverso da quello dichiarato da GitHub: scartato");
+      Serial.println("[UPDATE] Manifest SHA-256 differs from the one declared by GitHub: discarded");
       ok = false;
     }
     downloaded = ok;
@@ -835,7 +835,7 @@ bool checkForUpdates(bool fullScan) {
     return false;
   }
 
-  // 2. Serve un nuovo firmware? (salta una versione che ha già fallito l'avvio)
+  // 2. Is a new firmware needed? (skips a version that already failed to boot)
   Preferences prefs;
   prefs.begin(PREFS_NS, true);
   String badVersion = prefs.getString(KEY_BAD, "");
@@ -844,12 +844,12 @@ bool checkForUpdates(bool fullScan) {
   bool firmwareNewer = compareVersions(h.version.c_str(), ATMOVERSE_VERSION) > 0 && badVersion != h.version;
   bool firmwarePostponed = false;
 
-  // Con la batteria bassa e senza caricatore il firmware non si installa: uno
-  // spegnimento durante la scrittura verrebbe recuperato dal rollback, ma è
-  // meglio non rischiare. I file della SD si aggiornano comunque.
+  // With a low battery and no charger the firmware is not installed: a power
+  // loss while writing would be recovered by the rollback, but it is better
+  // not to take the risk. The SD files are updated anyway.
   if (firmwareNewer && battery.isAvailable() && !battery.charging() &&
       battery.getPercentage() < BATTERY_MIN_FIRMWARE_UPDATE_PERCENT) {
-    Serial.printf("[UPDATE] Firmware %s rimandato: batteria al %d%%, non in carica\n",
+    Serial.printf("[UPDATE] Firmware %s postponed: battery at %d%%, not charging\n",
                   h.version.c_str(), battery.getPercentage());
     firmwareNewer = false;
     firmwarePostponed = true;
@@ -858,7 +858,7 @@ bool checkForUpdates(bool fullScan) {
                  String(BATTERY_MIN_FIRMWARE_UPDATE_PERCENT) + TR("% o in carica", "% or while charging");
   }
 
-  // 3. Quali file della SD sono cambiati? (elenco scritto sulla SD, non in RAM)
+  // 3. Which SD files changed? (list written to the SD card, not to RAM)
   int neededCount = 0;
   uint64_t neededBytes = 0;
   uint64_t neededDisk = 0;
@@ -866,7 +866,7 @@ bool checkForUpdates(bool fullScan) {
   synced.trim();
   bool filesInSync = !fullScan && synced.length() > 0 && synced == h.syncKey();
   if (filesInSync) {
-    Serial.println("[UPDATE] File della SD già allineati (" + h.version + "): controllo saltato");
+    Serial.println("[UPDATE] SD files already match (" + h.version + "): check skipped");
   } else if (sd && h.baseUrl.length() > 0) {
     if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     SD.mkdir(STAGING_DIR);
@@ -883,8 +883,8 @@ bool checkForUpdates(bool fullScan) {
   }
   if (sd) SD.remove(MANIFEST_TMP);
 
-  // Spazio: i file nuovi stanno in /upd accanto ai vecchi finché non sono tutti
-  // verificati, quindi serve spazio per l'intera copia più un margine
+  // Space: the new files stay in /upd next to the old ones until they are all
+  // verified, so there must be room for the whole copy plus a margin
   if (neededCount > 0) {
     uint64_t freeBytes = SD.totalBytes() - SD.usedBytes();
     uint64_t required = neededDisk + 512 * 1024;
@@ -901,7 +901,7 @@ bool checkForUpdates(bool fullScan) {
     }
   }
 
-  // Nessun file da scaricare: la SD è allineata a questa release
+  // No file to download: the SD card matches this release
   if (sd && neededCount == 0 && !filesInSync && h.baseUrl.length() > 0) {
     writeTextFile(SYNCED_RELEASE, h.syncKey());
   }
@@ -917,8 +917,8 @@ bool checkForUpdates(bool fullScan) {
     return true;
   }
 
-  // 4. Download: il display mostra la schermata di aggiornamento
-  Serial.printf("[UPDATE] Da scaricare: firmware %s, file %d\n", firmwareNewer ? h.version.c_str() : "no", neededCount);
+  // 4. Download: the display shows the update screen
+  Serial.printf("[UPDATE] To download: firmware %s, %d files\n", firmwareNewer ? h.version.c_str() : "no", neededCount);
   if (neededCount > 0) {
     startProgress(TR("File della SD", "SD card files"), neededCount, neededBytes);
   } else {
@@ -941,13 +941,13 @@ bool checkForUpdates(bool fullScan) {
       return false;
     }
 
-    // Da confermare dopo il riavvio; se non parte, initUpdater() lo segnerà come difettoso
+    // To be confirmed after the restart; if it does not boot, initUpdater() marks it as faulty
     prefs.begin(PREFS_NS, false);
     prefs.putString(KEY_ATTEMPT, h.version);
     prefs.end();
   }
 
-  // 5. Tutto verificato: i file vengono applicati ora (o al riavvio, se interrotti)
+  // 5. Everything verified: the files are applied now (or at boot, if interrupted)
   if (neededCount > 0) {
     writeTextFile(STAGED_RELEASE, h.syncKey());
     writeTextFile(READY_MARKER, "1");
@@ -958,13 +958,13 @@ bool checkForUpdates(bool fullScan) {
     lastStatus = String(TR("Installata la versione ", "Installed version ")) + h.version + TR(", riavvio", ", restarting");
     Serial.println("[UPDATE] " + lastStatus);
     delay(500);
-    ESP.restart();  // I file della SD vengono applicati all'avvio da initUpdater()
+    ESP.restart();  // The SD files are applied at boot by initUpdater()
   }
 
   applyPendingSdUpdate();
   updateNotice = "";
   lastStatus = TR("File della SD aggiornati", "SD card files updated");
-  Serial.printf("[UPDATE] %d file della SD aggiornati\n", neededCount);
+  Serial.printf("[UPDATE] %d SD files updated\n", neededCount);
   endDownloadPhase();
   return true;
 }

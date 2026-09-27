@@ -21,7 +21,7 @@
 
     <div id="message-container"></div>
 
-    <!-- Due gruppi di citazioni: meteo/programmate (quotes.json) e orologio letterario (/clock) -->
+    <!-- Two groups of quotes: weather/scheduled (quotes.json) and literary clock (/clock) -->
     <div class="tabs" role="tablist">
       <button class="tab active" id="tab-btn-weather" role="tab" onclick="showTab('weather')">Meteo e programmate</button>
       <button class="tab" id="tab-btn-clock" role="tab" onclick="showTab('clock')">Orologio letterario</button>
@@ -59,7 +59,7 @@
     </div>
 
     <div id="tab-weather" class="tab-panel">
-    <!-- Statistiche -->
+    <!-- Statistics -->
     <div class="card">
       <h2 class="card-title">Statistiche</h2>
       <div class="grid-2" id="stats-container">
@@ -68,7 +68,7 @@
       </div>
     </div>
 
-    <!-- Filtri -->
+    <!-- Filters -->
     <div class="card">
       <h2 class="card-title">Filtra Citazioni</h2>
       <div class="grid-2">
@@ -85,7 +85,7 @@
       </div>
     </div>
 
-    <!-- Lista Citazioni -->
+    <!-- Quote list -->
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2 class="card-title" style="margin: 0;">Citazioni</h2>
@@ -96,7 +96,7 @@
     </div>
   </div>
 
-  <!-- Modal citazione dell'orologio letterario -->
+  <!-- Literary clock quote dialog -->
   <div id="clock-modal" class="modal hidden">
     <div class="modal-content">
       <h2 id="clock-modal-title">Citazione delle <span id="clock-modal-hour">--</span></h2>
@@ -127,7 +127,7 @@
     </div>
   </div>
 
-  <!-- Modal Modifica Citazione -->
+  <!-- Edit quote dialog -->
   <div id="edit-modal" class="modal hidden">
     <div class="modal-content">
       <h2>Modifica Citazione</h2>
@@ -250,7 +250,7 @@
   </div>
 
   <style>
-    /* Stili aggiuntivi per editor citazioni */
+    /* Quote editor styles */
     .quote-item {
       background: var(--background);
       padding: 16px;
@@ -400,7 +400,7 @@
     .align-left { text-align: left; }
     .align-center { text-align: center; }
     .align-right { text-align: right; }
-    /* Smartphone: finestra a tutta larghezza, azioni che vanno a capo */
+    /* Smartphone: full-width dialog, actions that wrap */
     @media (max-width: 600px) {
       .modal { align-items: flex-end; }
       .modal-content { width: 100%; max-height: 92vh; padding: 18px 16px; border-radius: 10px 10px 0 0; }
@@ -416,7 +416,7 @@
     .btn-format { color: var(--bronze-deep); background: #fffdf8; text-shadow: none; box-shadow: none; min-height: 40px; min-width: 44px; border: 1px solid var(--border-color); }
     .btn-format:hover { color: #fffaf0; background: var(--bronze-gradient); }
 
-    /* Schede: meteo/programmate e orologio letterario */
+    /* Tabs: weather/scheduled and literary clock */
     .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); }
     .tab { flex: 1 1 0; padding: 10px 12px; border: 1px solid var(--border-color); border-bottom: none;
            border-radius: 6px 6px 0 0; background: var(--inset-bg); color: var(--bronze-deep);
@@ -452,8 +452,8 @@
   <script>
     let quotes = [];
 
-    // Il testo delle citazioni viene dal file sulla SD: va escapato prima di
-    // inserirlo come HTML (un file modificato potrebbe contenere codice)
+    // The quote text comes from the file on the SD card: it must be escaped
+    // before being inserted as HTML (an edited file could contain code)
     function esc(v) {
       return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
@@ -489,7 +489,7 @@
       return out;
     }
 
-    // Carica citazioni
+    // Load the quotes
     async function loadQuotes() {
       try {
         const response = await fetch('/quotes.json?raw=1');
@@ -530,14 +530,14 @@
       }
     }
 
-    // Aggiorna statistiche
+    // Update the statistics
     function updateStats() {
       document.getElementById('total-quotes').textContent = quotes.length;
       const categories = [...new Set(quotes.map(q => q.category))];
       document.getElementById('total-categories').textContent = categories.length;
     }
 
-    // Aggiorna filtro categorie
+    // Update the category filter
     function updateCategoryFilter() {
       const select = document.getElementById('filter-category');
       const categories = [...new Set(quotes.map(q => q.category))].sort();
@@ -551,7 +551,7 @@
       });
     }
 
-    // Filtra citazioni
+    // Filter the quotes
     function filterQuotes() {
       const category = document.getElementById('filter-category').value;
       const search = document.getElementById('filter-search').value.toLowerCase();
@@ -572,7 +572,7 @@
       renderQuotes(filtered);
     }
 
-    // Render citazioni
+    // Render the quotes
     function renderQuotes(quotesToRender = quotes) {
       const container = document.getElementById('quotes-list');
       
@@ -593,7 +593,7 @@
         const div = document.createElement('div');
         div.className = 'quote-item';
         
-        // Formattazione preview del testo
+        // Text preview formatting
         let displayText = esc(quote.text)
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -622,7 +622,7 @@
       });
     }
 
-    // Inserisci formattazione
+    // Insert formatting
     function insertFormat(before, after) {
       const textarea = document.getElementById('edit-text');
       const start = textarea.selectionStart;
@@ -633,14 +633,14 @@
       const newText = text.substring(0, start) + before + selectedText + after + text.substring(end);
       textarea.value = newText;
       
-      // Riposiziona cursore
+      // Move the cursor back
       const newPos = start + before.length + selectedText.length + after.length;
       textarea.setSelectionRange(newPos, newPos);
       textarea.focus();
       updatePreview();
     }
 
-    // Aggiorna preview live
+    // Update the live preview
     function updatePreview() {
       const text = document.getElementById('edit-text').value;
       const author = document.getElementById('edit-author').value;
@@ -650,11 +650,11 @@
       const authorStyle = document.getElementById('edit-author-style').value;
       const sameLine = document.getElementById('edit-author-same-line').checked;
       
-      // Converti markdown in HTML
+      // Markdown to HTML
       let formattedText = esc(text)
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // grassetto
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')              // corsivo
-        .replace(/\\n/g, '<br>');                          // a capo
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // bold
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')              // italic
+        .replace(/\\n/g, '<br>');                          // new line
       
       const previewBox = document.getElementById('preview-box');
       previewBox.className = `preview-box size-${fontSize} align-${align}`;
@@ -671,7 +671,7 @@
       `;
     }
 
-    // Aggiungi nuova citazione
+    // Add a new quote
     function addNewQuote() {
       editingIndex = -1;
       document.getElementById('edit-text').value = '';
@@ -704,7 +704,7 @@
       return { at, duration: isNaN(duration) ? null : duration, date, days };
     }
 
-    // Modifica citazione
+    // Edit a quote
     function editQuote(index) {
       editingIndex = index;
       const quote = quotes[index];
@@ -721,7 +721,7 @@
       document.getElementById('edit-modal').classList.remove('hidden');
     }
 
-    // Salva citazione modificata
+    // Save the edited quote
     function saveEditedQuote() {
       const text = document.getElementById('edit-text').value.trim();
       const author = document.getElementById('edit-author').value.trim();
@@ -765,11 +765,11 @@
       if (scheduled && schedule.days) quote.days = schedule.days;
       
       if (editingIndex === -1) {
-        // Nuova citazione
+        // New quote
         quotes.push(quote);
         showMessage('✅ Citazione aggiunta', 'success');
       } else {
-        // Modifica esistente
+        // Existing quote
         quotes[editingIndex] = quote;
         showMessage('✅ Citazione modificata', 'success');
       }
@@ -780,13 +780,13 @@
       closeEditModal();
     }
 
-    // Chiudi modal
+    // Close the dialog
     function closeEditModal() {
       document.getElementById('edit-modal').classList.add('hidden');
       editingIndex = -1;
     }
 
-    // Elimina citazione
+    // Delete a quote
     function deleteQuote(index) {
       if (confirm('Eliminare questa citazione?')) {
         quotes.splice(index, 1);
@@ -797,7 +797,7 @@
       }
     }
 
-    // Elimina tutte
+    // Delete all
     function deleteAllQuotes() {
       if (confirm('⚠️ ATTENZIONE: Eliminare TUTTE le citazioni? Questa azione non può essere annullata!')) {
         if (confirm('Sei assolutamente sicuro? Verranno eliminate ' + quotes.length + ' citazioni!')) {
@@ -810,7 +810,7 @@
       }
     }
 
-    // Salva tutte le citazioni
+    // Save all the quotes
     async function saveQuotes() {
       if (quotes.length === 0) {
         showMessage('⚠️ Nessuna citazione da salvare', 'info');
@@ -818,8 +818,8 @@
       }
       
       try {
-        // Formato del firmware: {categoria: [{text, author, ...}]}, senza campi vuoti.
-        // La scheda lo scrive sulla SD mentre arriva (la raccolta supera i 40 KB).
+        // Firmware format: {section: [{text, author, ...}]}, without empty fields.
+        // The board writes it to the SD card as it arrives (the collection exceeds 40 KB).
         const out = {};
         for (const q of quotes) {
           const cat = q.category || 'motivation';
@@ -861,7 +861,7 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
 
-    // Mostra messaggio
+    // Show a message
     function showMessage(text, type) {
       const container = document.getElementById('message-container');
       container.innerHTML = `<div class="message message-${type}">${text}</div>`;
@@ -873,16 +873,16 @@
     }
 
     // -----------------------------------------------------------------
-    // Orologio letterario: /clock/HH.txt, righe "MM|testo|Autore, Opera".
-    // Si carica e si salva un'ora alla volta (i file insieme sono troppo
-    // grandi per la memoria della scheda).
+    // Literary clock: /clock/HH.txt, lines "MM|text|Author, Work".
+    // One hour at a time is loaded and saved (all the files together are too
+    // big for the board's memory).
     // -----------------------------------------------------------------
     let activeTab = 'weather';
     let clockSummary = null;     // {hours:[{h,count,minutes}], total, covered}
-    let clockHour = -1;          // Ora aperta
+    let clockHour = -1;          // Open hour
     let clockQuotes = [];        // [{m, text, author, work, fit}]
     let clockDirty = false;
-    let clockEditing = -1;       // Indice in clockQuotes, -1 = nuova
+    let clockEditing = -1;       // Index in clockQuotes, -1 = new
 
     const pad2 = n => String(n).padStart(2, '0');
 
@@ -922,8 +922,8 @@
         </div>`).join('');
     }
 
-    // Separa "Autore, Opera" alla prima virgola: i nomi quasi mai ne hanno,
-    // i titoli a volte sì ("Tristram Shandy, gentiluomo")
+    // Splits "Author, Work" at the first comma: names almost never have one,
+    // titles sometimes do ("Tristram Shandy, gentiluomo")
     function splitSignature(sig) {
       const i = sig.indexOf(', ');
       return i < 0 ? {author: sig.trim(), work: ''} : {author: sig.slice(0, i).trim(), work: sig.slice(i + 2).trim()};
@@ -937,7 +937,7 @@
         if (!textRes.ok) throw new Error('HTTP ' + textRes.status);
         const text = await textRes.text();
         const fit = fitRes.ok ? (await fitRes.json()).fit : [];
-        // Stesse righe considerate dal firmware in sendClockFit (non vuote)
+        // Same lines the firmware counts in sendClockFit (not empty)
         const lines = text.split('\n').map(l => l.trim()).filter(l => l.length);
         clockQuotes = lines.map((line, i) => {
           const a = line.indexOf('|'), b = line.indexOf('|', a + 1);
@@ -1029,7 +1029,7 @@
         (n > 700 ? ' — troppo lunga, il display non la mostrerà' : n > 300 ? ' — lunga: verrà rimpicciolita' : '');
     }
 
-    // "|" separa i campi e l'a capo separa le righe: nel testo non possono esserci
+    // "|" separates the fields and a line break separates the lines: they cannot appear in the text
     const cleanField = s => s.replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
 
     function applyClockQuote() {
@@ -1038,7 +1038,7 @@
         text: cleanField(document.getElementById('clock-text').value),
         author: cleanField(document.getElementById('clock-author').value),
         work: cleanField(document.getElementById('clock-work').value),
-        fit: null  // Verificata dal firmware al salvataggio
+        fit: null  // Checked by the firmware when saving
       };
       if (!q.text || !q.author) {
         alert('Servono almeno testo e autore.');
@@ -1060,7 +1060,7 @@
     async function saveClockHour() {
       if (clockHour < 0) return;
       const h = clockHour;
-      // Ordinate per minuto, mantenendo l'ordine all'interno dello stesso minuto
+      // Sorted by minute, keeping the order within the same minute
       const body = clockQuotes.map((q, i) => ({q, i})).sort((a, b) => a.q.m - b.q.m || a.i - b.i)
         .map(({q}) => pad2(q.m) + '|' + q.text + '|' + (q.work ? q.author + ', ' + q.work : q.author))
         .join('\n') + (clockQuotes.length ? '\n' : '');
@@ -1069,7 +1069,7 @@
         const res = await r.json().catch(() => ({}));
         if (!r.ok || !res.success) throw new Error(res.message || 'HTTP ' + r.status);
         setClockDirty(false);
-        clockHour = -1;           // Ricarica l'ora per avere l'esito "entra nel display"
+        clockHour = -1;           // Reload the hour to get the "fits the display" result
         await loadClockSummary();
         await openClockHour(h);
         const long = clockQuotes.filter(q => q.fit === false).length;
@@ -1087,7 +1087,7 @@
       if (e.target.id === 'clock-modal') closeClockModal();
     });
 
-    // Chiudi modal con ESC
+    // Close the dialog with ESC
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         closeEditModal();
@@ -1095,14 +1095,14 @@
       }
     });
 
-    // Click fuori dal modal per chiudere
+    // Click outside the dialog to close it
     document.getElementById('edit-modal').addEventListener('click', e => {
       if (e.target.id === 'edit-modal') {
         closeEditModal();
       }
     });
 
-    // Inizializza
+    // Start
     loadQuotes();
   </script>
 </body>

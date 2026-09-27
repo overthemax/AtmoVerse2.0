@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Genera manifest.json per l'aggiornamento automatico di AtmoVerse.
+"""Generates manifest.json for the AtmoVerse automatic update.
 
-Il manifest descrive il firmware e i file della SD di una release: il
-dispositivo lo scarica, confronta gli SHA-256 e scarica solo ciò che è cambiato
-(vedi Updater.cpp).
+The manifest describes the firmware and the SD files of a release: the
+device downloads it, compares the SHA-256 hashes and downloads only what
+changed (see Updater.cpp).
 
-Uso (lo esegue la GitHub Action di rilascio):
+Usage (run by the release GitHub Action):
     python tools/make_manifest.py --version 2.1.0 --tag v2.1.0 \
         --repo overthemax/AtmoVerse2.0 --firmware build/AtmoVerse_2.0.ino.bin \
         --sd sd_files --out manifest.json
@@ -17,15 +17,15 @@ import re
 import sys
 from pathlib import Path
 
-# File dell'utente (modificabili dagli editor web): scaricati solo se mancano,
-# mai sovrascritti
+# User files (editable from the web editors): downloaded only if missing,
+# never overwritten
 KEEP_IF_PRESENT = {"/quotes.json"}
 
-# Cartelle e file della SD gestiti dagli aggiornamenti.
-# icons_bmp/ (35 MB, sorgenti delle icone) non è usata dal firmware ed è esclusa.
+# SD folders and files managed by the updates.
+# icons_bmp/ (35 MB, icon sources) is not used by the firmware and is left out.
 MANAGED = ["www", "icons", "quotes.json"]
 
-# Il dispositivo compone l'URL come base + percorso, senza codifica
+# The device builds the URL as base + path, without encoding
 SAFE_PATH = re.compile(r"^/[A-Za-z0-9._/-]+$")
 
 
@@ -47,7 +47,7 @@ def collect_files(sd_root: Path):
             if any(part.startswith(".") for part in p.relative_to(sd_root).parts):
                 continue
             if not SAFE_PATH.match(rel):
-                sys.exit(f"Nome file non ammesso (solo lettere, cifre, . _ - /): {rel}")
+                sys.exit(f"File name not allowed (only letters, digits, . _ - /): {rel}")
             files.append({
                 "path": rel,
                 "size": p.stat().st_size,
@@ -59,16 +59,16 @@ def collect_files(sd_root: Path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--version", required=True, help="versione x.y.z")
-    ap.add_argument("--tag", required=True, help="tag git della release, es. v2.1.0")
-    ap.add_argument("--repo", required=True, help="proprietario/repository su GitHub")
-    ap.add_argument("--firmware", required=True, type=Path, help="file .bin del firmware")
-    ap.add_argument("--sd", required=True, type=Path, help="cartella con i file della SD")
+    ap.add_argument("--version", required=True, help="version x.y.z")
+    ap.add_argument("--tag", required=True, help="git tag of the release, e.g. v2.1.0")
+    ap.add_argument("--repo", required=True, help="owner/repository on GitHub")
+    ap.add_argument("--firmware", required=True, type=Path, help="firmware .bin file")
+    ap.add_argument("--sd", required=True, type=Path, help="folder with the SD files")
     ap.add_argument("--out", required=True, type=Path)
     args = ap.parse_args()
 
     if not re.match(r"^\d+\.\d+\.\d+$", args.version):
-        sys.exit(f"Versione non valida: {args.version} (serve x.y.z)")
+        sys.exit(f"Invalid version: {args.version} (x.y.z needed)")
 
     files = collect_files(args.sd)
     manifest = {
@@ -80,15 +80,15 @@ def main():
         },
         "files_base_url": f"https://raw.githubusercontent.com/{args.repo}/{args.tag}/sd_files",
         "files": files,
-        # Impronta dell'elenco dei file: se non cambia tra due release, il
-        # dispositivo non ricontrolla la SD (vedi syncKey in Updater.cpp)
+        # Fingerprint of the file list: if it does not change between two releases,
+        # the device does not check the SD card again (see syncKey in Updater.cpp)
         "files_digest": hashlib.sha256("\n".join(
             f"{f['path']}|{f['sha256']}|{int(f['keep'])}" for f in files).encode()).hexdigest(),
     }
-    # Compatto: il dispositivo lo tiene in RAM durante il controllo
+    # Compact: the device keeps it in RAM during the check
     args.out.write_text(json.dumps(manifest, separators=(",", ":")) + "\n", encoding="utf-8")
-    print(f"manifest: versione {args.version}, firmware {manifest['firmware']['size']} byte, "
-          f"{len(manifest['files'])} file della SD")
+    print(f"manifest: version {args.version}, firmware {manifest['firmware']['size']} bytes, "
+          f"{len(manifest['files'])} SD files")
 
 
 if __name__ == "__main__":

@@ -10,18 +10,18 @@
 #include "BatteryManager.h"
 #include "Version.h"
 #include "EcoPower.h"
-#include "AtmoVerseConstants.h" // Aggiunto per costanti JSON se necessarie
+#include "AtmoVerseConstants.h" // JSON buffer sizes
 #include <SD.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
-// Legge il corpo di una richiesta POST fino a Content-Length (il corpo può
-// arrivare dopo le intestazioni, in un pacchetto successivo). Max 3 s.
+// Reads the body of a POST request up to Content-Length (the body may
+// arrive after the headers, in a later packet). Max 3 s.
 static String readRequestBody(WiFiClient& client, int contentLength, int maxBody = 16384) {
   const int MAX_BODY = maxBody;
   String body;
   if (contentLength > MAX_BODY) contentLength = MAX_BODY;
-  if (contentLength > 0 && !body.reserve(contentLength)) return body;  // Memoria insufficiente
+  if (contentLength > 0 && !body.reserve(contentLength)) return body;  // Out of memory
   unsigned long deadline = millis() + 3000;
   while (client.connected() && millis() < deadline) {
     while (client.available()) {
@@ -35,10 +35,10 @@ static String readRequestBody(WiFiClient& client, int contentLength, int maxBody
   return body;
 }
 
-// Variabile definita nel file principale per il controllo del refresh display
+// Defined in the main sketch, drives the display refresh
 extern unsigned long lastDisplayUpdate;
 
-// Valore di un parametro della query string ("h=08&fit=1"), vuoto se assente
+// Value of a query string parameter ("h=08&fit=1"), empty if missing
 static String queryParam(const String& params, const char* name) {
   String key = String(name) + "=";
   int start = 0;
@@ -278,30 +278,30 @@ static void saveClockHour(WiFiClient& client, const String& path, int contentLen
   sendJsonResponse(client, "{\"success\":true}");
 }
 
-// File citazioni su SD
+// Quotes file on the SD card
 static const char* QUOTES_JSON_PATH = "/quotes.json";
 
-// Funzione helper per convertire carattere esadecimale in valore
+// Hexadecimal character -> value
 static int hexCharToValue(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
   if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-  return -1;  // Carattere non valido
+  return -1;  // Not a hexadecimal character
 }
 
-// Funzione per decodificare l'URL (traduce caratteri come %20 in spazi)
+// Decodes a URL component (%20 -> space, + -> space)
 String urldecode(const String& str) {
   String ret;
   size_t len = str.length();
-  ret.reserve(len);  // Pre-alloca per massima dimensione possibile
+  ret.reserve(len);  // Reserve the largest possible size
   
   for (size_t i = 0; i < len; i++) {
     if (str[i] == '+') {
       ret += ' ';
     } else if (str[i] == '%') {
-      // Verifica che ci siano almeno 2 caratteri dopo %
+      // At least 2 characters after %
       if (i + 2 >= len) {
-        // Sequenza % incompleta, tratta come carattere normale
+        // Incomplete % sequence: kept as a normal character
         ret += str[i];
         continue;
       }
@@ -309,12 +309,12 @@ String urldecode(const String& str) {
       int highNibble = hexCharToValue(str[i+1]);
       int lowNibble = hexCharToValue(str[i+2]);
       
-      // Verifica che entrambi i caratteri siano esadecimali validi
+      // Both characters must be hexadecimal
       if (highNibble >= 0 && lowNibble >= 0) {
         ret += (char)((highNibble << 4) | lowNibble);
-        i += 2;  // Salta i due caratteri esadecimali
+        i += 2;  // Skip the two hexadecimal characters
       } else {
-        // Sequenza % non valida, tratta % come carattere normale
+        // Invalid % sequence: % kept as a normal character
         ret += str[i];
       }
     } else {
@@ -324,17 +324,17 @@ String urldecode(const String& str) {
   return ret;
 }
 
-// Istanza del server
+// Server instance
 WiFiServer server(80);
 
-// Inizializza il server
+// Starts the server
 void setupServer() {
-  // Avvia sempre il server, anche se la SD o /www non sono presenti
-  // In tal caso verranno restituite 404 o pagine minime
+  // The server always starts, even without the SD card or /www:
+  // then it answers with 404 or the minimal page
   server.begin();
 }
 
-// Determina il tipo di contenuto in base all'estensione del file
+// Content type from the file extension
 String getContentType(String filename) {
   if (filename.endsWith(".html")) return "text/html";
   else if (filename.endsWith(".css")) return "text/css";
@@ -347,39 +347,39 @@ String getContentType(String filename) {
   return "text/plain";
 }
 
-// Serve un file dalla SD card
+// Serves a file from the SD card
 bool serveFileFromSD(WiFiClient& client, String path) {
-  // Verifica se la SD è presente e accessibile (inizializza una sola volta tramite initSD)
+  // Is the SD card present and readable? (mounted once by initSD)
   if (!initSD()) {
     return false;
   }
   
-  // Gestione dei percorsi
+  // Paths
   if (path.endsWith("/")) path += "index.html";
   
-  // Non mostrare i file nascosti
+  // Hidden files are never served
   if (path.indexOf("/.") >= 0) return false;
   
-  // Aggiungi prefisso /www al percorso
+  // Pages live under /www
   if (!path.startsWith("/www")) {
     path = "/www" + path;
   }
   
-  // Verifica se il file esiste
+  // Does the file exist?
   if (!SD.exists(path)) {
     return false;
   }
   
-  // Apri il file
+  // Open the file
   File file = SD.open(path, FILE_READ);
   if (!file) {
     return false;
   }
   
-  // Determina il tipo di contenuto
+  // Content type
   String contentType = getContentType(path);
   
-  // Invia l'header della risposta
+  // Response headers
   size_t fileSize = file.size();
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: " + contentType);
@@ -394,79 +394,79 @@ bool serveFileFromSD(WiFiClient& client, String path) {
   client.println("Connection: close");
   client.println();
   
-  // Invia il file usando un buffer per migliori performance
+  // Send the file in chunks
   uint8_t buffer[512];
   size_t totalSent = 0;
   while (file.available() && totalSent < fileSize) {
     size_t bytesRead = file.read(buffer, sizeof(buffer));
     size_t sent = client.write(buffer, bytesRead);
     totalSent += sent;
-    // Verifica che il client sia ancora connesso
+    // Is the client still connected?
     if (!client.connected()) {
       file.close();
       return false;
     }
   }
   
-  // Assicurati che tutti i dati siano inviati
+  // Make sure everything was sent
   client.flush();
   delay(1);
   
-  // Chiudi il file e la connessione
+  // Close the file and the connection
   file.close();
   client.stop();
   return true;
 }
 
-// Pagine web assenti (SD nuova, vuota o non inserita): si mostra la pagina di
-// configurazione minima del firmware. Dopo la configurazione le pagine
-// complete vengono scaricate da GitHub (vedi Updater.cpp), se c'è la SD.
+// Web pages missing (new, empty or missing SD card): the firmware's minimal
+// setup page is shown. After the setup the full pages are downloaded
+// from GitHub (see Updater.cpp), if there is an SD card.
 static void sendMissingAssetsPage(WiFiClient& client, bool sdOk, bool wwwExists) {
   sendFallbackSetupPage(client);
 }
 
-// Gestione delle richieste dei client
+// Client requests
 void handleClientRequests() {
-  // Gestisci il DNS server per captive portal se in modalità AP
+  // Captive portal DNS in AP mode
   if (apMode) {
     dnsServer.processNextRequest();
   }
   
-  // WiFi spento dal risparmio energetico: le strutture di rete sono state
-  // liberate e interrogare il server manderebbe in crash la scheda
+  // WiFi switched off by power saving: the network structures have been
+  // freed and polling the server would crash the board
   if (!apMode && WiFi.getMode() == WIFI_OFF) {
     return;
   }
 
-  // Verifica se ci sono client che si connettono
+  // Any client connecting?
   WiFiClient client = server.available();
   if (!client) {
     return;
   }
-  ecoNoteWebActivity();  // A batteria: la pagina web resta attiva finché la si usa
+  ecoNoteWebActivity();  // On battery: the web page stays active while it is used
 
-  // Timeout per la richiesta
+  // Request timeout
   unsigned long timeout = millis() + 5000;
   while (!client.available() && millis() < timeout) {
     delay(10);
   }
   
-  // Se non ci sono dati disponibili, chiudi la connessione
+  // No data: close the connection
   if (!client.available()) {
     client.stop();
     return;
   }
   
-  // Leggi la prima riga della richiesta
+  // Read the request line
   String request = client.readStringUntil('\r');
   client.readStringUntil('\n');
   
-  // Estrai il metodo e il percorso
+  // Method and path
   String method = request.substring(0, request.indexOf(' '));
   String path = request.substring(request.indexOf(' ') + 1);
   path = path.substring(0, path.indexOf(' '));
   
-  // Estrai i parametri URL se presenti
+  // URL parameters, if any
   String params = "";
   int qIndex = path.indexOf('?');
   if (qIndex != -1) {
@@ -474,7 +474,7 @@ void handleClientRequests() {
     path = path.substring(0, qIndex);
   }
   
-  // Leggi le altre intestazioni e il corpo della richiesta
+  // Read the other headers and the request body
   String header = "";
   int contentLength = 0;
   while (client.available()) {
@@ -489,10 +489,10 @@ void handleClientRequests() {
   
   // --- API endpoints ---
   
-  // Gestione richieste di probe tipiche dei captive portal
-  // Android: invece di 204, reindirizza per attivare il portale
+  // Typical captive portal probes
+  // Android: a redirect instead of 204 opens the portal
   if (path == "/generate_204" || path == "/gen_204") {
-    // Reindirizza ad settings per far apparire il captive portal
+    // Redirect to the settings so the captive portal appears
     client.println("HTTP/1.1 302 Found");
     String redirectUrl = "http://" + (apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString()) + "/settings.html";
     client.println("Location: " + redirectUrl);
@@ -506,7 +506,7 @@ void handleClientRequests() {
   
   // Apple captive portal detection
   if (path == "/hotspot-detect.html" || path == "/library/test/success.html") {
-    // Apple si aspetta una risposta HTML specifica
+    // Apple expects a specific HTML answer
     const char* html = "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>";
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: text/html");
@@ -521,13 +521,13 @@ void handleClientRequests() {
   }
   
   if (path == "/ncsi.txt") {
-    // Windows NCSI: rispondi con testo semplice
+    // Windows NCSI: plain text answer
     sendResponse(client, "text/plain", "Microsoft NCSI", 200);
     return;
   }
   
   if (path == "/favicon.ico") {
-    // Evita accesso SD per favicon non essenziale - 204 No Content
+    // No SD access for the favicon - 204 No Content
     client.println("HTTP/1.1 204 No Content");
     client.println("Connection: close");
     client.println();
@@ -584,7 +584,7 @@ void handleClientRequests() {
     return;
   }
   
-  // Altri probe comuni - reindirizza a settings
+  // Other common probes - redirect to the settings
   if (path == "/redirect" || path == "/redirect.html" ||
       path == "/canonical.html" || path == "/success.txt" || path == "/success.html") {
     client.println("HTTP/1.1 302 Found");
@@ -602,8 +602,8 @@ void handleClientRequests() {
     return;
   }
 
-  // Health check semplice con info di diagnostica
-  // Controllo aggiornamenti richiesto dalla pagina web (eseguito dal loop)
+  // Simple health check with diagnostic data
+  // Update check requested by the web page (run by the loop)
   // Restart requested from the settings page
   if (path == "/api/restart" && method == "POST") {
     sendJsonResponse(client, "{\"success\":true}");
@@ -619,18 +619,18 @@ void handleClientRequests() {
     return;
   }
   
-  // Stato della batteria (INA219), di sola lettura
+  // Battery state (INA219), read-only
   if (path == "/api/battery" && method == "GET") {
     JsonDocument b;
     b["available"] = battery.isAvailable();
     if (battery.isAvailable()) {
       b["voltage"] = battery.getVoltage();
-      b["current_mA"] = battery.getCurrent();      // positiva = scarica
+      b["current_mA"] = battery.getCurrent();      // positive = discharging
       b["percent"] = battery.getPercentage();
       b["charging"] = battery.charging();
       b["level"] = battery.getLevel() == BATTERY_LEVEL_CRITICAL ? "critical"
                  : battery.getLevel() == BATTERY_LEVEL_LOW ? "low" : "ok";
-      b["remaining_min"] = battery.getEstimatedTimeRemaining();  // -1 = non stimabile
+      b["remaining_min"] = battery.getEstimatedTimeRemaining();  // -1 = cannot be estimated
     }
     b["showOnDisplay"] = config.batteryShowOnDisplay;
     String json;
@@ -648,11 +648,11 @@ void handleClientRequests() {
     doc["ip"] = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
     long rssi = WiFi.RSSI();
     if (rssi == 0 || rssi == 31) {
-      // valori non significativi quando non associati
+      // meaningless values when not connected
       rssi = -127;
     }
     doc["rssi"] = (int)rssi;
-    // Stato SD (best-effort) - Usa initSD centralizzato
+    // SD state (best effort) through the shared initSD
     bool sdOk = initSD();
     doc["sd_ok"] = sdOk;
 
@@ -662,7 +662,7 @@ void handleClientRequests() {
     return;
   }
   
-  // Alias compatibilità: GET /api/config (stesse info di settings, con chiavi attese dal frontend)
+  // Compatibility alias: GET /api/config (same data as settings, with the keys the pages expect)
   if (path == "/api/config" && method == "GET") {
     DynamicJsonDocument doc(JSON_BUFFER_LARGE);
     doc["ssid"] = config.ssid;
@@ -670,7 +670,7 @@ void handleClientRequests() {
     doc["timezone"] = (int)(config.gmtOffset_sec / 3600);
     doc["daylightSaving"] = (config.daylightOffset_sec != 0);
     doc["ntpServer"] = config.ntpServer;
-    // L API key non viene mai restituita: la pagina sa solo se è impostata
+    // The API key is never returned: the page only knows whether it is set
     doc["api_key_set"] = strlen(config.api_key) > 0;
     doc["use24hFormat"] = config.use24hFormat;
     doc["units"] = config.units;
@@ -681,18 +681,18 @@ void handleClientRequests() {
     doc["powerSavingEndHour"] = config.powerSavingEndHour;
     doc["normalUpdateInterval"] = config.normalUpdateInterval;
     doc["powerSavingUpdateInterval"] = config.powerSavingUpdateInterval;
-    // Intervalli refresh display (secondi)
+    // Display refresh intervals (seconds)
     doc["displayRefreshIntervalSec"] = config.displayRefreshIntervalSec;
     doc["displayRefreshIntervalSecPowerSaving"] = config.displayRefreshIntervalSecPowerSaving;
     doc["maxNetworkRetries"] = config.maxNetworkRetries;
-    // Intervalli meteo
-    // Intervalli refresh display (secondi)
+    // Weather intervals
+    // Display refresh intervals (seconds)
     doc["displayRefreshIntervalSec"] = config.displayRefreshIntervalSec;
     doc["displayRefreshIntervalSecPowerSaving"] = config.displayRefreshIntervalSecPowerSaving;
     doc["apMode"] = apMode;
     doc["ipAddress"] = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
     
-    // Night Mode
+    // Power saving hours
     
     // Battery Management
     doc["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
@@ -705,7 +705,7 @@ void handleClientRequests() {
     return;
   }
 
-  // Alias compatibilità: POST /api/config (accetta i campi previsti dallo script)
+  // Compatibility alias: POST /api/config (accepts the fields the page sends)
   if (path == "/api/config" && method == "POST") {
     String body = readRequestBody(client, contentLength);
     if (body.length() == 0) {
@@ -720,12 +720,12 @@ void handleClientRequests() {
       return;
     }
 
-    // Carica configurazione attuale
+    // Current settings
     loadConfig();
 
-    // Applica aggiornamenti
-    // Password vuota = mantieni quella salvata, tranne quando cambia la rete
-    // (allora vuota significa rete aperta)
+    // Apply the changes
+    // Empty password = keep the stored one, except when the network changes
+    // (then empty means an open network)
     String newSsid = doc["ssid"] | "";
     String newPassword = doc["password"] | "";
     bool ssidChanged = newSsid.length() > 0 && newSsid != config.ssid;
@@ -735,7 +735,7 @@ void handleClientRequests() {
     if (doc.containsKey("timezone")) config.gmtOffset_sec = doc["timezone"].as<int>() * 3600;
     if (doc.containsKey("daylightSaving")) config.daylightOffset_sec = doc["daylightSaving"].as<bool>() ? 3600 : 0;
     if (doc.containsKey("ntpServer")) strlcpy(config.ntpServer, doc["ntpServer"].as<String>().c_str(), sizeof(config.ntpServer));
-    // API key vuota = mantieni quella salvata (non viene più inviata alle pagine)
+    // Empty API key = keep the stored one (it is no longer sent to the pages)
     if ((doc["api_key"] | "")[0] != '\0') strlcpy(config.api_key, doc["api_key"].as<String>().c_str(), sizeof(config.api_key));
     if (doc.containsKey("use24hFormat")) config.use24hFormat = doc["use24hFormat"].as<bool>();
     if (doc.containsKey("units")) strlcpy(config.units, doc["units"].as<String>().c_str(), sizeof(config.units));
@@ -746,8 +746,8 @@ void handleClientRequests() {
     if (doc.containsKey("normalUpdateInterval")) config.normalUpdateInterval = doc["normalUpdateInterval"].as<int>();
     if (doc.containsKey("powerSavingUpdateInterval")) config.powerSavingUpdateInterval = doc["powerSavingUpdateInterval"].as<int>();
     if (doc.containsKey("maxNetworkRetries")) config.maxNetworkRetries = doc["maxNetworkRetries"].as<int>();
-    // Intervalli meteo
-    // Intervalli refresh display (secondi)
+    // Weather intervals
+    // Display refresh intervals (seconds)
     if (doc.containsKey("displayRefreshIntervalSec")) config.displayRefreshIntervalSec = doc["displayRefreshIntervalSec"].as<int>();
     if (doc.containsKey("displayRefreshIntervalSecPowerSaving")) config.displayRefreshIntervalSecPowerSaving = doc["displayRefreshIntervalSecPowerSaving"].as<int>();
     
@@ -758,21 +758,18 @@ void handleClientRequests() {
     
 
     if (saveConfig()) {
-      Serial.println("\n=======================================");
-      Serial.println("   CONFIGURAZIONE SALVATA CON SUCCESSO!");
-      Serial.println("   Riavvio in corso...");
-      Serial.println("=======================================\n");
+      Serial.println("[WEB] Settings saved, restarting");
       
       sendJsonResponse(client, "{\"success\":true,\"message\":\"Configurazione salvata con successo\"}");
       
-      // Mostra conferma visiva sul display
+      // Visual confirmation on the display
       showConfigSaved();
       
       delay(5000);
       WiFi.disconnect(true);
       if (apMode) { WiFi.softAPdisconnect(true); }
       delay(1000);
-      // Riavvio voluto: il firmware funziona, niente rollback
+      // Wanted restart: the firmware works, no rollback
       markFirmwareHealthy();
       ESP.restart();
     } else {
@@ -781,9 +778,9 @@ void handleClientRequests() {
     return;
   }
 
-  // Endpoint scansione WiFi - ritorna array diretto per compatibilità frontend
+  // WiFi scan endpoint: returns a plain array, as the pages expect
   if (path == "/api/wifi/scan" && method == "GET") {
-    // Assicurati che la stazione sia attiva anche in AP
+    // The station interface must be active in AP mode too
     wifi_mode_t prevMode = WiFi.getMode();
     bool restoreMode = false;
     if (prevMode == WIFI_MODE_AP) {
@@ -794,10 +791,10 @@ void handleClientRequests() {
       restoreMode = true;
     }
 
-    // Esegui la scansione (bloccante)
+    // Scan (blocking)
     int num = WiFi.scanNetworks();
 
-    // Crea array diretto (non oggetto wrapper) per compatibilità script.js
+    // Plain array (not a wrapper object), as the pages expect
     DynamicJsonDocument doc(4096);
     JsonArray arr = doc.to<JsonArray>();
     for (int i = 0; i < num && i < 20; i++) {
@@ -808,10 +805,10 @@ void handleClientRequests() {
       o["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
     }
 
-    // Pulisci risultati della scansione in RAM
+    // Free the scan results
     WiFi.scanDelete();
 
-    // Ripristina la modalità precedente se cambiata
+    // Restore the previous mode if it was changed
     if (restoreMode) {
       WiFi.mode(prevMode);
     }
@@ -822,21 +819,21 @@ void handleClientRequests() {
     return;
   }
 
-  // Scansione WiFi
+  // WiFi scan
   if (path == "/api/wifi-scan" && method == "GET") {
-    // Esegui la scansione e ritorna i risultati
+    // Scan and return the results
     performWiFiScan(client);
     return;
   }
   
-  // API per recuperare le impostazioni attuali
+  // Current settings
   if (path == "/api/settings" && method == "GET") {
     DynamicJsonDocument doc(1024);
     
-    // Inserisci tutte le impostazioni nel documento JSON
+    // Every setting into the JSON document
     doc["ssid"] = config.ssid;
     doc["city"] = config.city;
-    // L API key non viene mai restituita: la pagina sa solo se è impostata
+    // The API key is never returned: the page only knows whether it is set
     doc["api_key_set"] = strlen(config.api_key) > 0;
     doc["version"] = ATMOVERSE_VERSION;
     doc["batteryShowOnDisplay"] = config.batteryShowOnDisplay;
@@ -847,7 +844,7 @@ void handleClientRequests() {
     doc["units"] = config.units;
     doc["language"] = config.language;
     
-    // Aggiungi parametri di risparmio energetico
+    // Power saving
     doc["powerSavingEnabled"] = config.powerSavingEnabled;
     doc["powerSavingStartHour"] = config.powerSavingStartHour;
     doc["powerSavingEndHour"] = config.powerSavingEndHour;
@@ -855,7 +852,7 @@ void handleClientRequests() {
     doc["powerSavingUpdateInterval"] = config.powerSavingUpdateInterval;
     
     
-    // Aggiungi parametri di gestione errori di rete
+    // Network error handling
     doc["maxNetworkRetries"] = config.maxNetworkRetries;
     
     String json;
@@ -865,35 +862,35 @@ void handleClientRequests() {
     return;
   }
   
-  // API per il meteo
+  // Weather API
   if (path == "/api/weather" && method == "GET") {
     DynamicJsonDocument doc(JSON_BUFFER_MEDIUM);
     
     extern WeatherData currentWeather;
     
-    // Struttura del JSON come la richiede il frontend
+    // JSON layout expected by the pages
     JsonObject weather = doc.createNestedObject("weather");
     JsonObject location = doc.createNestedObject("location");
     JsonObject time = doc.createNestedObject("time");
     
-    // Dati località
+    // Location
     location["city"] = config.city;
     location["country"] = "Italia";
     
-    // Timestamp e ora locale
+    // Timestamp and local time
     struct tm timeinfo;
     getLocalTime(&timeinfo, 0);
     char localTimeStr[30];
     strftime(localTimeStr, sizeof(localTimeStr), "%H:%M - %d/%m/%Y", &timeinfo);
     time["local"] = localTimeStr;
     
-    // Forza l'aggiornamento dei dati meteo se non validi
+    // Update the weather now if it is not valid
     if (!isWeatherDataValid()) {
       getWeatherData();
     }
     
-    // Dati meteo reali: se mancano "valid" è false e la pagina lo mostra.
-    // (Prima venivano inventati valori, e le temperature <= 0 diventavano 15 °C)
+    // Real weather data: if missing, "valid" is false and the page says so.
+    // (Values used to be made up, and temperatures <= 0 became 15 °C)
     weather["temp"] = currentWeather.temp;
     weather["feels_like"] = currentWeather.feels_like;
     weather["humidity"] = currentWeather.humidity;
@@ -902,11 +899,11 @@ void handleClientRequests() {
     weather["units"] = config.units;
     weather["wind_deg"] = currentWeather.wind_deg;
 
-    // Condizione meteo
+    // Weather condition
     weather["condition"] = currentWeather.description;
     weather["icon"] = currentWeather.icon;
       
-    // Timestamp ultimo aggiornamento
+    // Time of the last update
     char lastUpdateStr[30];
     struct tm lastUpdateTime;
     localtime_r(&currentWeather.last_update, &lastUpdateTime);
@@ -931,7 +928,7 @@ void handleClientRequests() {
     return;
   }
   
-  // API citazioni - restituisce la citazione attualmente mostrata sul display
+  // Quotes API: the quote currently shown on the display
   if (path == "/api/quote/current" && method == "GET") {
     Quote q = getCurrentQuote();
     DynamicJsonDocument out(256);
@@ -942,7 +939,7 @@ void handleClientRequests() {
     return;
   }
 
-  // Orologio letterario: riepilogo, lettura e salvataggio di un'ora
+  // Literary clock: summary, reading and saving one hour
   if (path == "/api/clock") {
     if (!initSD()) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}", 503);
@@ -969,7 +966,7 @@ void handleClientRequests() {
     return;
   }
 
-  // Citazioni: file intero nel formato del firmware, scritto sulla SD mentre arriva
+  // Quotes: the whole file in the firmware format, written to the SD card as it arrives
   if (path == "/api/quotes/raw" && method == "POST") {
     if (!initSD()) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"SD non disponibile\"}", 503);
@@ -979,12 +976,12 @@ void handleClientRequests() {
     return;
   }
 
-  // Gestione configurazioni
+  // Settings
   if (path == "/api/settings" && method == "POST") {
-    // Leggi il corpo della richiesta
+    // Read the request body
     String jsonBody = readRequestBody(client, contentLength);
     
-    // Verifica che il body non sia vuoto
+    // The body must not be empty
     if (jsonBody.length() == 0) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Nessun dato ricevuto\"}");
       return;
@@ -993,15 +990,15 @@ void handleClientRequests() {
     DynamicJsonDocument doc(512);
     DeserializationError error;
     
-    // Controlla se è un formato URL-encoded
+    // URL-encoded form?
     if (jsonBody.indexOf('=') > 0 && jsonBody.indexOf('&') > 0) {
-      // Dividi la stringa in coppie chiave-valore
-      String pairs[10]; // Massimo 10 parametri
+      // Split into key-value pairs
+      String pairs[10]; // At most 10 parameters
       int pairCount = 0;
       int startPos = 0;
       int ampPos;
       
-      // Estrai le coppie chiave-valore
+      // Extract the key-value pairs
       while ((ampPos = jsonBody.indexOf('&', startPos)) != -1 && pairCount < 10) {
         pairs[pairCount++] = jsonBody.substring(startPos, ampPos);
         startPos = ampPos + 1;
@@ -1011,17 +1008,17 @@ void handleClientRequests() {
         pairs[pairCount++] = jsonBody.substring(startPos);
       }
       
-      // Processa ogni coppia e aggiungi al documento JSON
+      // Every pair into the JSON document
       for (int i = 0; i < pairCount; i++) {
         int eqPos = pairs[i].indexOf('=');
         if (eqPos != -1) {
           String key = pairs[i].substring(0, eqPos);
           String value = pairs[i].substring(eqPos + 1);
           
-          // Decodifica URL-encoded
+          // URL decoding
           value = urldecode(value);
           
-          // Conversione di tipi in base alla chiave
+          // Type conversion by key
           if (key == "latitude" || key == "longitude" || key == "timezone" || key == "dst") {
             float numValue = value.toFloat();
             doc[key] = numValue;
@@ -1035,7 +1032,7 @@ void handleClientRequests() {
       
       error = DeserializationError::Ok;
     } else {
-      // Prova a fare il parsing del JSON
+      // Otherwise parse it as JSON
       error = deserializeJson(doc, jsonBody);
       if (error) {
         sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nel parsing JSON\"}");
@@ -1043,18 +1040,18 @@ void handleClientRequests() {
       }
     }
 
-    // Inizializzazione SD
+    // SD card
     if (!initSD()) {
       sendJsonResponse(client, "{\"success\":false,\"message\":\"Errore nell'inizializzazione della SD\"}");
       return;
     }
 
-    // Carica configurazione esistente
+    // Current settings
     loadConfig();
     
-    // Aggiorna le impostazioni in base ai parametri ricevuti
-    // Password vuota = mantieni quella salvata, tranne quando cambia la rete
-    // (allora vuota significa rete aperta)
+    // Apply the received values
+    // Empty password = keep the stored one, except when the network changes
+    // (then empty means an open network)
     String newSsid = doc["ssid"] | "";
     String newPassword = doc["password"] | "";
     bool ssidChanged = newSsid.length() > 0 && newSsid != config.ssid;
@@ -1084,7 +1081,7 @@ void handleClientRequests() {
       config.daylightOffset_sec = doc["dst"].as<int>() * 3600;
     }
 
-    // Parametri di risparmio energetico
+    // Power saving
     if (doc.containsKey("powerSavingEnabled")) {
       config.powerSavingEnabled = doc["powerSavingEnabled"].as<bool>();
     }
@@ -1104,7 +1101,7 @@ void handleClientRequests() {
     if (doc.containsKey("powerSavingUpdateInterval")) {
       config.powerSavingUpdateInterval = doc["powerSavingUpdateInterval"].as<int>();
     }
-    // Intervalli refresh display (secondi)
+    // Display refresh intervals (seconds)
     if (doc.containsKey("displayRefreshIntervalSec")) {
       config.displayRefreshIntervalSec = doc["displayRefreshIntervalSec"].as<int>();
     }
@@ -1112,36 +1109,33 @@ void handleClientRequests() {
       config.displayRefreshIntervalSecPowerSaving = doc["displayRefreshIntervalSecPowerSaving"].as<int>();
     }
     
-    // Parametri di gestione degli errori di rete
+    // Network error handling
     if (doc.containsKey("maxNetworkRetries")) {
       config.maxNetworkRetries = doc["maxNetworkRetries"].as<int>();
     }
     
 
-    // Salva la configurazione aggiornata
+    // Save the settings
     if (saveConfig()) {
-      Serial.println("\n=======================================");
-      Serial.println("   IMPOSTAZIONI SALVATE CON SUCCESSO!");
-      Serial.println("   Riavvio in corso...");
-      Serial.println("=======================================\n");
+      Serial.println("[WEB] Settings saved, restarting");
       
       sendJsonResponse(client, "{\"success\":true,\"message\":\"Configurazione salvata con successo\"}");
       
-      // Mostra conferma visiva sul display
+      // Visual confirmation on the display
       showConfigSaved();
       
-      // Attendi per essere sicuri che la risposta venga inviata
+      // Wait so the answer is surely sent
       delay(5000);
       
-      // Chiudi tutte le connessioni WiFi
+      // Close every WiFi connection
       WiFi.disconnect(true);
       if (apMode) {
         WiFi.softAPdisconnect(true);
       }
       
-      // Riavvia ESP32
+      // Restart the ESP32
       delay(1000);
-      // Riavvio voluto: il firmware funziona, niente rollback
+      // Wanted restart: the firmware works, no rollback
       markFirmwareHealthy();
       ESP.restart();
     } else {
@@ -1150,7 +1144,7 @@ void handleClientRequests() {
     return;
   }
   
-  // Gestione specifica per la pagina /info
+  // The /info page
   if (path == "/info" && method == "GET") {
     // The old Info page is now part of the diagnostics page
     serveFileFromSD(client, "/diagnostics.html");
@@ -1162,18 +1156,18 @@ void handleClientRequests() {
     return;
   }
   
-  // Servizio file dalla SD
+  // Files from the SD card
   bool fileServed = false;
   
-  // In modalità AP, reindirizza alla pagina di configurazione
+  // In AP mode, redirect to the setup page
   if (apMode) {
-    // Consenti asset statici anche se in root e con estensioni comuni
+    // Static assets are allowed, also in the root, with common extensions
     bool isStaticAsset = path.startsWith("/css/") || path.startsWith("/js/") || path.startsWith("/img/") ||
                          path.endsWith(".css") || path.endsWith(".js") || path.endsWith(".svg") ||
                          path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") ||
                          path.endsWith(".ico") || path.endsWith(".webp") || path.endsWith(".gif");
     if (path != "/settings.html" && path != "/api/wifi-scan" && !isStaticAsset) {
-      // Reindirizza alla pagina di configurazione esistente su SD
+      // Redirect to the setup page on the SD card
       client.println("HTTP/1.1 302 Found");
       client.println("Location: /settings.html");
       client.println("Connection: close");
@@ -1184,17 +1178,17 @@ void handleClientRequests() {
       return;
     }
     
-    // Serve solo file dalla SD senza generazione dinamica
+    // Files from the SD card only, nothing generated
     fileServed = serveFileFromSD(client, path);
     if (!fileServed) {
-      // Verifica stato SD e presenza cartella /www
+      // SD state and /www folder
       bool sdOk = initSD();
       bool wwwExists = sdOk && SD.exists("/www");
       bool isSettings = (path == "/settings.html" || path == "/");
       if (!wwwExists || isSettings) {
         sendMissingAssetsPage(client, sdOk, wwwExists);
       } else {
-        // File non trovato - 404 base
+        // File not found - plain 404
         const char* msg = "404 - File not found";
         client.println("HTTP/1.1 404 Not Found");
         client.println("Content-Type: text/plain");
@@ -1208,17 +1202,17 @@ void handleClientRequests() {
       }
     }
   } else {
-    // Modalità normale, servi file dalla SD
+    // Normal mode: files from the SD card
     fileServed = serveFileFromSD(client, path);
     if (!fileServed) {
-      // Verifica stato SD e presenza cartella /www
+      // SD state and /www folder
       bool sdOk = initSD();
       bool wwwExists = sdOk && SD.exists("/www");
       bool isHomeOrSettings = (path == "/" || path == "/index.html" || path == "/settings.html");
       if (!wwwExists || isHomeOrSettings) {
         sendMissingAssetsPage(client, sdOk, wwwExists);
       } else {
-        // 404 semplice per altre risorse
+        // Plain 404 for other resources
         const char* msg = "404 - File not found";
         client.println("HTTP/1.1 404 Not Found");
         client.println("Content-Type: text/plain");
@@ -1234,7 +1228,7 @@ void handleClientRequests() {
   }
 }
 
-// Invia una risposta HTTP generica
+// Sends a generic HTTP response
 void sendResponse(WiFiClient& client, const String& contentType, const String& content, int statusCode) {
   client.println("HTTP/1.1 " + String(statusCode) + " OK");
   client.println("Content-Type: " + contentType);
@@ -1248,18 +1242,18 @@ void sendResponse(WiFiClient& client, const String& contentType, const String& c
   client.stop();
 }
 
-// Invia una risposta JSON
+// Sends a JSON response
 void sendJsonResponse(WiFiClient& client, const String& jsonContent, int statusCode) {
   sendResponse(client, "application/json", jsonContent, statusCode);
 }
 
-// Gestisce la scansione WiFi e restituisce i risultati in JSON
+// WiFi scan, results as JSON
 void performWiFiScan(WiFiClient& client) {
-  // Prepara documento JSON per la risposta
+  // JSON document for the answer
   DynamicJsonDocument doc(4096);
   JsonArray networks = doc.createNestedArray("networks");
 
-  // Se siamo in sola modalità AP, passiamo temporaneamente ad AP+STA per permettere la scansione
+  // In AP-only mode, switch to AP+STA for the scan
   wifi_mode_t prevMode = WiFi.getMode();
   bool switched = false;
   if (prevMode == WIFI_MODE_AP) {
@@ -1268,24 +1262,24 @@ void performWiFiScan(WiFiClient& client) {
     switched = true;
   }
 
-  // Avvia la scansione WiFi
+  // Start the WiFi scan
   int numNetworks = WiFi.scanNetworks();
 
-  // Ripristina la modalità precedente se è stata cambiata
+  // Restore the previous mode if it was changed
   if (switched) {
     WiFi.mode(prevMode);
     delay(50);
   }
 
   if (numNetworks < 0) {
-    // Nessun risultato o errore: rispondi con lista vuota
+    // No results or error: empty list
     String json;
     serializeJson(doc, json);
     sendJsonResponse(client, json);
     return;
   }
 
-  // Aggiungi ogni rete al documento JSON (limite 20)
+  // Every network into the JSON document (max 20)
   for (int i = 0; i < numNetworks && i < 20; i++) {
     JsonObject network = networks.createNestedObject();
     network["ssid"] = WiFi.SSID(i);
@@ -1294,7 +1288,7 @@ void performWiFiScan(WiFiClient& client) {
     network["encryption"] = WiFi.encryptionType(i) != WIFI_AUTH_OPEN ? "secured" : "open";
   }
 
-  // Invia la risposta
+  // Send the answer
   String json;
   serializeJson(doc, json);
   sendJsonResponse(client, json);

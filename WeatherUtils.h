@@ -5,28 +5,28 @@
 #include <time.h>
 #include "Config.h"
 
-// Struttura dati per le informazioni meteo attuali
+// Current weather
 struct WeatherData {
   float temp;             // Temperatura in gradi Celsius
   float feels_like;       // Temperatura percepita in gradi Celsius
-  float humidity;         // Umidità percentuale
+  float humidity;         // Humidity, percent
   float pressure;         // Pressione atmosferica in hPa
-  float wind_speed;       // Velocità del vento in m/s
-  int wind_deg;           // Direzione del vento in gradi
-  int weather_id;         // ID condizione meteo (da OpenWeatherMap)
-  char icon[8];           // Icona meteo
-  char description[64];   // Descrizione meteo
+  float wind_speed;       // Wind speed (m/s, or mph with imperial units)
+  int wind_deg;           // Wind direction in degrees
+  int weather_id;         // Weather condition ID (OpenWeatherMap)
+  char icon[8];           // Weather icon
+  char description[64];   // Weather description
   float moon_phase;       // Fase lunare (0-1): 0=luna nuova, 0.25=primo quarto, 0.5=luna piena, 0.75=ultimo quarto
   time_t last_update;     // Timestamp dell'aggiornamento
   time_t sunrise;         // Sunrise and sunset (UTC), from OpenWeatherMap
   time_t sunset;
-  bool valid;             // Flag che indica se i dati sono validi
+  bool valid;             // true if the data is valid
 };
 
-// Dati meteo correnti
+// Current weather data
 extern WeatherData currentWeather;
 
-// Funzioni per la gestione dei dati meteo
+// Weather functions
 bool getWeatherData();
 bool parseWeatherData(String& json);
 String urlEncodeParam(const char* text);

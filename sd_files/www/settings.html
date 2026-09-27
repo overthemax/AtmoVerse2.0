@@ -193,16 +193,16 @@
   </div>
 
   <script>
-    // Carica impostazioni correnti
+    // Load the current settings
     async function loadSettings() {
       try {
         const response = await fetch('/api/settings');
         const data = await response.json();
         
-        // Popola i campi del form
+        // Fill the form fields
         document.getElementById('ssid').value = data.ssid || '';
         document.getElementById('city').value = data.city || '';
-        // L'API key non viene inviata dal dispositivo: campo vuoto = mantieni quella salvata
+        // The device never sends the API key: an empty field keeps the stored one
         document.getElementById('api_key').value = '';
         if (data.api_key_set) document.getElementById('api_key').placeholder = 'Già configurata (lascia vuoto per mantenerla)';
         document.getElementById('units').value = data.units || 'metric';
@@ -224,7 +224,7 @@
       }
     }
 
-    // Salva impostazioni
+    // Save the settings
     async function saveSettings() {
       const password = document.getElementById('password').value;
       const ssid = document.getElementById('ssid').value;
@@ -246,7 +246,7 @@
         batteryShowOnDisplay: document.getElementById('batteryShowOnDisplay').checked
       };
       
-      // Includi SSID e password SOLO se la password è stata modificata (non vuota)
+      // SSID and password are sent ONLY if the password was changed (not empty)
       if (password && password.trim() !== '') {
         settings.ssid = ssid;
         settings.password = password;
@@ -272,7 +272,7 @@
       }
     }
 
-    // Scansiona reti WiFi
+    // Scan WiFi networks
     async function scanWiFi() {
       showMessage('🔍 Scansione reti WiFi in corso...', 'info');
       try {
@@ -304,7 +304,7 @@
       }
     }
 
-    // Controllo aggiornamenti: il dispositivo lo esegue subito (verifica completa dei file)
+    // Update check: the device runs it at once (full check of the files)
     async function checkUpdates() {
       try {
         const r = await fetch('/api/update/check', {method: 'POST'});
@@ -315,7 +315,7 @@
       }
     }
 
-    // Riavvia dispositivo
+    // Restart the device
     async function restartDevice() {
       showMessage('🔄 Riavvio in corso...', 'info');
       try {
@@ -326,7 +326,7 @@
       }
     }
 
-    // Mostra messaggio
+    // Show a message
     function showMessage(text, type) {
       const container = document.getElementById('message-container');
       container.innerHTML = `<div class="message message-${type}">${text}</div>`;
@@ -337,7 +337,7 @@
       }, 5000);
     }
 
-    // Inizializza
+    // Start
     loadSettings();
     async function loadBattery() {
       const list = document.getElementById('battery-status');

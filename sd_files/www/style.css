@@ -1,6 +1,5 @@
-/* AtmoVerse - stile dell'interfaccia web
- * Classico: pergamena e bronzo, titoli con grazie, pensato prima per lo smartphone.
- * I nomi delle classi sono quelli usati dalle pagine esistenti.
+/* AtmoVerse - web interface style
+ * Classic: parchment and bronze, serif headings, designed for smartphones first.
  */
 
 :root {
@@ -17,8 +16,8 @@
   --danger-color: #9e3b2e;
   --success-color: #5a6e34;
 
-  --background: #f3ecdf;          /* pergamena */
-  --card-bg: #fbf7ef;             /* avorio */
+  --background: #f3ecdf;          /* parchment */
+  --card-bg: #fbf7ef;             /* ivory */
   --inset-bg: #f6f0e4;
   --text-primary: #33271a;
   --text-secondary: #76654f;
@@ -47,7 +46,7 @@ body {
   line-height: 1.55;
   color: var(--text-primary);
   background: var(--background);
-  /* Leggera grana della carta */
+  /* Light paper grain */
   background-image: radial-gradient(rgba(120, 90, 50, 0.05) 1px, transparent 1px);
   background-size: 4px 4px;
   padding: 0 0 calc(24px + env(safe-area-inset-bottom));
@@ -66,7 +65,7 @@ h1, h2, h3, .card-title {
 }
 
 /* ------------------------------------------------------------------
-   Testata: fascia in bronzo, titolo e azioni che vanno a capo
+   Header: bronze band, title and actions that wrap
    ------------------------------------------------------------------ */
 header {
   margin: 0 -14px 20px;
@@ -111,7 +110,7 @@ header h1 {
 }
 
 /* ------------------------------------------------------------------
-   Schede
+   Cards
    ------------------------------------------------------------------ */
 .card {
   background: var(--card-bg);
@@ -134,7 +133,7 @@ header h1 {
 }
 
 /* ------------------------------------------------------------------
-   Moduli
+   Forms
    ------------------------------------------------------------------ */
 .form-group { margin-bottom: 16px; }
 
@@ -160,7 +159,7 @@ textarea {
   min-height: 46px;
   padding: 10px 12px;
   font-family: inherit;
-  font-size: 16px;               /* niente zoom automatico su iPhone */
+  font-size: 16px;               /* no automatic zoom on iPhone */
   color: var(--text-primary);
   background: #fffdf8;
   border: 1px solid var(--border-color);
@@ -195,7 +194,7 @@ fieldset {
 legend { font-family: var(--font-serif); padding: 0 6px; color: var(--bronze-deep); }
 
 /* ------------------------------------------------------------------
-   Pulsanti: gradiente bronzo
+   Buttons: bronze gradient
    ------------------------------------------------------------------ */
 button, .btn {
   display: inline-flex;
@@ -224,7 +223,7 @@ button:hover, .btn:hover { background: var(--bronze-gradient-hover); }
 button:active, .btn:active { box-shadow: inset 0 2px 4px rgba(40, 25, 8, 0.35); }
 button:disabled, .btn:disabled { opacity: 0.55; cursor: default; }
 
-.btn-primary { /* gradiente bronzo di base */ }
+.btn-primary { /* base bronze gradient */ }
 
 .btn-success {
   background: linear-gradient(180deg, #7d8f4e 0%, #5a6e34 100%);
@@ -247,7 +246,7 @@ button:disabled, .btn:disabled { opacity: 0.55; cursor: default; }
 .btn-secondary:hover { background: linear-gradient(180deg, #f6eddb 0%, #e6d6b6 100%); }
 
 /* ------------------------------------------------------------------
-   Interruttore
+   Switch
    ------------------------------------------------------------------ */
 .toggle-switch {
   position: relative;
@@ -286,7 +285,7 @@ input:checked + .slider { background: var(--bronze-gradient); border-color: var(
 input:checked + .slider:before { transform: translateX(24px); }
 
 /* ------------------------------------------------------------------
-   Griglie e messaggi
+   Grids and messages
    ------------------------------------------------------------------ */
 .grid-2 {
   display: grid;
@@ -305,7 +304,7 @@ input:checked + .slider:before { transform: translateX(24px); }
 .message-info    { background: #f3ead8; color: var(--bronze-deep); border-color: var(--border-color); }
 
 /* ------------------------------------------------------------------
-   Meteo (home)
+   Weather (home)
    ------------------------------------------------------------------ */
 .weather-display { text-align: center; padding: 6px 0; }
 .weather-display h3 { font-size: 1.3rem; color: var(--bronze-deep); }
@@ -354,7 +353,7 @@ input:checked + .slider:before { transform: translateX(24px); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------------
-   Schermi più larghi
+   Wider screens
    ------------------------------------------------------------------ */
 @media (min-width: 700px) {
   .container { padding: 0 24px; }
@@ -372,7 +371,7 @@ input:checked + .slider:before { transform: translateX(24px); }
 }
 
 /* ------------------------------------------------------------------
-   Utilità
+   Utilities
    ------------------------------------------------------------------ */
 .hidden { display: none !important; }
 .text-center { text-align: center; }
@@ -385,30 +384,14 @@ input:checked + .slider:before { transform: translateX(24px); }
 .gap-4 { gap: 16px; }
 
 /* ------------------------------------------------------------------
-   Editor del layout (invariato nella struttura)
+   WiFi networks found by the scan (settings)
    ------------------------------------------------------------------ */
-.editor-container {
-  display: grid;
-  /* colonna centrale più ampia per il canvas 648x480 */
-  grid-template-columns: 260px minmax(720px, 2fr) 300px;
-  gap: 20px;
-  height: calc(100vh - 180px);
-}
-
-.palette {
-  background: var(--card-bg);
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow-y: auto;
-}
-
 .palette-item {
   background: var(--background);
   padding: 12px;
   margin-bottom: 12px;
   border-radius: 8px;
-  cursor: grab;
+  cursor: pointer;
   border: 2px solid var(--border-color);
   transition: all 0.3s ease;
 }
@@ -418,101 +401,9 @@ input:checked + .slider:before { transform: translateX(24px); }
   transform: translateX(4px);
 }
 
-.palette-item:active {
-  cursor: grabbing;
-}
-
-.canvas-wrapper {
-  background: var(--card-bg);
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow: auto;
-}
-
-.canvas {
-  width: 648px;
-  height: 480px;
-  background: white;
-  border: 2px solid var(--border-color);
-  position: relative;
-  margin: 0 auto;
-}
-
-.grid-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  background-image: 
-    repeating-linear-gradient(0deg, #ddd, #ddd 1px, transparent 1px, transparent 20px),
-    repeating-linear-gradient(90deg, #ddd, #ddd 1px, transparent 1px, transparent 27px);
-}
-
-.canvas-element {
-  position: absolute;
-  border: 2px solid var(--primary-color);
-  background: rgba(74, 144, 226, 0.1);
-  cursor: move;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--text-primary);
-  transition: box-shadow 0.2s;
-}
-
-.canvas-element:hover {
-  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
-}
-
-.canvas-element.selected {
-  border-color: var(--secondary-color);
-  background: rgba(80, 200, 120, 0.15);
-  box-shadow: 0 0 0 3px rgba(80, 200, 120, 0.3);
-}
-
-.resize-handle {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  background: var(--primary-color);
-  border: 2px solid white;
-  border-radius: 50%;
-}
-
-.resize-handle.se {
-  bottom: -5px;
-  right: -5px;
-  cursor: se-resize;
-}
-
-.properties-panel {
-  background: var(--card-bg);
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow-y: auto;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .editor-container {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
-  
-  .canvas {
-    transform: scale(0.5);
-    transform-origin: top left;
-  }
-}
-
 /* Utility classes */
 
-/* Riga di pulsanti finali: in colonna su smartphone, affiancati su schermi larghi */
+/* Final row of buttons: stacked on smartphones, side by side on wide screens */
 .actions-row {
   display: flex;
   flex-direction: column;

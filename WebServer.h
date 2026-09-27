@@ -7,10 +7,10 @@
 #include "Config.h"
 #include "WeatherUtils.h"
 
-// Istanza del server web
+// Web server instance
 extern WiFiServer server;
 
-// Funzioni di gestione del server web
+// Web server functions
 void setupServer();
 void handleClientRequests();
 void serveWeatherIcon(WiFiClient& client, const String& path);
@@ -19,7 +19,7 @@ void sendResponse(WiFiClient& client, const String& contentType, const String& c
 void sendJsonResponse(WiFiClient& client, const String& jsonContent, int statusCode = 200);
 void performWiFiScan(WiFiClient& client);
 
-// Chiede al loop di controllare subito gli aggiornamenti (definita nel .ino)
+// Asks the loop to check for updates now (defined in the .ino)
 void requestUpdateCheck();
 
 #endif // WEBSERVER_H

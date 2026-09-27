@@ -1,15 +1,15 @@
 /**
  * @file Updater.h
- * @brief Aggiornamento automatico di firmware e file della SD da GitHub Releases
+ * @brief Automatic update of firmware and SD files from GitHub Releases
  *
- * L'ultima release pubblica contiene manifest.json con versione, URL e SHA-256
- * del firmware e dei file della SD. Il dispositivo scarica solo ciò che è
- * cambiato, verifica ogni file e applica tutto insieme:
- * - i file della SD vengono preparati in /upd e spostati al posto giusto solo
- *   quando tutto è stato scaricato e verificato (anche dopo un'interruzione);
- * - il firmware va nella seconda area del flash; se la nuova versione non
- *   supera i primi 60 secondi di funzionamento, il bootloader torna a quella
- *   precedente e la versione difettosa non viene più riscaricata.
+ * The latest public release contains manifest.json with version, URL and
+ * SHA-256 of the firmware and of the SD files. The device downloads only what
+ * changed, verifies every file and applies everything together:
+ * - SD files are prepared in /upd and moved into place only when everything
+ *   has been downloaded and verified (even after an interruption);
+ * - the firmware goes to the second flash slot; if the new version does not
+ *   survive its first 60 seconds, the bootloader goes back to the previous
+ *   one and the faulty version is never downloaded again.
  */
 #ifndef UPDATER_H
 #define UPDATER_H
@@ -18,36 +18,36 @@
 
 enum UpdateState : uint8_t {
   UPDATE_IDLE,
-  UPDATE_DOWNLOADING,   // Il display mostra la schermata di aggiornamento
+  UPDATE_DOWNLOADING,   // The display shows the update screen
 };
 
 extern volatile UpdateState updateState;
 
-// Da chiamare in setup() dopo il montaggio della SD: rileva un eventuale
-// rollback del firmware e completa gli aggiornamenti della SD rimasti in sospeso
+// Call in setup() after mounting the SD card: detects a firmware rollback
+// and completes any pending SD update
 void initUpdater();
 
-// Controlla GitHub e installa gli aggiornamenti. Solo dal task di rete, con WiFi connesso.
-// Se viene installato un nuovo firmware il dispositivo si riavvia.
-// Restituisce false se il controllo non è riuscito (da ripetere a breve).
-// Se i file della SD risultano già allineati all'ultima release il loro
-// SHA-256 non viene ricalcolato, a meno di fullScan (controllo dalla pagina web).
+// Checks GitHub and installs the updates. Only from the network task, with WiFi connected.
+// If a new firmware is installed the device restarts.
+// Returns false if the check failed (to be retried soon).
+// If the SD files already match the latest release their SHA-256 is not
+// computed again, unless fullScan (check started from the web page).
 bool checkForUpdates(bool fullScan = false);
 
-// Conferma che il firmware in esecuzione funziona (annulla il rollback automatico)
+// Confirms that the running firmware works (cancels the automatic rollback)
 void markFirmwareHealthy();
 
-// Esito dell'ultimo controllo, mostrato nella pagina Info
+// Result of the last check, shown on the web pages
 String getUpdateStatusText();
 
-// Problema che richiede un intervento (es. SD piena), mostrato nel piè di
-// pagina del display finché un controllo successivo non va a buon fine.
-// Vuoto se non ci sono problemi.
+// Problem that needs action (e.g. SD card full), shown in the display
+// footer until a later check succeeds.
+// Empty if there is no problem.
 String getUpdateNotice();
 
-// GET HTTPS con certificato del server verificato (bundle di certificati
-// radice di ESP-IDF) e redirect seguiti. Usata anche per il meteo.
-// Restituisce il codice HTTP (200 = ok) oppure -1 se la connessione fallisce.
+// HTTPS GET with the server certificate verified (ESP-IDF root
+// certificate bundle), following redirects. Also used for the weather.
+// Returns the HTTP code (200 = ok) or -1 if the connection fails.
 int httpsGet(const String& url, String& body, size_t maxLen);
 
 #endif // UPDATER_H

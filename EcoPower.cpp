@@ -1,6 +1,6 @@
 /**
  * @file EcoPower.cpp
- * @brief Risparmio energetico a batteria (vedi EcoPower.h)
+ * @brief Power saving on battery (see EcoPower.h)
  */
 
 #include "EcoPower.h"
@@ -16,12 +16,12 @@
 extern bool apMode;
 extern unsigned long lastDisplayUpdate;
 
-// Tasto a sfioramento: filo dal capocorda della vite in alto a destra (retro)
-// al GPIO2, ingresso touch T2. Sull'ESP32 il valore letto scende col dito.
+// Touch button: wire from the lug of the top-right screw (back)
+// to GPIO2, touch input T2. On the ESP32 the reading drops under a finger.
 static const uint8_t TOUCH_PIN = 2;
-static const unsigned long WEB_WINDOW_MS = 10UL * 60 * 1000;  // Pagina web dopo un tocco
-static const unsigned long WIFI_MIN_ON_MS = 8000;             // Tempo per la sincronizzazione NTP
-static const unsigned long WIFI_RETRY_MS = 15UL * 60 * 1000;  // Dopo una connessione fallita
+static const unsigned long WEB_WINDOW_MS = 10UL * 60 * 1000;  // Web page after a touch
+static const unsigned long WIFI_MIN_ON_MS = 8000;             // Time for the NTP sync
+static const unsigned long WIFI_RETRY_MS = 15UL * 60 * 1000;  // After a failed connection
 
 static touch_value_t touchThreshold = 0;
 static bool touchWakeEnabled = true;
@@ -33,8 +33,8 @@ static unsigned long wifiOnSince = 0;
 static bool wifiFailed = false;
 static unsigned long wifiFailedAt = 0;
 
-// Il valore a riposo cambia molto tra USB (massa del PC) e batteria: la
-// soglia si ricalcola a ogni cambio di alimentazione (vedi ecoPowerChanged)
+// The idle value changes a lot between USB (PC ground) and battery: the
+// threshold is recomputed at every power change (see ecoPowerChanged)
 void ecoBegin() {
   touchWakeEnabled = true;
   falseTouches = 0;
@@ -45,7 +45,7 @@ void ecoBegin() {
   }
   touch_value_t rest = sum / 16;
   touchThreshold = rest * 2 / 3;
-  Serial.printf("[ECO] Tasto a sfioramento su GPIO%d: riposo %u, soglia %u\n", TOUCH_PIN,
+  Serial.printf("[ECO] Touch button on GPIO%d: idle %u, threshold %u\n", TOUCH_PIN,
                 (unsigned)rest, (unsigned)touchThreshold);
 }
 
@@ -53,7 +53,7 @@ void ecoPowerChanged() {
   ecoBegin();
 }
 
-// Tocco vero: il valore resta sotto la soglia per più letture di fila
+// Real touch: the value stays under the threshold for several readings in a row
 static bool touchConfirmed() {
   int below = 0;
   for (int i = 0; i < 5; i++) {
@@ -84,19 +84,19 @@ bool ecoEnsureWiFi() {
   if (WiFi.status() == WL_CONNECTED) return true;
   if (wifiFailed && millis() - wifiFailedAt < WIFI_RETRY_MS) return false;
 
-  Serial.println("[ECO] Accendo il WiFi");
+  Serial.println("[ECO] Switching WiFi on");
   if (!connectToWiFi(config.ssid, config.password)) {
     wifiFailed = true;
     wifiFailedAt = millis();
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
-    Serial.println("[ECO] Rete non raggiungibile: nuovo tentativo tra 15 minuti");
+    Serial.println("[ECO] Network unreachable: next attempt in 15 minutes");
     return false;
   }
   wifiFailed = false;
   wifiOnSince = millis();
-  WiFi.setSleep(true);  // Finché resta acceso, il modem dorme tra un pacchetto e l'altro
-  // Il server web riparte sulla nuova connessione
+  WiFi.setSleep(true);  // While it stays on, the modem sleeps between packets
+  // The web server restarts on the new connection
   server.end();
   setupServer();
   return true;
@@ -107,17 +107,17 @@ void ecoWiFiOffIfIdle() {
   if (ecoWebWindowOpen()) return;
   if (WiFi.status() == WL_CONNECTED && millis() - wifiOnSince < WIFI_MIN_ON_MS) return;
   webWindow = false;
-  Serial.println("[ECO] WiFi spento");
-  server.end();  // Chiude il server prima che la rete venga smontata
+  Serial.println("[ECO] WiFi off");
+  server.end();  // Closes the server before the network goes down
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
 }
 
 void ecoSleep(unsigned long maxMs) {
   if (WiFi.getMode() != WIFI_OFF) return;
-  waitDisplayIdle(15000);  // Il pannello deve aver finito prima di sospendere i core
+  waitDisplayIdle(15000);  // The panel must be done before the cores are suspended
 
-  // Fino allo scatto del minuto successivo, più un piccolo margine
+  // Until the next minute, plus a small margin
   struct timeval tv;
   gettimeofday(&tv, nullptr);
   long msToMinute = (60 - (long)(tv.tv_sec % 60)) * 1000L - tv.tv_usec / 1000 + 300;
@@ -136,14 +136,14 @@ void ecoSleep(unsigned long maxMs) {
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TOUCHPAD) {
     if (touchConfirmed()) {
       falseTouches = 0;
-      Serial.println("[ECO] Tocco: pagina web attiva per 10 minuti");
+      Serial.println("[ECO] Touch: web page active for 10 minutes");
       ecoOpenWebWindow();
-      lastDisplayUpdate = 0;  // Ridisegna subito: icona WiFi e indirizzo nel piè di pagina
+      lastDisplayUpdate = 0;  // Redraw at once: WiFi icon and address in the footer
     } else if (++falseTouches >= MAX_FALSE_TOUCHES) {
       touchWakeEnabled = false;
-      Serial.println("[ECO] Troppi falsi tocchi: risveglio al tocco disattivato fino al prossimo cambio di alimentazione");
+      Serial.println("[ECO] Too many false touches: touch wake-up disabled until the next power change");
     } else {
-      Serial.println("[ECO] Falso tocco ignorato");
+      Serial.println("[ECO] False touch ignored");
     }
   }
 }

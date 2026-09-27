@@ -3,38 +3,38 @@
 
 #include <Arduino.h>
 
-// Struttura per la configurazione dell'applicazione
+// Application settings
 struct Config {
   char ssid[32];          // SSID WiFi
   char password[64];      // Password WiFi
-  char city[32];          // Città per le previsioni meteo
+  char city[32];          // City for the weather
   char api_key[64];       // API key OpenWeatherMap
-  char units[8];          // Unità meteo: "metric" o "imperial"
-  char language[8];       // Lingua meteo: es. "it", "en"
-  long gmtOffset_sec;     // Offset GMT in secondi
-  int daylightOffset_sec; // Offset per ora legale in secondi
+  char units[8];          // Weather units: "metric" or "imperial"
+  char language[8];       // Language: e.g. "it", "en"
+  long gmtOffset_sec;     // GMT offset in seconds
+  int daylightOffset_sec; // Daylight saving offset in seconds
   char ntpServer[64];     // Server NTP
-  bool use24hFormat;      // Formato orario: true=24h, false=12h
+  bool use24hFormat;      // Clock format: true = 24 h, false = 12 h
 
   // Impostazioni risparmio energetico
-  bool powerSavingEnabled;       // Modalità risparmio energetico attiva
-  int powerSavingStartHour;      // Ora di inizio risparmio energetico (es. 22 per le 22:00)
-  int powerSavingEndHour;        // Ora di fine risparmio energetico (es. 7 per le 7:00)
-  int normalUpdateInterval;      // Intervallo di aggiornamento normale in minuti
-  int powerSavingUpdateInterval; // Intervallo di aggiornamento in risparmio energetico in minuti
+  bool powerSavingEnabled;       // Power saving hours enabled
+  int powerSavingStartHour;      // Power saving start hour (e.g. 22 for 22:00)
+  int powerSavingEndHour;        // Power saving end hour (e.g. 7 for 7:00)
+  int normalUpdateInterval;      // Normal update interval in minutes
+  int powerSavingUpdateInterval; // Update interval during power saving, in minutes
 
-  // Impostazioni gestione errori di rete
-  int maxNetworkRetries;         // Numero massimo di tentativi in caso di errore di rete
+  // Network error handling
+  int maxNetworkRetries;         // Maximum attempts on a network error
 
-  // Impostazioni refresh display (secondi)
-  int displayRefreshIntervalSec;            // Intervallo refresh display in modalità normale (sec)
-  int displayRefreshIntervalSecPowerSaving; // Intervallo refresh display in modalità risparmio (sec)
+  // Display refresh (seconds)
+  int displayRefreshIntervalSec;            // Display refresh interval, normal mode (s)
+  int displayRefreshIntervalSecPowerSaving; // Display refresh interval, power saving (s)
 
-  // Batteria
-  bool batteryShowOnDisplay;     // Mostra stato batteria su display
+  // Battery
+  bool batteryShowOnDisplay;     // Show the battery on the display
 };
 
-// Dichiarazione funzioni di gestione configurazione
+// Settings functions
 bool loadConfig();
 bool saveConfig();
 bool checkConfigValidity();

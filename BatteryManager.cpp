@@ -1,43 +1,43 @@
 #include "BatteryManager.h"
 
-// Istanza globale
+// Global instance
 BatteryManager battery;
 
 void BatteryManager::begin() {
-    Serial.println("[BATTERY] Inizializzazione...");
+    Serial.println("[BATTERY] Starting...");
     ina219Available = initINA219();
     if (!ina219Available) {
-        Serial.println("[BATTERY] INA219 non trovato: batteria non monitorata");
+        Serial.println("[BATTERY] INA219 not found: battery not monitored");
         state = BATTERY_UNKNOWN;
         return;
     }
-    measure();  // Prima lettura subito, senza attendere l'intervallo
+    measure();  // First reading at once, without waiting for the interval
     lastRead = millis();
-    Serial.printf("[BATTERY] INA219 attivo: V=%.2fV I=%.1fmA %d%%\n", voltage, current_mA, percentage);
+    Serial.printf("[BATTERY] INA219 active: V=%.2fV I=%.1fmA %d%%\n", voltage, current_mA, percentage);
 }
 
 bool BatteryManager::initINA219() {
     Wire.begin(INA219_SDA_PIN, INA219_SCL_PIN);
     ina219 = Adafruit_INA219(INA219_I2C_ADDR);
     if (!ina219.begin(&Wire)) {
-        Serial.println("[BATTERY] INA219 non risponde");
+        Serial.println("[BATTERY] INA219 not responding");
         return false;
     }
     ina219.setCalibration_32V_1A();
 
-    // Verifica: tensione plausibile e valori non bloccati
+    // Check: plausible voltage
     float v1 = ina219.getBusVoltage_V();
     float i1 = ina219.getCurrent_mA();
     delay(50);
     float v2 = ina219.getBusVoltage_V();
     float i2 = ina219.getCurrent_mA();
     if (v1 < 0.1f || v1 > 10.0f) {
-        Serial.printf("[BATTERY] INA219: tensione anomala %.2f V\n", v1);
+        Serial.printf("[BATTERY] INA219: implausible voltage %.2f V\n", v1);
         return false;
     }
-    // Nessun controllo su valori "fermi": una batteria carica col caricatore
-    // fermo ha tensione stabile e corrente nulla, ed era scambiata per un
-    // sensore scollegato (2.1.12). Un INA219 assente non risponde già a begin().
+    // No check for "frozen" values: a charged battery with the charger
+    // idle has a steady voltage and no current, and was mistaken for a
+    // disconnected sensor (2.1.12). A missing INA219 already fails begin().
     (void)v2; (void)i1; (void)i2;
     return true;
 }
@@ -49,12 +49,12 @@ void BatteryManager::readINA219() {
     power_mW = ina219.getPower_mW();
 
 #if INA219_REVERSED
-    // VIN- (dove si misura la tensione di bus) è lato batteria
+    // VIN- (where the bus voltage is measured) is on the battery side
     voltage = busVoltage;
-    // Letta positiva in carica: riportata a "positiva = scarica"
+    // Reads positive while charging: converted to "positive = discharging"
     current_mA = -rawCurrent;
 #else
-    // Montaggio standard: VIN+ lato batteria = bus + caduta sullo shunt
+    // Standard mounting: VIN+ on the battery side = bus + drop across the shunt
     voltage = busVoltage + (shuntVoltage_mV / 1000.0f);
     current_mA = rawCurrent;
 #endif
@@ -71,20 +71,20 @@ bool BatteryManager::pollCharging() {
 #endif
     detectChargingState();
     if (before == isCharging) return false;
-    Serial.printf("[BATTERY] Caricatore %s (%.0f mA)\n", isCharging ? "collegato" : "staccato", current_mA);
+    Serial.printf("[BATTERY] Charger %s (%.0f mA)\n", isCharging ? "plugged in" : "unplugged", current_mA);
     return true;
 }
 
 void BatteryManager::update() {
     unsigned long now = millis();
     if (!ina219Available) {
-        // Sensore non trovato all'avvio: nuovo tentativo ogni minuto
+        // Sensor not found at boot: new attempt every minute
         if (now - lastRead < 60000UL) return;
         lastRead = now;
         ina219Available = initINA219();
         if (!ina219Available) return;
         measure();
-        Serial.printf("[BATTERY] INA219 trovato: V=%.2fV I=%.1fmA %d%%\n", voltage, current_mA, percentage);
+        Serial.printf("[BATTERY] INA219 found: V=%.2fV I=%.1fmA %d%%\n", voltage, current_mA, percentage);
         return;
     }
     if (now - lastRead < READ_INTERVAL) return;
@@ -97,20 +97,20 @@ void BatteryManager::update() {
 void BatteryManager::measure() {
     readINA219();
 
-    // Tensione a vuoto stimata: mentre scorre corrente la tensione ai morsetti
-    // è più alta (carica) o più bassa (scarica) per la resistenza interna
+    // Estimated open-circuit voltage: while current flows the terminal voltage
+    // is higher (charging) or lower (discharging) because of the internal resistance
     float vRest = voltage + (current_mA / 1000.0f) * BATTERY_INTERNAL_RESISTANCE;
 
-    // Filtro esponenziale: la percentuale non salta con i picchi del WiFi
+    // Exponential filter: the percentage does not jump with the WiFi current peaks
     restVoltage = (restVoltage <= 0.0f) ? vRest : 0.7f * restVoltage + 0.3f * vRest;
     percentage = voltageToPercentage(restVoltage);
 
     detectChargingState();
 
     if (isCharging) {
-        // Fine carica: il caricatore porta la cella a 4,2 V e poi interrompe la
-        // corrente; a riposo la tensione si assesta sui 4,10-4,15 V (misurati
-        // 4,14 V a carica finita), quindi la soglia è 4,10 V a corrente quasi nulla
+        // End of charge: the charger brings the cell to 4.2 V and then stops the
+        // current; at rest the voltage settles around 4.10-4.15 V (4.14 V measured
+        // after a full charge), so the threshold is 4.10 V with almost no current
         bool chargeDone = voltage >= 4.10f && fabsf(current_mA) < BATTERY_CURRENT_THRESHOLD_MA;
         if (percentage >= 95 || chargeDone) {
             state = BATTERY_FULL;
@@ -130,16 +130,16 @@ void BatteryManager::measure() {
 }
 
 void BatteryManager::detectChargingState() {
-    // current_mA è positiva in scarica e negativa in carica (vedi readINA219)
-    // "In carica" qui significa alimentata dal caricatore. A batteria la scheda
-    // sveglia assorbe sempre più di 20 mA: una corrente quasi nulla (o negativa)
-    // vuol dire che il caricatore è collegato, anche a carica terminata.
+    // current_mA is positive when discharging and negative when charging (see readINA219)
+    // "Charging" here means powered by the charger. On battery the awake board
+    // always draws more than 20 mA: an almost zero (or negative) current
+    // means the charger is plugged in, even when the charge is finished.
     if (current_mA < BATTERY_EXTERNAL_POWER_MAX_MA) {
         isCharging = true;
     } else if (current_mA > BATTERY_CURRENT_THRESHOLD_MA) {
         isCharging = false;
     }
-    // Tra le due soglie si mantiene lo stato precedente
+    // Between the two thresholds the previous state is kept
 }
 
 int BatteryManager::getEstimatedTimeRemaining() {
@@ -171,8 +171,8 @@ void BatteryManager::updateLevel() {
     }
 }
 int BatteryManager::voltageToPercentage(float v) {
-    // Curva LiPo realistica basata su discharge curve 0.5C a 25°C
-    // Punti: tensione, percentuale (interpolazione lineare)
+    // Realistic LiPo curve from a 0.5C discharge curve at 25°C
+    // Points: voltage, percentage (linear interpolation)
     static const float curve[][2] = {
         {4.20f, 100.0f},  // Full charge
         {4.15f,  97.0f},  // Top plateau
@@ -202,7 +202,7 @@ int BatteryManager::voltageToPercentage(float v) {
     if (v <= 3.30f) return 0;
     if (v >= 4.20f) return 100;
 
-    // Interpolazione lineare tra i punti
+    // Linear interpolation between the points
     for (int i = 0; i < n - 1; i++) {
         if (v <= curve[i][0] && v >= curve[i+1][0]) {
             float vRange = curve[i][0] - curve[i+1][0];

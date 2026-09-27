@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include "Config.h"
 
-// Pagina di configurazione minima contenuta nel firmware (vedi WebMinimal.h)
+// Minimal setup page built into the firmware (see WebMinimal.h)
 static const char FALLBACK_SETUP_PAGE[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <html lang="it"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">

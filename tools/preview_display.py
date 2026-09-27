@@ -1,13 +1,13 @@
-"""Anteprima delle schermate AtmoVerse (648x480, 1 bit) con i veri font U8g2.
+"""Preview of the AtmoVerse screens (648x480, 1 bit) with the real U8g2 fonts.
 
-Riproduce posizioni e logica di Screens.cpp decodificando i font dalla
-libreria U8g2_for_Adafruit_GFX installata e usando le icone di sd_files/icons.
-Serve a vedere la grafica senza caricare il firmware e a generare le immagini
-del README.
+Reproduces the positions and logic of Screens.cpp, decoding the fonts from the
+installed U8g2_for_Adafruit_GFX library and using the icons in sd_files/icons.
+Useful to see the graphics without uploading the firmware and to make the
+README images. The sample text is in Italian, like the display.
 
-Uso:
+Usage:
     python tools/preview_display.py docs/images
-Richiede Pillow; il codice QR richiede anche il modulo qrcode.
+Needs Pillow; the QR code also needs the qrcode module.
 """
 import re
 import sys
@@ -22,7 +22,7 @@ MARGIN = 32
 
 
 # ---------------------------------------------------------------------------
-# Decodifica dei font U8g2
+# U8g2 font decoding
 # ---------------------------------------------------------------------------
 class U8g2Font:
     def __init__(self, name):
@@ -130,13 +130,13 @@ def hline(d, y):
 def draw_icon(img, name, x, y, scale=2):
     icon = Image.open(f"{ICONS}/{name}.bmp").convert("1")
     if isinstance(y, tuple):
-        # Come Screens.cpp: centra il disegno reale tra y[0] e y[1]
+        # As in Screens.cpp: centers what is actually drawn between y[0] and y[1]
         from PIL import ImageOps as _ops
         box = _ops.invert(icon.convert("L")).getbbox() or (0, 0, icon.width, icon.height)
         ink = (box[3] - box[1]) * scale
         y = y[0] + (y[1] - y[0] - ink) // 2 - box[1] * scale
     icon = icon.resize((icon.width * scale, icon.height * scale), Image.NEAREST)
-    # Solo i pixel neri, come il firmware (lo sfondo dell'icona non copre la grafica)
+    # Black pixels only, like the firmware (the icon background does not cover the graphics)
     from PIL import ImageOps
     img.paste(0, (x, y), ImageOps.invert(icon.convert("L")))
 
@@ -181,7 +181,7 @@ def main_screen(quote, author, out):
     left(img, "fur17_tf", MARGIN, 44, "Venerd\xec 26 settembre")
     right(img, "luRS14_tf", W - MARGIN, 44, "Roma")
     hline(d, 60)
-    # Icona WiFi a sinistra della città (come drawWifiIcon in Screens.cpp)
+    # WiFi icon to the left of the city (as drawWifiIcon in Screens.cpp)
     city_w = F["luRS14_tf"].width("Roma")
     wx = W - MARGIN - city_w - 12 - 18
     cx, cy = wx + 9, 44 - 1
@@ -283,7 +283,7 @@ def update_screen(out, phase, done, total, pct, eta):
 
 
 def battery_screen(out, pct=4):
-    """Stessa geometria di drawTiredFace/drawBatteryScreen in Screens.cpp."""
+    """Same geometry as drawTiredFace/drawBatteryScreen in Screens.cpp."""
     import math
     img = Image.new("1", (W, H), 1)
     d = ImageDraw.Draw(img)

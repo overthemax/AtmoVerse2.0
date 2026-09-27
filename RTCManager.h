@@ -3,19 +3,19 @@
 
 #include <Arduino.h>
 
-// Inizializza il DS3231 e, se disponibile, sincronizza il clock interno ESP32
+// Initializes the DS3231 and, if present, sets the ESP32 internal clock
 bool rtcBegin();
 
-// Imposta il clock interno ESP32 dall'ora del DS3231
+// Sets the ESP32 internal clock from the DS3231 time
 bool syncFromRTC();
 
-// Aggiorna il DS3231 con l'ora corrente del clock interno ESP32 (dopo sync NTP)
+// Updates the DS3231 with the current ESP32 internal clock (after an NTP sync)
 bool syncToRTC();
 
-// Restituisce true se il DS3231 è disponibile e ha un'ora valida
+// Returns true if the DS3231 is present and has a valid time
 bool rtcAvailable();
 
-// Restituisce true se il DS3231 ha perso alimentazione (ora non affidabile)
+// Returns true if the DS3231 lost power (time not reliable)
 bool rtcLostPower();
 
 #endif // RTC_MANAGER_H

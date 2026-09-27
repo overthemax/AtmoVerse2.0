@@ -2,25 +2,20 @@
 #include "Config.h"
 #include "WebServer.h"
 #include "Debug.h"
+#include "AtmoVerseConstants.h"
 #include <WiFi.h>
 #include <SD.h>
 #include <time.h>
 #include <DNSServer.h>
-// Rimosso esp_task_wdt.h per risparmiare memoria
 
-// Istanze globali
 DNSServer dnsServer;
 bool apMode = false;
 
-// Costanti
-#include "AtmoVerseConstants.h"
-// const char* AP_SSID = "AtmoVerse_Setup"; // ora definito in AtmoVerseConstants.h
-// const char* AP_PASSWORD = "atmoverse"; // ora definito in AtmoVerseConstants.h
 const byte DNS_PORT = 53;
 
-// Stringa TZ POSIX dal fuso della configurazione. L'ora legale segue le regole
-// europee (ultima domenica di marzo / ottobre) invece di sommare sempre
-// daylightOffset_sec. In POSIX il segno è invertito: UTC+1 si scrive "-1".
+// POSIX TZ string from the configured time zone. Daylight saving follows the
+// European rules (last Sunday of March / October) instead of always adding
+// daylightOffset_sec. POSIX inverts the sign: UTC+1 is written "-1".
 static void buildTimezone(char* tz, size_t len) {
   long offset = config.gmtOffset_sec;
   int hours = -(int)(offset / 3600);
@@ -32,8 +27,8 @@ static void buildTimezone(char* tz, size_t len) {
   }
 }
 
-// Imposta solo il fuso orario (anche senza rete): serve perché l'ora letta
-// dall'RTC, che è in UTC, venga mostrata come ora locale
+// Sets only the time zone (also without network), so that the RTC time,
+// which is UTC, is shown as local time
 void applyTimezone() {
   char tz[48];
   buildTimezone(tz, sizeof(tz));
@@ -41,172 +36,127 @@ void applyTimezone() {
   tzset();
 }
 
-// Fuso orario e server NTP della configurazione (prima era sempre UTC)
+// Time zone and NTP server from the settings
 void setupTimeServer() {
   DEBUG_TRACE();
   char tz[48];
   buildTimezone(tz, sizeof(tz));
   const char* ntp = strlen(config.ntpServer) > 0 ? config.ntpServer : "pool.ntp.org";
   configTzTime(tz, ntp, "time.nist.gov");
-  Serial.printf("[TIME] Fuso orario %s, server NTP %s\n", tz, ntp);
+  Serial.printf("[TIME] Time zone %s, NTP server %s\n", tz, ntp);
 }
 
-// Avvia il punto di accesso
+// Starts the setup access point, with a captive DNS and the web server
 void startAccessPoint(bool forceStart) {
   DEBUG_TRACE();
-  // Se siamo già in modalità AP, non fare nulla
   if (apMode && !forceStart) {
-    // Rimozione stampe debug
     return;
   }
-  
-  // Rimozione stampe debug
-  
-  // Tenta di caricare la configurazione
-  if (!loadConfig()) {
-    // Rimozione stampe debug
-  }
-  
-  // Genera SSID con ultimi 4 caratteri del MAC
+
+  // Fresh settings from the SD card for the setup page
+  loadConfig();
+
+  // SSID with the last 4 characters of the MAC address
   String macAddress = WiFi.macAddress();
   String lastFourMac = macAddress.substring(macAddress.length() - 5);
   lastFourMac.replace(":", "");
-  
   String apSSID = String(ATMOVERSE_AP_SSID) + "_" + lastFourMac;
-  // Rimozione stampe debug
-  
-  // Configura la rete dell'AP (IP 192.168.4.1)
+
+  // Access point network (IP 192.168.4.1)
   IPAddress localIP(192, 168, 4, 1);
   IPAddress gateway(192, 168, 4, 1);
   IPAddress subnet(255, 255, 255, 0);
 
-  // Imposta modalità AP esplicita per evitare stati incoerenti
+  // Explicit AP mode, to avoid mixed states
   WiFi.mode(WIFI_AP);
   delay(100);
   WiFi.softAPConfig(localIP, gateway, subnet);
-  
-  // Avvia l'AP
+
   bool success = WiFi.softAP(apSSID.c_str(), ATMOVERSE_AP_PASSWORD);
-  delay(500);  // Attesa per la stabilizzazione
-  
-  Serial.print("WiFi.softAP result: ");
-  Serial.println(success ? "SUCCESS" : "FAILED");
-  
+  delay(500);  // Let the AP settle
+
   if (!success) {
-    Serial.println("ERRORE: Impossibile avviare AP!");
-    // Riprova una volta
+    Serial.println("[WIFI] Cannot start the access point, retrying");
     WiFi.mode(WIFI_OFF);
     delay(500);
     WiFi.mode(WIFI_AP);
     delay(500);
     success = WiFi.softAP(apSSID.c_str(), ATMOVERSE_AP_PASSWORD);
-    Serial.print("Secondo tentativo AP: ");
-    Serial.println(success ? "SUCCESS" : "FAILED");
     if (!success) {
+      Serial.println("[WIFI] Access point failed");
       return;
     }
   }
-  
-  // Avvia il server DNS captive portal
+
+  // Captive portal DNS: every name points to the device
   IPAddress apIP = WiFi.softAPIP();
-  Serial.print("AP IP: ");
-  Serial.println(apIP);
-  Serial.print("AP SSID: ");
-  Serial.println(apSSID);
-  
   dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
   dnsServer.start(DNS_PORT, "*", apIP);
-  
+
   apMode = true;
-  
-  // AVVIA IL SERVER WEB anche in AP
   setupServer();
-  
-  Serial.println("AP MODE ATTIVO!");
+
+  Serial.printf("[WIFI] Access point %s active at %s\n", apSSID.c_str(), apIP.toString().c_str());
 }
 
-// Verifica se è connesso a WiFi
 bool isWiFiConnected() {
   DEBUG_TRACE();
   return WiFi.status() == WL_CONNECTED;
 }
 
-// Connessione a una rete WiFi specifica - versione robusta con protezione anti-crash
+// Connects to a WiFi network, leaving AP mode first if needed. Waits up to 30 s.
 bool connectToWiFi(const char* ssid, const char* password) {
   DEBUG_TRACE();
   if (strlen(ssid) == 0) {
-    // Rimozione stampe debug
     return false;
   }
-  
-  // Rimozione logging e debug seriale per risparmiare memoria
-  // Rimozione riferimenti al watchdog
-  
-  // Se siamo in modalità AP, cambia modalità con protezioni
+
+  // From AP to station mode, with long pauses to avoid conflicts
   if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
-    // Rimozione stampe debug
-    
-    // Chiudi il server DNS se attivo
     if (apMode) {
       dnsServer.stop();
       apMode = false;
     }
-    
-    // Passa da AP a STA con maggiori delay per evitare conflitti
     WiFi.softAPdisconnect(true);
     delay(200);
     WiFi.mode(WIFI_OFF);
-    delay(1000);  // Attesa più lunga per assicurare il cambio di modalità
+    delay(1000);
     WiFi.mode(WIFI_STA);
-    delay(1000);  // Attesa più lunga per stabilizzare
+    delay(1000);
   }
-  
-  // Assicura di essere in modalità STA
+
   if (WiFi.getMode() != WIFI_STA) {
-    // Rimozione stampe debug
     WiFi.mode(WIFI_STA);
-    delay(1000);  // Attesa più lunga per stabilizzare
+    delay(1000);
   }
-  
-  // Configura il WiFi per connessione ottimizzata
+
   WiFi.setAutoReconnect(true);
-  WiFi.setSleep(false);      // Disabilita power saving per connessione più stabile
-  WiFi.persistent(false);   // Evita scritture flash che possono causare problemi
-  
-  // Versione robusta senza messaggi di debug
+  WiFi.setSleep(false);      // No modem sleep while connecting: more stable
+  WiFi.persistent(false);    // No flash writes for the WiFi credentials
+
   WiFi.begin(ssid, password);
-  
-  // Attendi fino a 30 secondi per la connessione
+
   int attemptCount = 0;
-  const int maxAttempts = 60;  // 30 secondi (60 * 500ms)
-  
+  const int maxAttempts = 60;  // 30 seconds (60 * 500 ms)
   while (WiFi.status() != WL_CONNECTED && attemptCount < maxAttempts) {
     delay(500);
     attemptCount++;
   }
-  
+
   if (WiFi.status() == WL_CONNECTED) {
-    // Imposta il server NTP per ottenere l'ora
     setupTimeServer();
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
-// Setup WiFi iniziale
+// First WiFi connection (the settings are already loaded by setup())
 bool setupWiFi() {
   DEBUG_TRACE();
-  // NOTA: loadConfig() è già stato chiamato nel setup()
-  // Non ricaricare inutilmente la configurazione
-  
-  // Se la configurazione non è valida, avvia l'Access Point
+  // No network configured: setup access point
   if (strlen(config.ssid) == 0) {
-    // Serial.println("[WIFI] Configurazione non valida o assente");
     startAccessPoint();
     return false;
   }
-  
-  // Tenta di connettersi alla rete configurata
   return connectToWiFi(config.ssid, config.password);
 }

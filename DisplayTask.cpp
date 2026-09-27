@@ -1,6 +1,6 @@
 /**
  * @file DisplayTask.cpp
- * @brief Task del display sul core 0 (vedi DisplayTask.h)
+ * @brief Display task on core 0 (see DisplayTask.h)
  */
 
 #include "DisplayTask.h"
@@ -8,8 +8,8 @@
 #include "Screens.h"
 #include <SD.h>
 
-// Core 0: lo stack WiFi ha priorità 23 e interrompe il disegno quando serve;
-// il task passa gran parte del tempo in attesa del pin BUSY del pannello.
+// Core 0: the WiFi stack has priority 23 and interrupts the drawing when needed;
+// the task spends most of its time waiting for the panel's BUSY pin.
 static const BaseType_t DISPLAY_TASK_CORE = 0;
 static const UBaseType_t DISPLAY_TASK_PRIORITY = 1;
 static const uint32_t DISPLAY_TASK_STACK = 10 * 1024;
@@ -17,15 +17,15 @@ static const uint32_t DISPLAY_TASK_STACK = 10 * 1024;
 static TaskHandle_t displayTaskHandle = nullptr;
 static SemaphoreHandle_t pendingMutex = nullptr;
 
-// Richiesta in attesa (scritta dal loop, letta dal task) e copia di lavoro
-// del task. Statiche e non sullo stack: contengono l'icona (2 KB).
+// Pending request (written by the loop, read by the task) and the task's
+// working copy. Static, not on the stack: they hold the icon (2 KB).
 static ScreenModel pendingModel;
 static ScreenModel renderModel;
 static bool hasPending = false;
 static volatile bool rendering = false;
 
-// Sempre refresh completo: provato il refresh parziale (2.1.7), su questo
-// pannello il risultato non era buono
+// Always a full refresh: partial refresh was tried (2.1.7) and did not
+// look good on this panel
 static void renderScreen(const ScreenModel& m) {
   display.setFullWindow();
   display.firstPage();
@@ -39,7 +39,7 @@ static void renderScreen(const ScreenModel& m) {
       case SCREEN_BATTERY: drawBatteryScreen(m); break;
     }
   } while (display.nextPage());
-  display.powerOff();  // Pannello non alimentato tra un aggiornamento e l'altro
+  display.powerOff();  // Panel unpowered between two updates
 }
 
 static void displayTask(void*) {
@@ -60,7 +60,7 @@ static void displayTask(void*) {
       unsigned long start = millis();
       renderScreen(renderModel);
       rendering = false;
-      Serial.printf("[DISPLAY] Schermata %d disegnata in %lu ms (core %d)\n",
+      Serial.printf("[DISPLAY] Screen %d drawn in %lu ms (core %d)\n",
                     renderModel.kind, millis() - start, xPortGetCoreID());
     }
   }
@@ -94,7 +94,7 @@ bool waitDisplayIdle(uint32_t timeoutMs) {
   return false;
 }
 
-// BMP monocromatico (1 bit, non compresso) -> bitmap in RAM, bit a 1 = nero
+// Monochrome BMP (1 bit, uncompressed) -> bitmap in RAM, bit 1 = black
 bool loadIconBitmap(const char* path, ScreenModel& model) {
   model.iconWidth = model.iconHeight = 0;
   File f = SD.open(path, FILE_READ);
@@ -116,7 +116,7 @@ bool loadIconBitmap(const char* path, ScreenModel& model) {
     return false;
   }
 
-  // Colore 0 della tavolozza scuro -> un bit a 0 nel file significa nero
+  // Palette color 0 is dark -> a 0 bit in the file means black
   bool zeroIsBlack = (header[54] + header[55] + header[56]) < 384;
 
   int rowSize = ((width + 31) / 32) * 4;
@@ -133,7 +133,7 @@ bool loadIconBitmap(const char* path, ScreenModel& model) {
     for (int b = 0; b < outRow; b++) {
       model.icon[y * outRow + b] = zeroIsBlack ? (uint8_t)~row[b] : row[b];
     }
-    // Bit oltre la larghezza nell'ultimo byte: bianchi
+    // Bits past the width in the last byte: white
     if (width % 8) model.icon[y * outRow + outRow - 1] &= (uint8_t)(0xFF << (8 - width % 8));
   }
   f.close();

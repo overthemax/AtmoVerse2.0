@@ -1,13 +1,13 @@
 /**
  * @file Screens.cpp
- * @brief Schermate del display e-ink (vedi Screens.h)
+ * @brief E-ink display screens (see Screens.h)
  *
- * Griglia 648 x 480, margini laterali di 32 px.
- *   0 -  54  intestazione: giorno e data a sinistra, città a destra
- *  54 - 238  ora, temperatura e condizione a sinistra, icona a destra
- * 238 - 290  quattro dati: percepita, umidità, vento, pressione
- * 300 - 452  citazione, con carattere che si adatta alla lunghezza
- * 460 - 480  piè di pagina: ultimo aggiornamento, IP, batteria
+ * 648 x 480 grid, 32 px side margins.
+ *   0 -  54  header: weekday and date on the left, city on the right
+ *  54 - 238  time, temperature and condition on the left, icon on the right
+ * 238 - 290  four values: feels like, humidity, wind, pressure
+ * 300 - 452  quote, with a font that adapts to its length
+ * 460 - 480  footer: last update, IP address, battery
  */
 
 #include "Screens.h"
@@ -20,29 +20,29 @@
 #include <math.h>
 
 // ---------------------------------------------------------------------------
-// Sistema tipografico
+// Typographic system
 // ---------------------------------------------------------------------------
 
-#define FONT_TIME     u8g2_font_fur49_tn   // Ora
-#define FONT_TEMP     u8g2_font_fur35_tf   // Temperatura
-#define FONT_TITLE    u8g2_font_fur20_tf   // Titoli delle schermate di servizio
-#define FONT_HEADER   u8g2_font_fur17_tf   // Data
-#define FONT_BODY     u8g2_font_luRS14_tf  // Città, condizione meteo
-#define FONT_TEXT     u8g2_font_luRS12_tf  // Testi delle schermate di servizio
-#define FONT_VALUE    u8g2_font_luBS14_tf  // Valori dei dati
-#define FONT_LABEL    u8g2_font_luRS10_tf  // Etichette dei dati
-#define FONT_SMALL    u8g2_font_luRS08_tf  // Piè di pagina
+#define FONT_TIME     u8g2_font_fur49_tn   // Time
+#define FONT_TEMP     u8g2_font_fur35_tf   // Temperature
+#define FONT_TITLE    u8g2_font_fur20_tf   // Titles of the service screens
+#define FONT_HEADER   u8g2_font_fur17_tf   // Date
+#define FONT_BODY     u8g2_font_luRS14_tf  // City, weather condition
+#define FONT_TEXT     u8g2_font_luRS12_tf  // Text of the service screens
+#define FONT_VALUE    u8g2_font_luBS14_tf  // Data values
+#define FONT_LABEL    u8g2_font_luRS10_tf  // Data labels
+#define FONT_SMALL    u8g2_font_luRS08_tf  // Footer
 
 static const int MARGIN = 32;
 
-// Riquadro della citazione
+// Quote box
 static const int QUOTE_TOP = 300;
 static const int QUOTE_BOTTOM = 452;
 static const int QUOTE_MAX_LINES = 8;
-static const int AUTHOR_MAX_LINES = 3;  // L'autore va a capo, non viene mai tagliato
+static const int AUTHOR_MAX_LINES = 3;  // The author wraps, it is never cut
 
-// Stili della citazione dal più grande al più piccolo: si usa il primo con
-// cui testo e autore entrano per intero nel riquadro
+// Quote styles from the largest to the smallest: the first one with
+// which text and author fit the box in full is used
 struct QuoteStyle {
   const uint8_t* text;
   const uint8_t* author;
@@ -65,17 +65,17 @@ static const char* MONTHS_EN[] = {"January", "February", "March", "April", "May"
 static const char* DEGREE = "\xC2\xB0";   // °
 static const char* MIDDOT = " \xC2\xB7 "; // ·
 
-// Ogni oggetto U8g2 ha uno stato (font corrente): il task del display e il
-// loop ne usano uno ciascuno, così non interferiscono tra loro
+// Every U8g2 object has a state (current font): the display task and the
+// loop use one each, so they never interfere
 typedef U8G2_FOR_ADAFRUIT_GFX Text;
-static Text u8g2;     // Solo task del display
-static Text measure;  // Solo loop (quoteFitsDisplay)
+static Text u8g2;     // Display task only
+static Text measure;  // Loop only (quoteFitsDisplay)
 
 static void initText(Text& t) {
   static bool ready[2] = {false, false};
   bool& r = ready[&t == &measure ? 1 : 0];
   if (!r) {
-    t.begin(display);  // Memorizza solo il puntatore: "measure" non disegna mai
+    t.begin(display);  // Stores only the pointer: "measure" never draws
     r = true;
   }
   t.setFontMode(1);
@@ -93,8 +93,8 @@ static void textLeft(int x, int y, const String& s) { u8g2.drawUTF8(x, y, s.c_st
 static void textRight(int xRight, int y, const String& s) { u8g2.drawUTF8(xRight - textWidth(s), y, s.c_str()); }
 static void textCenter(int cx, int y, const String& s) { u8g2.drawUTF8(cx - textWidth(s) / 2, y, s.c_str()); }
 
-// I font coprono l'alfabeto latino (ISO 8859-1): la punteggiatura tipografica
-// fuori da quell'insieme viene sostituita con l'equivalente semplice
+// The fonts cover the Latin alphabet (ISO 8859-1): typographic punctuation
+// outside that set is replaced with its plain equivalent
 static String displayText(String s) {
   s.replace("\xE2\x80\x98", "'");   // ‘
   s.replace("\xE2\x80\x99", "'");   // ’
@@ -107,8 +107,8 @@ static String displayText(String s) {
   return s;
 }
 
-// Divide il testo in righe larghe al massimo maxWidth (font corrente).
-// Restituisce il numero di righe necessarie; ne salva al massimo maxLines.
+// Splits the text into lines at most maxWidth wide (current font).
+// Returns the number of lines needed; stores at most maxLines.
 static int wrapText(Text& t, const String& s, int maxWidth, String* lines, int maxLines) {
   int count = 0;
   String line;
@@ -158,15 +158,15 @@ static String clockText(int hour, int minute, bool use24h, String* suffix) {
 }
 
 static bool clockValid() {
-  return time(nullptr) > 1700000000;  // Ora sincronizzata (NTP o RTC)
+  return time(nullptr) > 1700000000;  // Time synced (NTP or RTC)
 }
 
 // ---------------------------------------------------------------------------
-// Citazione
+// Quote
 // ---------------------------------------------------------------------------
 
-// Sceglie lo stile più grande con cui la citazione entra nel riquadro.
-// Restituisce l'indice dello stile, oppure -1 se non entra nemmeno col più piccolo.
+// Picks the largest style with which the quote fits the box.
+// Returns the style index, or -1 if it does not fit even with the smallest one.
 static int chooseQuoteStyle(Text& t, const String& text, const String& author, int width, int height) {
   String lines[QUOTE_MAX_LINES];
   for (int i = 0; i < QUOTE_STYLE_COUNT; i++) {
@@ -198,20 +198,20 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
   const int cx = display.width() / 2;
   if (quoteText.length() == 0) return;
 
-  String text = "\xC2\xAB" + displayText(quoteText) + "\xC2\xBB";  // «testo»
+  String text = "\xC2\xAB" + displayText(quoteText) + "\xC2\xBB";  // «text»
   String author = displayText(quoteAuthor);
 
   int style = chooseQuoteStyle(u8g2, text, author, width, height);
   bool truncated = style < 0;
   if (truncated) style = QUOTE_STYLE_COUNT - 1;
 
-  // Righe del testo
+  // Text lines
   String lines[QUOTE_MAX_LINES];
   u8g2.setFont(QUOTE_STYLES[style].text);
   int textLh = lineHeight();
   int n = wrapText(u8g2, text, width, lines, QUOTE_MAX_LINES);
 
-  // Righe dell'autore
+  // Author lines
   String authorLines[AUTHOR_MAX_LINES];
   int an = 0;
   int authorLh = 0;
@@ -221,7 +221,7 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
     an = min(AUTHOR_MAX_LINES, wrapText(u8g2, author, width, authorLines, AUTHOR_MAX_LINES));
   }
 
-  // Testo troppo lungo anche col carattere più piccolo: si taglia con "..."
+  // Text too long even with the smallest font: cut with "..."
   int maxTextLines = (height - (an ? 4 + an * authorLh : 0)) / textLh;
   if (n > maxTextLines) {
     n = maxTextLines;
@@ -234,7 +234,7 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
     last += "...";
   }
 
-  // Blocco centrato verticalmente nel riquadro
+  // Block centered vertically in the box
   int total = n * textLh + (an ? 4 + an * authorLh : 0);
   int y = QUOTE_TOP + (height - total) / 2;
 
@@ -254,7 +254,7 @@ static void drawQuoteBlock(const String& quoteText, const String& quoteAuthor) {
 }
 
 // ---------------------------------------------------------------------------
-// Elementi comuni
+// Shared elements
 // ---------------------------------------------------------------------------
 
 static void drawBatteryIndicator(const ScreenModel& m, int xRight, int baseline) {
@@ -282,10 +282,10 @@ static void drawServiceFooter(const ScreenModel& m, const String& text) {
 }
 
 // ---------------------------------------------------------------------------
-// Schermata principale
+// Main screen
 // ---------------------------------------------------------------------------
 
-// Icona dal modello, ingrandita di un fattore intero (bordi netti, nessuna interpolazione)
+// Icon from the model, scaled by an integer factor (sharp edges, no interpolation)
 static void drawIcon(const ScreenModel& m, int x, int y, int scale) {
   int bytesPerRow = (m.iconWidth + 7) / 8;
   for (int r = 0; r < m.iconHeight; r++) {
@@ -297,7 +297,7 @@ static void drawIcon(const ScreenModel& m, int x, int y, int scale) {
   }
 }
 
-// Prima e ultima riga non vuota dell'icona: serve a centrarne il disegno reale
+// First and last non-empty row of the icon: used to center what is actually drawn
 static void iconInkRows(const ScreenModel& m, int& first, int& last) {
   int bytesPerRow = (m.iconWidth + 7) / 8;
   first = -1;
@@ -315,8 +315,8 @@ static void iconInkRows(const ScreenModel& m, int& first, int& last) {
 
 static void thickArc(int cx, int cy, int r, int fromDeg, int toDeg, int thickness);
 
-// Icona WiFi: punto e due archi a ventaglio. (x, baseline) = angolo in basso a
-// sinistra, alta circa quanto il testo dell'intestazione. Restituisce la larghezza.
+// WiFi icon: a dot and two fan-shaped arcs. (x, baseline) = bottom-left
+// corner, about as tall as the header text. Returns the width.
 static int drawWifiIcon(int x, int baseline) {
   const int size = 18;
   int cx = x + size / 2, cy = baseline - 1;
@@ -338,7 +338,7 @@ void drawMainScreen(const ScreenModel& m) {
   const WeatherData& w = m.weather;
   bool weatherOk = w.valid;
 
-  // Intestazione
+  // Header
   u8g2.setFont(FONT_HEADER);
   if (timeOk) {
     // "Venerdì 26 settembre" / "Friday 26 September"
@@ -349,11 +349,11 @@ void drawMainScreen(const ScreenModel& m) {
   u8g2.setFont(FONT_BODY);
   String city = displayText(m.city);
   textRight(W - MARGIN, 44, city);
-  // WiFi acceso: icona a sinistra della città
+  // WiFi on: icon to the left of the city
   if (m.wifiOn) drawWifiIcon(W - MARGIN - textWidth(city) - 12 - 18, 44);
   display.drawFastHLine(MARGIN, 54, W - 2 * MARGIN, GxEPD_BLACK);
 
-  // Ora
+  // Time
   u8g2.setFont(FONT_TIME);
   String ampm;
   String clock = timeOk ? clockText(t.tm_hour, t.tm_min, m.use24h, &ampm) : String("--:--");
@@ -364,7 +364,7 @@ void drawMainScreen(const ScreenModel& m) {
     textLeft(MARGIN - 2 + clockWidth + 8, 118, ampm);
   }
 
-  // Temperatura e condizione
+  // Temperature and condition
   u8g2.setFont(FONT_TEMP);
   String temp = weatherOk ? String((int)lroundf(w.temp)) : String("--");
   textLeft(MARGIN, 180, temp + DEGREE);
@@ -374,11 +374,11 @@ void drawMainScreen(const ScreenModel& m) {
   if (condition.length() && condition[0] >= 'a' && condition[0] <= 'z') condition[0] = condition[0] - 32;
   textLeft(MARGIN, 210, condition);
 
-  // Icona meteo: BMP 100 px letta dal loop, ingrandita esattamente x2.
-  // Il disegno reale (non il riquadro) va centrato tra la riga sotto
-  // l'intestazione e le etichette dei dati, così pioggia e fulmini non le toccano
+  // Weather icon: 100 px BMP read by the loop, scaled exactly x2.
+  // What is actually drawn (not the bounding box) is centered between the
+  // header rule and the data labels, so rain and lightning never touch them
   const int iconArea = 200;
-  const int iconSpaceTop = 56, iconSpaceBottom = 239;  // Icone più alte: 182 px
+  const int iconSpaceTop = 56, iconSpaceBottom = 239;  // Taller icons: 182 px
   if (weatherOk && m.iconWidth > 0) {
     int scale = max(1, iconArea / max((int)m.iconWidth, (int)m.iconHeight));
     int first, last;
@@ -389,7 +389,7 @@ void drawMainScreen(const ScreenModel& m) {
     drawIcon(m, W - MARGIN - iconArea + (iconArea - m.iconWidth * scale) / 2, y, scale);
   }
 
-  // Quattro dati
+  // Four values
   const int colW = (W - 2 * MARGIN) / 4;
   String wind = "--";
   if (weatherOk) {
@@ -413,14 +413,14 @@ void drawMainScreen(const ScreenModel& m) {
   }
   display.drawFastHLine(MARGIN, 290, W - 2 * MARGIN, GxEPD_BLACK);
 
-  // Citazione
+  // Quote
   drawQuoteBlock(m.quoteText, m.quoteAuthor);
 
-  // Piè di pagina
+  // Footer
   u8g2.setFont(FONT_SMALL);
   const int footerY = H - 12;
   if (m.notice.length()) {
-    // Triangolo di avviso + testo
+    // Warning triangle + text
     display.fillTriangle(MARGIN, footerY, MARGIN + 12, footerY, MARGIN + 6, footerY - 11, GxEPD_BLACK);
     display.drawFastVLine(MARGIN + 6, footerY - 7, 4, GxEPD_WHITE);
     textLeft(MARGIN + 18, footerY, displayText(m.notice));
@@ -441,7 +441,7 @@ void drawMainScreen(const ScreenModel& m) {
 }
 
 // ---------------------------------------------------------------------------
-// Schermate di servizio
+// Service screens
 // ---------------------------------------------------------------------------
 
 void drawSetupScreen(const ScreenModel& m) {
@@ -456,7 +456,7 @@ void drawSetupScreen(const ScreenModel& m) {
   textLeft(MARGIN, 80, TR("AtmoVerse non è collegato a una rete WiFi.", "AtmoVerse is not connected to a WiFi network."));
   display.drawFastHLine(MARGIN, 96, W - 2 * MARGIN, GxEPD_BLACK);
 
-  // QR code a destra: collega il telefono alla rete di configurazione
+  // QR code on the right: joins the phone to the setup network
   static QRCodeHelper qr;
   const int qrArea = 216;
   int qrRight = W - MARGIN;
@@ -471,7 +471,7 @@ void drawSetupScreen(const ScreenModel& m) {
     textCenter(qrLeft + qrArea / 2, 116 + size + 24, TR("Inquadra per collegarti", "Scan to connect"));
   }
 
-  // Passi a sinistra
+  // Steps on the left
   const int textW = qrLeft - MARGIN - 32;
   const char* steps[] = {
     TR("Inquadra il codice QR con la fotocamera del telefono: il telefono si collega alla rete di AtmoVerse.",
@@ -497,7 +497,7 @@ void drawSetupScreen(const ScreenModel& m) {
     y += 14;
   }
 
-  // Collegamento manuale
+  // Manual connection
   y += 6;
   u8g2.setFont(FONT_LABEL);
   textLeft(MARGIN, y, TR("Collegamento manuale", "Manual connection"));
@@ -524,20 +524,20 @@ void drawUpdateScreen(const ScreenModel& m) {
   const int W = display.width();
   const int H = display.height();
 
-  // Titolo
+  // Title
   u8g2.setFont(FONT_TITLE);
   textLeft(MARGIN, 52, TR("Aggiornamento in corso", "Updating"));
   u8g2.setFont(FONT_TEXT);
   textLeft(MARGIN, 80, TR("AtmoVerse sta installando una nuova versione.", "AtmoVerse is installing a new version."));
   display.drawFastHLine(MARGIN, 96, W - 2 * MARGIN, GxEPD_BLACK);
 
-  // Fase e percentuale
+  // Step and percentage
   u8g2.setFont(FONT_BODY);
   textLeft(MARGIN, 160, m.updPhase.length() ? m.updPhase : String(TR("Preparazione", "Preparing")));
   u8g2.setFont(FONT_TEMP);
   textRight(W - MARGIN, 172, String(m.updPercent) + "%");
 
-  // Barra di avanzamento: contorno sottile, riempimento pieno
+  // Progress bar: thin outline, solid fill
   const int barY = 196;
   const int barH = 22;
   const int barW = W - 2 * MARGIN;
@@ -545,7 +545,7 @@ void drawUpdateScreen(const ScreenModel& m) {
   int fill = (barW - 6) * m.updPercent / 100;
   if (fill > 0) display.fillRect(MARGIN + 3, barY + 3, fill, barH - 6, GxEPD_BLACK);
 
-  // Dettagli
+  // Details
   u8g2.setFont(FONT_TEXT);
   int y = barY + barH + 36;
   if (m.updFilesTotal > 0) {
@@ -555,7 +555,7 @@ void drawUpdateScreen(const ScreenModel& m) {
   }
   textLeft(MARGIN, y, formatEta(m.updEtaSec));
 
-  // Avvertenza
+  // Warning
   u8g2.setFont(FONT_TEXT);
   textLeft(MARGIN, H - 64, TR("Non spegnere il dispositivo:", "Do not switch off the device:"));
   textLeft(MARGIN, H - 64 + lineHeight(), TR("al termine si riavvia o torna al meteo da solo.",
@@ -590,11 +590,11 @@ void drawMessageScreen(const ScreenModel& m) {
 }
 
 // ---------------------------------------------------------------------------
-// Batteria scarica: faccina stanca
+// Battery empty: tired face
 // ---------------------------------------------------------------------------
 
-// Arco spesso: punti pieni lungo la circonferenza (angoli in gradi, 0 = destra,
-// senso orario perché la y dello schermo cresce verso il basso)
+// Thick arc: filled dots along the circumference (angles in degrees, 0 = right,
+// clockwise because the screen y grows downwards)
 static void thickArc(int cx, int cy, int r, int fromDeg, int toDeg, int thickness) {
   for (int a = fromDeg; a <= toDeg; a += 2) {
     float rad = a * PI / 180.0f;
@@ -612,7 +612,7 @@ static void thickLine(int x0, int y0, int x1, int y1, int thickness) {
 }
 
 static void drawTiredFace(int cx, int cy, int r) {
-  // Contorno
+  // Outline
   for (int i = 0; i < 4; i++) display.drawCircle(cx, cy, r - i, GxEPD_BLACK);
 
   const int eyeDx = r * 36 / 100;
@@ -620,19 +620,19 @@ static void drawTiredFace(int cx, int cy, int r) {
   const int eyeW = r * 22 / 100;
   for (int side = -1; side <= 1; side += 2) {
     int ex = cx + side * eyeDx;
-    // Palpebra abbassata: linea con la metà inferiore della pupilla sotto
+    // Drooping eyelid: a line with the lower half of the pupil below it
     thickLine(ex - eyeW, eyeY, ex + eyeW, eyeY, 5);
     display.fillCircle(ex, eyeY + 2, eyeW * 55 / 100, GxEPD_BLACK);
     display.fillRect(ex - eyeW, eyeY - eyeW, eyeW * 2 + 1, eyeW, GxEPD_WHITE);
     thickLine(ex - eyeW, eyeY, ex + eyeW, eyeY, 5);
-    // Occhiaie
+    // Eye bags
     thickArc(ex, eyeY + eyeW * 40 / 100, eyeW * 85 / 100, 35, 145, 3);
-    // Sopracciglia inclinate verso l'esterno (aria stanca)
+    // Eyebrows slanting outwards (tired look)
     int by = eyeY - r * 26 / 100;
     thickLine(ex - side * eyeW, by - 6, ex + side * eyeW, by + 4, 5);
   }
 
-  // Bocca ondulata
+  // Wavy mouth
   const int mouthY = cy + r * 40 / 100;
   const int mouthW = r * 34 / 100;
   int px = cx - mouthW;
@@ -644,7 +644,7 @@ static void drawTiredFace(int cx, int cy, int r) {
     py = y;
   }
 
-  // Goccia di sudore
+  // Drop of sweat
   int sx = cx + r * 78 / 100;
   int sy = cy - r * 48 / 100;
   display.fillCircle(sx, sy + 8, 8, GxEPD_BLACK);
@@ -664,7 +664,7 @@ void drawBatteryScreen(const ScreenModel& m) {
   textCenter(W / 2, 336, TR("Collega il caricatore:", "Plug in the charger:"));
   textCenter(W / 2, 336 + lineHeight(), TR("AtmoVerse ripartirà da solo.", "AtmoVerse will restart by itself."));
 
-  // Batteria vuota con la percentuale
+  // Empty battery with the percentage
   const int bw = 64, bh = 28;
   int bx = W / 2 - bw / 2 - 20;
   int by = 392;

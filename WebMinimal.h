@@ -3,10 +3,10 @@
 
 #include <Arduino.h>
 
-// Pagina di configurazione minima contenuta nel firmware (HTML, CSS e JS in un
-// unico file, nessuna dipendenza dalla SD). Usata quando le pagine complete non
-// sono sulla SD: SD nuova o vuota, prima installazione. Dopo la configurazione
-// il dispositivo scarica le pagine complete da GitHub.
+// Minimal setup page built into the firmware (HTML, CSS and JS in a single
+// file, no need for the SD card). Used when the full pages are not on the
+// SD card: new or empty card, first installation. After the setup the
+// device downloads the full pages from GitHub.
 #include <WiFi.h>
 void sendFallbackSetupPage(WiFiClient& client);
 

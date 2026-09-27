@@ -1,10 +1,10 @@
 /**
  * @file Language.h
- * @brief Lingua dell'interfaccia (display e messaggi)
+ * @brief Interface language (display and messages)
  *
- * Con config.language = "it" tutto è in italiano; con qualsiasi altra lingua
- * l'interfaccia è in inglese (le descrizioni del meteo arrivano da
- * OpenWeatherMap nella lingua scelta). Le pagine web usano /www/i18n.js.
+ * With config.language = "it" everything is in Italian; with any other
+ * language the interface is in English (the weather descriptions come from
+ * OpenWeatherMap in the chosen language). The web pages use /www/i18n.js.
  */
 #ifndef LANGUAGE_H
 #define LANGUAGE_H
@@ -13,7 +13,7 @@
 
 bool uiItalian();
 
-// Testo nella lingua dell'interfaccia: TR("Batteria scarica", "Battery empty")
+// Text in the interface language: TR("Batteria scarica", "Battery empty")
 inline const char* TR(const char* it, const char* en) { return uiItalian() ? it : en; }
 
 #endif // LANGUAGE_H

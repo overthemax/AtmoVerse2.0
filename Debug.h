@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-// Abilita (1) / Disabilita (0) il trace globale
+// Global trace on (1) / off (0)
 #ifndef ATMOVERSE_DEBUG
 #define ATMOVERSE_DEBUG 0
 #endif

@@ -1,44 +1,44 @@
 /**
  * @file EcoPower.h
- * @brief Risparmio energetico a batteria
+ * @brief Power saving on battery
  *
- * Col caricatore collegato tutto resta acceso come sempre. A batteria:
- * - il WiFi si accende solo quando serve (meteo e ora, controllo
- *   aggiornamenti) e si spegne subito dopo;
- * - tra un aggiornamento del display e il successivo la scheda dorme
- *   (light sleep: RAM e stato conservati) fino allo scatto del minuto;
- * - toccando la vite in alto a destra (retro) la scheda si sveglia e tiene
- *   WiFi e pagina web accesi per 10 minuti, prolungati a ogni richiesta.
+ * With the charger plugged in everything stays on as usual. On battery:
+ * - WiFi is switched on only when needed (weather and time, update check)
+ *   and switched off right after;
+ * - between two display updates the board sleeps (light sleep: RAM and
+ *   state kept) until the next minute;
+ * - touching the top-right screw (back) wakes the board, which keeps WiFi
+ *   and the web page on for 10 minutes, extended at every request.
  */
 #ifndef ECO_POWER_H
 #define ECO_POWER_H
 
 #include <Arduino.h>
 
-// Da chiamare in setup() dopo battery.begin(): calibra il tasto a sfioramento
+// Call in setup() after battery.begin(): calibrates the touch button
 void ecoBegin();
 
-// Da chiamare quando il caricatore viene collegato o staccato: ricalibra il tocco
+// Call when the charger is plugged in or out: recalibrates the touch
 void ecoPowerChanged();
 
-// true a batteria (non in carica), con una rete configurata e fuori dalla modalità AP
+// true on battery (not charging), with a network configured and outside AP mode
 bool ecoActive();
 
-// Finestra della pagina web aperta da un tocco
+// Web page window opened by a touch
 bool ecoWebWindowOpen();
 void ecoOpenWebWindow();
 
-// Chiamata dal web server a ogni richiesta: prolunga la finestra
+// Called by the web server at every request: extends the window
 void ecoNoteWebActivity();
 
-// Accende e collega il WiFi se non lo è (con attesa tra i tentativi falliti)
+// Switches WiFi on and connects if needed (waiting between failed attempts)
 bool ecoEnsureWiFi();
 
-// Spegne il WiFi se nessuno lo sta usando
+// Switches WiFi off if nobody is using it
 void ecoWiFiOffIfIdle();
 
-// Dorme fino allo scatto del minuto successivo (al massimo maxMs), solo col
-// WiFi spento e il display fermo. Un tocco sveglia e apre la pagina web.
+// Sleeps until the next minute (at most maxMs), only with WiFi off
+// and the display idle. A touch wakes the board and opens the web page.
 void ecoSleep(unsigned long maxMs);
 
 #endif // ECO_POWER_H

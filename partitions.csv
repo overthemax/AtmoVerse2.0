@@ -1,6 +1,6 @@
-# Tabella partizioni AtmoVerse: due aree firmware da 1,9 MB per l'aggiornamento OTA
-# (uguale a "Minimal SPIFFS" del core ESP32). Il core Arduino usa automaticamente
-# un partitions.csv presente nella cartella dello sketch.
+# AtmoVerse partition table: two 1.9 MB firmware slots for the OTA update
+# (same as "Minimal SPIFFS" of the ESP32 core). The Arduino core automatically uses
+# a partitions.csv found in the sketch folder.
 # Name,   Type, SubType, Offset,  Size, Flags
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,

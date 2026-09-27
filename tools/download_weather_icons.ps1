@@ -1,11 +1,10 @@
-# Scarica icone Weather Icons da GitHub e converte in BMP
-# Richiede: Solo PowerShell (nessuna dipendenza)
+# Downloads Weather Icons PNGs (Erik Flowers) from GitHub.
+# Needs PowerShell only. Convert them afterwards with tools/convert_icons_to_1bit.py.
 
 $baseUrl = "https://raw.githubusercontent.com/erikflowers/weather-icons/master/png/256"
 $outputDir = "sd_files\icons_png"
-$bmpDir = "sd_files\icons_bmp"
 
-# Mappa icone (nome file → nome GitHub)
+# Icons to download (local name -> GitHub name)
 $icons = @{
     "wi-fog" = "wi-fog"
     "wi-day-sunny" = "wi-day-sunny"
@@ -21,17 +20,8 @@ $icons = @{
     "wi-snowflake-cold" = "wi-snowflake-cold"
 }
 
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Download Weather Icons da GitHub" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-
-# Crea directory
+Write-Host "Downloading Weather Icons from GitHub to $outputDir" -ForegroundColor Cyan
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-New-Item -ItemType Directory -Path $bmpDir -Force | Out-Null
-
-Write-Host "📁 Download in: $outputDir" -ForegroundColor White
-Write-Host ""
 
 $downloaded = 0
 $failed = 0
@@ -40,31 +30,20 @@ foreach ($icon in $icons.GetEnumerator()) {
     $fileName = "$($icon.Value).png"
     $url = "$baseUrl/$fileName"
     $outputPath = Join-Path $outputDir "$($icon.Key).png"
-    
-    Write-Host "⬇️  $fileName" -ForegroundColor Cyan
-    
+
     try {
         Invoke-WebRequest -Uri $url -OutFile $outputPath -ErrorAction Stop
-        Write-Host "   ✓ Salvato" -ForegroundColor Green
+        Write-Host "  ok     $fileName" -ForegroundColor Green
         $downloaded++
     } catch {
-        Write-Host "   ❌ Errore: $_" -ForegroundColor Red
+        Write-Host "  failed $fileName ($_)" -ForegroundColor Red
         $failed++
     }
 }
 
 Write-Host ""
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "✓ Scaricati: $downloaded/$($icons.Count)" -ForegroundColor Green
-
+Write-Host "Downloaded: $downloaded/$($icons.Count)" -ForegroundColor Green
 if ($failed -gt 0) {
-    Write-Host "❌ Falliti: $failed" -ForegroundColor Red
+    Write-Host "Failed: $failed" -ForegroundColor Red
 }
-
-Write-Host ""
-Write-Host "📋 Prossimo passo:" -ForegroundColor Yellow
-Write-Host "   Esegui: python convert_icons_simple.py" -ForegroundColor White
-Write-Host "========================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Premi un tasto per continuare..." -ForegroundColor Cyan
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "Next step: python tools/convert_icons_to_1bit.py" -ForegroundColor Yellow

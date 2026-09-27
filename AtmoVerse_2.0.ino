@@ -1,17 +1,16 @@
 /*
- * AtmoVerse 2.0 - Versione ottimizzata
- * Sistema meteo con ESP32, display e-ink e interfaccia web
- * Calendario integrato per visualizzare la data corrente
+ * AtmoVerse 2.0
+ * Weather and quotes on an ESP32 with an e-ink display and a web interface
  */
 
-// Librerie essenziali
+// Core libraries
 #include <Arduino.h>
 #include <SPI.h>
 #include <SD.h>
 #include <WiFi.h>
 #include <time.h>
 
-// Includere i moduli del progetto
+// Project modules
 #include "Hardware.h"
 #include "Config.h"
 #include "NetworkUtils.h"
@@ -27,27 +26,27 @@
 #include "DisplayTask.h"
 #include "EcoPower.h"
 
-// Il loop esegue anche le connessioni HTTPS (meteo, aggiornamenti): lo
-// stack predefinito da 8 KB è al limite durante l'handshake TLS
+// The loop also runs the HTTPS connections (weather, updates): the
+// default 8 KB stack is at its limit during the TLS handshake
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
-// Aggiornamenti automatici da GitHub (vedi Updater.h)
-const unsigned long UPDATE_CHECK_MS     = 6UL * 60 * 60 * 1000;  // Controllo ogni 6 ore
-const unsigned long UPDATE_RETRY_MS     = 10UL * 60 * 1000;      // Nuovo tentativo dopo un errore
-const unsigned long FIRMWARE_HEALTHY_MS = 60UL * 1000;           // Dopo 60 s il firmware è confermato
-const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP: nuovo tentativo sulla rete configurata
+// Automatic updates from GitHub (see Updater.h)
+const unsigned long UPDATE_CHECK_MS     = 6UL * 60 * 60 * 1000;  // Check every 6 hours
+const unsigned long UPDATE_RETRY_MS     = 10UL * 60 * 1000;      // New attempt after an error
+const unsigned long FIRMWARE_HEALTHY_MS = 60UL * 1000;           // After 60 s the firmware is confirmed
+const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP mode: new attempt on the configured network
 
 // ---------------------------------------------------------------------------
-// Batteria scarica: sonno profondo
+// Battery empty: deep sleep
 // ---------------------------------------------------------------------------
-// Al livello critico il display mostra la faccina stanca e la scheda dorme,
-// risvegliandosi ogni 30 minuti solo per misurare la batteria. La variabile
-// in memoria RTC sopravvive al sonno profondo.
+// At the critical level the display shows the tired face and the board
+// sleeps, waking every 30 minutes only to measure the battery. The variable
+// in RTC memory survives deep sleep.
 const uint64_t BATTERY_SLEEP_US = 30ULL * 60 * 1000000;
 RTC_DATA_ATTR bool sleepingForBattery = false;
 
 void enterBatterySleep() {
-  Serial.printf("[BATTERY] Batteria al %d%%: sonno profondo, nuovo controllo tra 30 minuti\n",
+  Serial.printf("[BATTERY] Battery at %d%%: deep sleep, next check in 30 minutes\n",
                 battery.getPercentage());
   sleepingForBattery = true;
   WiFi.disconnect(true);
@@ -57,8 +56,8 @@ void enterBatterySleep() {
   esp_deep_sleep_start();
 }
 
-// Risveglio dal sonno per batteria: si misura e, se è ancora scarica e non in
-// carica, si torna a dormire senza toccare display e WiFi (la faccina resta)
+// Wake-up from the battery sleep: measure and, if it is still empty and not
+// charging, sleep again without touching display and WiFi (the face stays)
 void checkBatteryAfterSleep() {
   if (!sleepingForBattery || esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
     sleepingForBattery = false;
@@ -69,78 +68,78 @@ void checkBatteryAfterSleep() {
       battery.getPercentage() < BATTERY_CRITICAL_EXIT_PERCENT) {
     enterBatterySleep();
   }
-  Serial.println("[BATTERY] Batteria ricaricata: avvio normale");
+  Serial.println("[BATTERY] Battery recharged: normal start");
   sleepingForBattery = false;
 }
 
-// Richiesta di controllo aggiornamenti dalla pagina web (vedi WebServer.cpp)
+// Update check requested from the web page (see WebServer.cpp)
 volatile bool updateCheckRequested = false;
 void requestUpdateCheck() {
   updateCheckRequested = true;
 }
 
-// Timestamp dell'ultimo aggiornamento meteo
+// Time of the last weather update
 unsigned long lastWeatherUpdate = 0;
 
-// Timestamp dell'ultimo aggiornamento del display
+// Time of the last display update
 unsigned long lastDisplayUpdate = 0;
 
-// Contatore tentativi di connessione alla rete meteo
+// Weather connection attempts
 int networkRetryCounter = 0;
 
-// Flag per indicare l'ultimo stato dell'aggiornamento meteo
+// Result of the last weather update
 bool lastWeatherUpdateSuccess = true;
 
-// Setup iniziale
+// Setup
 void setup() {
-  // Riduce frequenza CPU a 80MHz per risparmio energetico (WiFi funziona fino a 80MHz)
+  // CPU at 80 MHz to save power (WiFi works down to 80 MHz)
   setCpuFrequencyMhz(80);
 
-  // Inizializza Serial per debug
+  // Serial for debugging
   Serial.begin(115200);
   delay(1000);
 
-  // Dopo un sonno per batteria scarica: se lo è ancora si torna a dormire qui
+  // After a sleep for an empty battery: if it is still empty, back to sleep here
   checkBatteryAfterSleep();
   
-  // Attesa per stabilizzazione sistema prima di inizializzare SD
+  // Let the system settle before the SD card
   delay(500);
   
-  // --- SD CARD su HSPI - INIZIALIZZO PRIMA DELLA DISPLAY ---
-  // Inizializzazione centralizzata SD PRIMA per evitare conflitti SPI
+  // --- SD CARD on HSPI, BEFORE THE DISPLAY ---
+  // The SD card is mounted first to avoid SPI conflicts
   bool sdAvailable = initSD();
   if (sdAvailable) migrateClockFolder();  // /orari -> /clock (2.1.17)
   
-  // --- DISPLAY: Inizializza e mostra schermata di boot DOPO SD ---
+  // --- DISPLAY: start and boot screen AFTER the SD card ---
   delay(BOOT_DELAY_MS);
 
-  SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS); // VSPI per display
-  initDisplay();          // Avvia anche il task del display sul core 0
+  SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS); // VSPI for the display
+  initDisplay();          // Also starts the display task on core 0
   displayStartupScreen();
 
   delay(BOOT_SPLASH_DURATION_MS);
   
-  // Verifica se esiste il file di configurazione (solo se SD disponibile)
+  // Is there a settings file? (only with an SD card)
   bool configFileExists = false;
   if (sdAvailable) {
     configFileExists = SD.exists("/conf.json") || SD.exists("conf.json");
   }
 
-  // Carica la configurazione
+  // Load the settings
   loadConfig();
   
-  // Verifica se la configurazione ha SSID impostato
+  // Is a network name set?
   bool hasSSID = strlen(config.ssid) > 0;
 
   
-  // Se esiste il file e la configurazione è stata caricata, ma non è valida,
-  // potrebbe esserci un errore di lettura. Proviamo a rileggerla fino a 3 volte.
+  // The file exists and was read, but the settings are not valid:
+  // maybe a read error. Read it again up to 3 times.
   if (configFileExists && !hasSSID && sdAvailable) {
-    // Prova a rileggere fino a CONFIG_READ_MAX_RETRIES volte prima di dare per persa la configurazione
+    // Read again up to CONFIG_READ_MAX_RETRIES times before giving up on the settings
     for (int i = 0; i < CONFIG_READ_MAX_RETRIES; i++) {
       delay(CONFIG_RETRY_DELAY_MS);
       
-      // Ricarica la configurazione
+      // Reload the settings
       loadConfig();
       hasSSID = strlen(config.ssid) > 0;
       
@@ -150,54 +149,54 @@ void setup() {
     }
   }
 
-  // Rileva un eventuale rollback del firmware e completa l'aggiornamento dei
-  // file della SD se era stato interrotto
+  // Detects a firmware rollback and completes an interrupted
+  // update of the SD files
   initUpdater();
   Serial.println("[SETUP] AtmoVerse " ATMOVERSE_VERSION);
 
-  // Fuso orario subito: l'ora dell'RTC (UTC) viene mostrata correttamente
-  // anche se non c'è internet
+  // Time zone at once: the RTC time (UTC) is shown correctly
+  // even without internet
   applyTimezone();
 
-  // Inizializza il generatore casuale con rumore ADC + hardware RNG
+  // Random generator seeded with ADC noise and the hardware RNG
   randomSeed(analogRead(0) ^ (esp_random() & 0xFFFF));
 
-  // Hardware avviato prima della modalità AP: anche durante la configurazione
-  // servono la batteria (mostrata sul display) e l'ora dell'RTC
+  // Hardware started before AP mode: during the setup too the display
+  // needs the battery and the RTC time
   initHardware();
 
-  // Batteria: INA219 cercato sempre; se manca la batteria non viene mostrata
+  // Battery: the INA219 is always looked for; without it the battery is not shown
   battery.begin();
-  ecoBegin();  // Tasto a sfioramento per la pagina web a batteria
+  ecoBegin();  // Touch button for the web page on battery
 
-  // Inizializza RTC DS3231 - imposta subito il clock interno se disponibile
+  // DS3231 RTC: sets the internal clock at once if present
   rtcBegin();
 
-  // Verifica finale di validità della configurazione
+  // Final check of the settings
   if (!checkConfigValidity()) {
-    // Configurazione non valida, avvio AP
+    // Settings not valid: start the access point
     startAccessPoint(true);
     showAPModeInfo();
     return;
   }
 
 
-  // --- Resto ---
-  // Rete configurata ma non raggiungibile: modalità AP per la configurazione.
-  // In AP il loop riprova la rete ogni 5 minuti (se nessuno è collegato all'AP).
+  // --- Normal start ---
+  // Network configured but unreachable: AP mode for the setup.
+  // In AP mode the loop tries the network again every 5 minutes (if nobody is connected to the AP).
   if (!setupWiFi()) {
     startAccessPoint(true);
     showAPModeInfo();
   }
-  // Attendi sincronizzazione NTP (max 5s) poi aggiorna il DS3231
-  // (il server NTP e il fuso orario sono impostati da connectToWiFi)
+  // Wait for the NTP sync (max 5 s), then update the DS3231
+  // (NTP server and time zone are set by connectToWiFi)
   if (!apMode && isWiFiConnected()) {
     struct tm ntpTime;
     if (getLocalTime(&ntpTime, 5000)) {
       syncToRTC();
     }
   }
-  // Se NTP non disponibile e RTC presente, usa ora RTC come fallback
+  // Without NTP, the RTC time is used if present
   if (rtcAvailable() && !rtcLostPower()) {
     syncFromRTC();
   }
@@ -206,22 +205,22 @@ void setup() {
   updateDisplay();
 }
 
-// Determina se siamo in modalità risparmio energetico
+// Are we in the power saving hours?
 bool isPowerSavingMode() {
   if (!config.powerSavingEnabled) {
-    return false; // Risparmio energetico disabilitato
+    return false; // Power saving hours disabled
   }
 
-  // Ottieni l'ora corrente
+  // Current time
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 0)) {
-    return false; // Errore nel recupero dell'ora, assume modalità normale
+    return false; // Time not available: normal mode
   }
   
   int currentHour = timeinfo.tm_hour;
   
-  // Gestisci il caso in cui l'orario di inizio sia maggiore dell'orario di fine
-  // (es. dalle 22:00 alle 7:00 del giorno successivo)
+  // Start hour later than the end hour
+  // (e.g. from 22:00 to 7:00 of the next day)
   if (config.powerSavingStartHour > config.powerSavingEndHour) {
     return (currentHour >= config.powerSavingStartHour || currentHour < config.powerSavingEndHour);
   } else {
@@ -229,17 +228,17 @@ bool isPowerSavingMode() {
   }
 }
 
-// Calcola l'intervallo di aggiornamento in base alla modalità
+// Weather update interval for the current mode
 unsigned long getUpdateInterval() {
-  // Batteria bassa: meteo aggiornato meno spesso per risparmiare
+  // Low battery: weather updated less often
   if (isPowerSavingMode() || (battery.isAvailable() && battery.getLevel() != BATTERY_LEVEL_OK)) {
-    return config.powerSavingUpdateInterval * 60 * 1000; // Converti minuti in millisecondi
+    return config.powerSavingUpdateInterval * 60 * 1000; // Minutes to milliseconds
   } else {
-    return config.normalUpdateInterval * 60 * 1000; // Converti minuti in millisecondi
+    return config.normalUpdateInterval * 60 * 1000; // Minutes to milliseconds
   }
 }
 
-// Calcola l'intervallo di refresh display in ms (modalità client)
+// Display refresh interval in ms
 unsigned long getDisplayRefreshIntervalMs() {
   if (isPowerSavingMode()) {
     return (unsigned long)config.displayRefreshIntervalSecPowerSaving * 1000UL;
@@ -248,13 +247,13 @@ unsigned long getDisplayRefreshIntervalMs() {
   }
 }
 
-// Loop principale
+// Main loop
 void loop() {
   unsigned long currentMillis = millis();
-  battery.update();  // Anche senza sensore: riprova a trovarlo ogni minuto
+  battery.update();  // Also without a sensor: look for it again every minute
   if (battery.isAvailable()) {
 
-    // Caricatore collegato/staccato: display aggiornato subito (non al minuto)
+    // Charger plugged in/out: display updated at once (not at the next minute)
     static unsigned long lastChargePoll = 0;
     if (currentMillis - lastChargePoll >= 2000) {
       lastChargePoll = currentMillis;
@@ -264,14 +263,14 @@ void loop() {
       }
     }
 
-    // Livello critico stabile per almeno un minuto (due letture): faccina e sonno
+    // Critical level steady for at least a minute (two readings): face and sleep
     static unsigned long criticalSince = 0;
     if (battery.getLevel() == BATTERY_LEVEL_CRITICAL) {
       if (criticalSince == 0) {
         criticalSince = currentMillis;
       } else if (currentMillis - criticalSince >= 60000UL) {
         showBatteryEmpty();
-        waitDisplayIdle(15000);  // La schermata deve essere sul pannello prima di dormire
+        waitDisplayIdle(15000);  // The screen must be on the panel before sleeping
         enterBatterySleep();
       }
     } else {
@@ -279,42 +278,42 @@ void loop() {
     }
   }
   
-  // Sincronizzazione NTP periodica ogni 30 minuti per calibrare il DS3231
+  // NTP sync every 30 minutes to keep the DS3231 accurate
   static unsigned long lastNTPSync = 0;
-  const unsigned long NTP_SYNC_INTERVAL_MS = 30UL * 60UL * 1000UL; // 30 minuti
-  // Il primo aggiornamento del DS3231 avviene appena l'ora NTP è disponibile
-  // (all'avvio può arrivare dopo i 5 s di attesa del setup), poi ogni 30 minuti.
-  // Senza attese: l'ora di sistema è già sincronizzata in background da SNTP.
+  const unsigned long NTP_SYNC_INTERVAL_MS = 30UL * 60UL * 1000UL; // 30 minutes
+  // The first DS3231 update happens as soon as the NTP time is available
+  // (at boot it may arrive after the 5 s wait in setup), then every 30 minutes.
+  // No waiting: SNTP already keeps the system time in sync in the background.
   static bool rtcSynced = false;
   if (!apMode && WiFi.status() == WL_CONNECTED && time(nullptr) > 1700000000 &&
       (!rtcSynced || (unsigned long)(currentMillis - lastNTPSync) >= NTP_SYNC_INTERVAL_MS)) {
     lastNTPSync = currentMillis;
     if (syncToRTC()) {
       rtcSynced = true;
-      Serial.println("[RTC] RTC aggiornato con l'ora NTP");
+      Serial.println("[RTC] RTC updated with the NTP time");
     }
   }
   
-  // Dopo 60 secondi senza crash il firmware è confermato: se una versione
-  // appena installata va in crash prima, il bootloader torna alla precedente
+  // After 60 seconds without a crash the firmware is confirmed: if a freshly
+  // installed version crashes earlier, the bootloader goes back to the previous one
   static bool firmwareConfirmed = false;
   if (!firmwareConfirmed && currentMillis >= FIRMWARE_HEALTHY_MS) {
     markFirmwareHealthy();
     firmwareConfirmed = true;
   }
 
-  static bool updateDue = true;  // Primo controllo aggiornamenti appena possibile
+  static bool updateDue = true;  // First update check as soon as possible
   static unsigned long lastUpdateCheck = 0;
   static unsigned long updateWaitMs = UPDATE_CHECK_MS;
 
-  // In AP con una rete configurata: nuovo tentativo ogni 5 minuti, solo se
-  // nessun telefono è collegato all'AP (per non interrompere la configurazione)
+  // In AP mode with a configured network: new attempt every 5 minutes, only if
+  // no phone is connected to the AP (not to interrupt the setup)
   static unsigned long apSince = 0;
   if (apMode) {
     if (apSince == 0) apSince = currentMillis;
     if (strlen(config.ssid) > 0 && WiFi.softAPgetStationNum() == 0 &&
         currentMillis - apSince >= AP_RETRY_MS) {
-      Serial.println("[WIFI] Modalità AP: nuovo tentativo sulla rete configurata");
+      Serial.println("[WIFI] AP mode: trying the configured network again");
       if (connectToWiFi(config.ssid, config.password)) {
         setupServer();
         getWeatherData();
@@ -329,65 +328,65 @@ void loop() {
     apSince = 0;
   }
 
-  // Risparmio a batteria: il WiFi si accende solo quando serve (meteo e ora,
-  // aggiornamenti, pagina web dopo un tocco) e si spegne subito dopo
+  // Battery saving: WiFi is switched on only when needed (weather and time,
+  // updates, web page after a touch) and switched off right after
   bool eco = ecoActive();
   if (eco) {
     bool weatherDue = (unsigned long)(currentMillis - lastWeatherUpdate) >= getUpdateInterval();
     bool updatesDue = updateDue || updateCheckRequested || currentMillis - lastUpdateCheck >= updateWaitMs;
     if (weatherDue || updatesDue || ecoWebWindowOpen()) ecoEnsureWiFi();
   } else if (!apMode && strlen(config.ssid) > 0 && WiFi.getMode() == WIFI_OFF) {
-    // Caricatore ricollegato dopo il risparmio: il WiFi torna sempre acceso
+    // Charger plugged in again after power saving: WiFi always on again
     ecoEnsureWiFi();
   }
 
-  // Aggiornamenti da GitHub: all'avvio (quindi anche subito dopo la prima
-  // configurazione), poi ogni 6 ore; dopo un errore si riprova in 10 minuti.
-  // Serve l'ora corretta (NTP o RTC) per verificare i certificati HTTPS.
-  // Se viene installato un nuovo firmware, checkForUpdates() riavvia.
+  // Updates from GitHub: at boot (so also right after the first setup),
+  // then every 6 hours; after an error, new attempt in 10 minutes.
+  // The HTTPS certificates need the right time (NTP or RTC).
+  // If a new firmware is installed, checkForUpdates() restarts the device.
   if (!apMode && WiFi.status() == WL_CONNECTED && time(nullptr) > 1700000000 &&
       (updateDue || updateCheckRequested || currentMillis - lastUpdateCheck >= updateWaitMs)) {
-    bool manualCheck = updateCheckRequested;  // Dalla pagina web: verifica completa dei file
+    bool manualCheck = updateCheckRequested;  // From the web page: full check of the files
     updateDue = false;
     updateCheckRequested = false;
     lastUpdateCheck = currentMillis;
     updateWaitMs = checkForUpdates(manualCheck) ? UPDATE_CHECK_MS : UPDATE_RETRY_MS;
   }
 
-  // Esegui aggiornamenti solo quando non siamo in modalità AP
+  // Weather updates only outside AP mode
   if (!apMode) {
-    // Determina l'intervallo di aggiornamento basato sulla modalità di risparmio energetico
+    // Update interval for the current power mode
     unsigned long updateInterval = getUpdateInterval();
     
-    // Aggiorna i dati meteo in base all'intervallo calcolato
+    // Weather update at the computed interval
     if ((unsigned long)(currentMillis - lastWeatherUpdate) >= updateInterval) {
       lastWeatherUpdate = currentMillis;
       
-      // Tenta di aggiornare i dati meteo
+      // Try to update the weather
       if (getWeatherData()) {
-        // Aggiornamento riuscito, resetta il contatore di tentativi
+        // Success: reset the attempt counter
         networkRetryCounter = 0;
         lastWeatherUpdateSuccess = true;
-        // Non aggiorniamo il display qui - lasciamo che sia fatto solo dall'aggiornamento a intervallo fisso
+        // The display is not updated here, only by the fixed-interval refresh
       } else {
-        // Errore nell'aggiornamento, gestisci i tentativi
+        // Failure: count the attempts
         networkRetryCounter++;
         
         if (networkRetryCounter <= config.maxNetworkRetries) {
-          // Tenta di nuovo fra un minuto
+          // Try again in a minute
           lastWeatherUpdate = currentMillis - updateInterval + (60 * 1000);
         } else {
-          // Numero massimo di tentativi raggiunto
+          // Maximum attempts reached
           lastWeatherUpdateSuccess = false;
-          // Non aggiorniamo il display qui - lasciamo che sia fatto solo dall'aggiornamento a intervallo fisso
-          // Resetta il contatore e riprova al prossimo intervallo
+          // The display is not updated here, only by the fixed-interval refresh
+          // Reset the counter and try again at the next interval
           networkRetryCounter = 0;
         }
       }
     }
     
-    // Aggiorna il display allo scatto del minuto (non a 60 s dal boot, altrimenti
-    // l'ora mostrata può restare indietro fino a quasi un minuto)
+    // Display updated when the minute changes (not 60 s after boot, otherwise
+    // the time shown could lag behind by almost a minute)
     static int lastShownMinute = -1;
     unsigned long refreshMs = getDisplayRefreshIntervalMs();
     bool refreshDue;
@@ -408,8 +407,8 @@ void loop() {
       updateDisplay();
     }
   } else {
-    // In modalità AP il display mostra la schermata statica di configurazione
-    // Non aggiorniamo l'orario: senza NTP non è affidabile e setPartialWindow causa crash
+    // In AP mode the display shows the static setup screen.
+    // The time is not updated: without NTP it is not reliable, and setPartialWindow crashed
   }
   
   
@@ -418,7 +417,7 @@ void loop() {
   // one every 800 ms made each page take about 3 seconds to open
   handleClientRequests();
   
-  // A batteria, col WiFi spento: si dorme fino allo scatto del minuto
+  // On battery with WiFi off: sleep until the next minute
   if (eco) {
     ecoWiFiOffIfIdle();
     if (WiFi.getMode() == WIFI_OFF && !updateCheckRequested) {
@@ -427,7 +426,7 @@ void loop() {
     }
   }
 
-  // Delay ridotto per mantenere reattività del server web
-  // Il delay originale di 500ms rendeva l'interfaccia lenta
+  // Short delay to keep the web server responsive
+  // (the former 500 ms made the interface slow)
   delay(10); 
 }

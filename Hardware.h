@@ -1,7 +1,7 @@
 #ifndef HARDWARE_H
 #define HARDWARE_H
 
-// Definizione pin per display e-ink
+// E-ink display pins
 #define EPD_BUSY    4    // GPIO04 - busy
 #define EPD_RST     16   // GPIO16 - res (reset)
 #define EPD_DC      17   // GPIO17 - d/c (data/command)
@@ -9,12 +9,12 @@
 #define EPD_SCK     18   // GPIO18 - sck (clock)
 #define EPD_MOSI    23   // GPIO23 - sdi (data in/MOSI)
 
-// Definizione pin per SD card
+// SD card pins
 #define SD_CS       14   // GPIO14 - cs (chip select SD)
 #define SD_SCK      27   // GPIO27 - sck (clock SD)
 #define SD_MOSI     26   // GPIO26 - mosi (data in SD)
 #define SD_MISO     25   // GPIO25 - miso (data out SD)
-// Frequenza SPI SD: tentativo iniziale a 4 MHz (poi scalerà se necessario)
+// SD SPI clock: first attempt at 4 MHz (lower if needed)
 #define SD_SPI_FREQ 4000000
 
 #include <SPI.h>
@@ -26,14 +26,14 @@ extern SPIClass sdSPI;
 // Altri parametri hardware
 #define WEB_SERVER_PORT 80
 
-// Funzione per inizializzare l'hardware
+// Hardware initialization
 void initHardware();
 
-// Funzione per inizializzare la SD card in modo sicuro e centralizzato
+// Safe, centralized SD card initialization
 bool initSD();
 
-// Dichiarazione globale del display
-// Ripristino a BW per compatibilità libreria standard
+// Global display object
+// Black and white driver, as in the standard library
 #include <GxEPD2_BW.h>
 using DisplayType = GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT>;
 extern DisplayType display;

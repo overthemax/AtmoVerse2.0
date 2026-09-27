@@ -4,24 +4,24 @@
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
 
-// Codici QR generati con il componente "qrcode" di ESP-IDF (esp_qrcode),
-// già incluso nel core ESP32: nessuna libreria esterna da installare.
+// QR codes generated with the ESP-IDF "qrcode" component (esp_qrcode),
+// already part of the ESP32 core: no external library to install.
 class QRCodeHelper {
 public:
-  // Versione massima: 6 = 41x41 moduli, basta per SSID e password lunghi
+  // Maximum version: 6 = 41x41 modules, enough for long SSIDs and passwords
   static const int MAX_VERSION = 6;
   static const int MAX_SIZE = MAX_VERSION * 4 + 17;
 
-  // Codice per collegarsi a una rete WiFi (WIFI:T:WPA;S:...;P:...;;)
+  // Code to join a WiFi network (WIFI:T:WPA;S:...;P:...;;)
   bool generateWiFiQR(const char* ssid, const char* password, const char* security = "WPA");
 
-  // Codice per un testo qualsiasi (es. un indirizzo http://...)
+  // Code for any text (e.g. an http://... address)
   bool generateTextQR(const char* text);
 
-  // Lato del codice in moduli, 0 se non generato
+  // Side of the code in modules, 0 if not generated
   int getQRSize() const { return size; }
 
-  // Disegna il codice con l'angolo in alto a sinistra in (x, y)
+  // Draws the code with its top-left corner at (x, y)
   template <typename T, uint16_t H>
   void drawQRCode(GxEPD2_BW<T, H>& display, int x, int y, int moduleSize = 3) const;
 
@@ -38,7 +38,7 @@ private:
 
 template <typename T, uint16_t H>
 void QRCodeHelper::drawQRCode(GxEPD2_BW<T, H>& display, int x, int y, int moduleSize) const {
-  // Margine bianco di 2 moduli: i lettori QR ne hanno bisogno per riconoscerlo
+  // White margin of 2 modules: QR readers need it to recognize the code
   display.fillRect(x - 2 * moduleSize, y - 2 * moduleSize, (size + 4) * moduleSize, (size + 4) * moduleSize,
                    GxEPD_WHITE);
   for (int my = 0; my < size; my++) {

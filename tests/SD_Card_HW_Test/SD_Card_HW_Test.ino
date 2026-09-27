@@ -1,11 +1,11 @@
 // SD_Card_HW_Test.ino
-// Test SD card con pin custom per ESP32
-// Adatta i pin se necessario!
+// SD card test with custom pins on the ESP32
+// Change the pins if needed.
 
 #include <SPI.h>
 #include <SD.h>
 
-// Pin definiti come nel tuo Hardware.h
+// Same pins as Hardware.h
 #define SD_CS   14  // GPIO14 - chip select SD
 #define SD_SCK  27  // GPIO27 - clock SD
 #define SD_MOSI 26  // GPIO26 - mosi SD
@@ -18,27 +18,27 @@ void setup() {
   delay(1000);
   Serial.println("\n===== SD Card Hardware Test =====");
 
-  // Inizializza la SPI custom per la SD
+  // Custom SPI for the SD card
   sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
 
-  // Prova a montare la SD
+  // Mount the SD card
   if (!SD.begin(SD_CS, sdSPI)) {
-    Serial.println("[ERRORE] SD card non trovata o errore hardware!");
+    Serial.println("[ERROR] SD card not found or hardware error");
     while (true) delay(1000);
   } else {
-    Serial.println("[OK] SD card inizializzata correttamente!");
+    Serial.println("[OK] SD card mounted");
   }
 
-  // Mostra i file nella root della SD
+  // List the files in the root folder
   File root = SD.open("/");
   if (!root) {
-    Serial.println("[ERRORE] Impossibile aprire la root della SD!");
+    Serial.println("[ERROR] Cannot open the SD root folder");
     while (true) delay(1000);
   }
 
-  Serial.println("[INFO] File trovati nella root:");
+  Serial.println("[INFO] Files in the root folder:");
   File file = root.openNextFile();
-  if (!file) Serial.println("(Nessun file trovato)");
+  if (!file) Serial.println("(no files)");
   while (file) {
     Serial.print("  ");
     Serial.print(file.name());
@@ -53,9 +53,8 @@ void setup() {
   }
   root.close();
 
-  Serial.println("Test completato. Puoi ora spegnere o resettare.");
+  Serial.println("Test done. You can now power off or reset.");
 }
 
 void loop() {
-  // Nulla
 }

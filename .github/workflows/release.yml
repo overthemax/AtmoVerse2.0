@@ -1,8 +1,8 @@
-# Rilascio di AtmoVerse: a ogni tag vX.Y.Z compila il firmware, genera il
-# manifest per l'aggiornamento automatico e pubblica la release su GitHub.
-# I dispositivi leggono .../releases/latest/download/manifest.json.
+# AtmoVerse release: for every vX.Y.Z tag, builds the firmware, generates the
+# manifest for the automatic update and publishes the release on GitHub.
+# Devices read .../releases/latest/download/manifest.json.
 #
-# Per pubblicare una nuova versione:
+# To publish a new version:
 #   git tag v2.1.1
 #   git push origin v2.1.1
 
@@ -20,14 +20,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      # La cartella deve chiamarsi come il file .ino principale
+      # The folder must have the same name as the main .ino file
       - uses: actions/checkout@v4
         with:
           path: AtmoVerse_2.0
 
       - uses: arduino/setup-arduino-cli@v2
 
-      - name: Installa core ESP32 e librerie
+      - name: Install the ESP32 core and libraries
         run: |
           URL=https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index --additional-urls "$URL"
@@ -36,19 +36,19 @@ jobs:
             "Adafruit INA219@1.2.3" "Adafruit GFX Library@1.12.6" "Adafruit BusIO@1.17.4" \
             "U8g2_for_Adafruit_GFX@1.8.0"
 
-      - name: Imposta la versione dal tag
+      - name: Set the version from the tag
         working-directory: AtmoVerse_2.0
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Il tag deve essere nel formato vX.Y.Z (trovato: $GITHUB_REF_NAME)"; exit 1
+            echo "The tag must look like vX.Y.Z (found: $GITHUB_REF_NAME)"; exit 1
           fi
           sed -i "s/#define ATMOVERSE_VERSION \".*\"/#define ATMOVERSE_VERSION \"$VERSION\"/" Version.h
           grep -q "\"$VERSION\"" Version.h
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      # partitions.csv nella cartella dello sketch fornisce le due aree OTA
-      - name: Compila
+      # partitions.csv in the sketch folder provides the two OTA slots
+      - name: Build
         working-directory: AtmoVerse_2.0
         run: |
           arduino-cli compile -j 0 --fqbn esp32:esp32:lolin32 \
@@ -56,14 +56,14 @@ jobs:
             --output-dir build .
           cp build/AtmoVerse_2.0.ino.bin firmware.bin
 
-      - name: Genera il manifest
+      - name: Generate the manifest
         working-directory: AtmoVerse_2.0
         run: |
           python3 tools/make_manifest.py --version "$VERSION" --tag "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" --firmware firmware.bin --sd sd_files --out manifest.json
           cat manifest.json
 
-      - name: Pubblica la release
+      - name: Publish the release
         working-directory: AtmoVerse_2.0
         env:
           GH_TOKEN: ${{ github.token }}

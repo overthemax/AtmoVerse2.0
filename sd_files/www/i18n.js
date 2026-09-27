@@ -1,12 +1,12 @@
 /*
- * AtmoVerse - lingua delle pagine web.
- * Le pagine sono scritte in italiano. Se nelle impostazioni la lingua non è
- * "it", questo script le traduce in inglese: testi, segnaposto, titoli e
- * anche i contenuti aggiunti dopo (elenchi, messaggi, finestre di conferma).
+ * AtmoVerse - web page language.
+ * The pages are written in Italian. If the language in the settings is not
+ * "it", this script translates them to English: text, placeholders, titles
+ * and also content added later (lists, messages, confirmation dialogs).
  */
 (function () {
   const EN = {
-    // Navigazione e pagina principale
+    // Navigation and home page
     'Home': 'Home', 'Impostazioni': 'Settings', 'Citazioni': 'Quotes', 'Meteo': 'Weather',
     'Citazione sul display': 'Quote on the display', 'Dispositivo': 'Device',
     'Dati meteo forniti da': 'Weather data provided by',
@@ -17,7 +17,7 @@
     'Rete WiFi': 'WiFi network', 'Modalità configurazione': 'Setup mode', 'Non configurata': 'Not configured',
     'Città': 'City', 'Aggiornamento meteo': 'Weather update', 'Aggiornamenti': 'Updates',
     'Batteria': 'Battery', 'Stato': 'Status',
-    // Impostazioni
+    // Settings
     'Impostazioni - AtmoVerse 2.0': 'Settings - AtmoVerse 2.0',
     'Configurazione WiFi': 'WiFi setup', 'SSID WiFi *': 'WiFi SSID *', 'Password WiFi *': 'WiFi password *',
     'Nome della rete WiFi': 'WiFi network name', 'Scansiona Reti': 'Scan networks', 'Reti Disponibili:': 'Available networks:',
@@ -45,7 +45,7 @@
     'Controlla aggiornamenti': 'Check for updates',
     "🔍 Controllo aggiornamenti avviato: il display mostra l'avanzamento se c'è una nuova versione":
       '🔍 Update check started: the display shows the progress if there is a new version',
-    // Editor delle citazioni
+    // Quote editor
     'Editor Citazioni': 'Quote editor', 'Editor Citazioni - AtmoVerse 2.0': 'Quote editor - AtmoVerse 2.0',
     'Salva': 'Save', 'Nuova Citazione': 'New quote', 'Meteo e programmate': 'Weather and scheduled',
     'Orologio letterario': 'Literary clock', 'Statistiche': 'Statistics', 'Totale citazioni:': 'Total quotes:',
@@ -95,7 +95,7 @@
     '⚠️ Impossibile caricare le citazioni. File non presente sulla SD.': '⚠️ Cannot load the quotes. File not on the SD card.',
     '❌ Errore durante il salvataggio': '❌ Error while saving', '❌ Testo e autore sono obbligatori': '❌ Text and author are required',
     '❌ Data non valida: usa 12-25 oppure 2026-12-25': '❌ Invalid date: use 12-25 or 2026-12-25',
-    // Diagnostica
+    // Diagnostics
     'Diagnostica': 'Diagnostics', 'Diagnostica - AtmoVerse': 'Diagnostics - AtmoVerse', 'Rete': 'Network',
     'Scheda': 'Board', 'Acceso da': 'Running for', 'Memoria libera': 'Free memory', 'Scheda SD': 'SD card',
     'Non disponibile': 'Not available', 'Modalità': 'Mode', 'Rete di casa': 'Home network',
@@ -104,7 +104,7 @@
     'Sensore': 'Sensor', 'Lettura non riuscita.': 'Reading failed.',
   };
 
-  // Messaggi composti (con numeri o dettagli dell'errore)
+  // Composite messages (with numbers or error details)
   const RULES = [
     [/^✅ Citazioni caricate: (\d+)$/, '✅ Quotes loaded: $1'],
     [/^✅ Salvate (\d+) citazioni su \/quotes\.json$/, '✅ Saved $1 quotes to /quotes.json'],
@@ -118,7 +118,7 @@
     [/^(\d+) g (\d+) h (\d+) min$/, '$1 d $2 h $3 min'],
     [/^(.*) · percepita (.*)$/, '$1 · feels like $2'],
     [/^❌ Errore: (.*)$/, '❌ Error: $1'],
-    // Stato degli aggiornamenti (dal firmware)
+    // Update status (from the firmware)
     [/^Nessun controllo eseguito$/, 'No check yet'],
     [/^Aggiornato \(versione (.*)\)$/, 'Up to date (version $1)'],
     [/^Server degli aggiornamenti non raggiungibile$/, 'Update server unreachable'],
