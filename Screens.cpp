@@ -3,10 +3,10 @@
  * @brief Schermate del display e-ink (vedi Screens.h)
  *
  * Griglia 648 x 480, margini laterali di 32 px.
- *   0 -  60  intestazione: giorno e data a sinistra, città a destra
- *  60 - 260  ora, temperatura e condizione a sinistra, icona 200 px a destra
- * 262 - 312  quattro dati: percepita, umidità, vento, pressione
- * 322 - 452  citazione, con carattere che si adatta alla lunghezza
+ *   0 -  54  intestazione: giorno e data a sinistra, città a destra
+ *  54 - 238  ora, temperatura e condizione a sinistra, icona a destra
+ * 238 - 290  quattro dati: percepita, umidità, vento, pressione
+ * 300 - 452  citazione, con carattere che si adatta alla lunghezza
  * 460 - 480  piè di pagina: ultimo aggiornamento, IP, batteria
  */
 
@@ -36,7 +36,7 @@
 static const int MARGIN = 32;
 
 // Riquadro della citazione
-static const int QUOTE_TOP = 308;
+static const int QUOTE_TOP = 300;
 static const int QUOTE_BOTTOM = 452;
 static const int QUOTE_MAX_LINES = 8;
 static const int AUTHOR_MAX_LINES = 3;  // L'autore va a capo, non viene mai tagliato
@@ -334,7 +334,7 @@ void drawMainScreen(const ScreenModel& m) {
   textRight(W - MARGIN, 44, city);
   // WiFi acceso: icona a sinistra della città
   if (m.wifiOn) drawWifiIcon(W - MARGIN - textWidth(city) - 12 - 18, 44);
-  display.drawFastHLine(MARGIN, 60, W - 2 * MARGIN, GxEPD_BLACK);
+  display.drawFastHLine(MARGIN, 54, W - 2 * MARGIN, GxEPD_BLACK);
 
   // Ora
   u8g2.setFont(FONT_TIME);
@@ -354,7 +354,7 @@ void drawMainScreen(const ScreenModel& m) {
   // Il disegno reale (non il riquadro) va centrato tra la riga sotto
   // l'intestazione e le etichette dei dati, così pioggia e fulmini non le toccano
   const int iconArea = 200;
-  const int iconSpaceTop = 62, iconSpaceBottom = 247;
+  const int iconSpaceTop = 56, iconSpaceBottom = 239;  // Icone più alte: 182 px
   if (weatherOk && m.iconWidth > 0) {
     int scale = max(1, iconArea / max((int)m.iconWidth, (int)m.iconHeight));
     int first, last;
@@ -383,11 +383,11 @@ void drawMainScreen(const ScreenModel& m) {
   for (int i = 0; i < 4; i++) {
     int x = MARGIN + i * colW;
     u8g2.setFont(FONT_LABEL);
-    textLeft(x, 260, labels[i]);
+    textLeft(x, 252, labels[i]);
     u8g2.setFont(FONT_VALUE);
-    textLeft(x, 284, values[i]);
+    textLeft(x, 276, values[i]);
   }
-  display.drawFastHLine(MARGIN, 298, W - 2 * MARGIN, GxEPD_BLACK);
+  display.drawFastHLine(MARGIN, 290, W - 2 * MARGIN, GxEPD_BLACK);
 
   // Citazione
   drawQuoteBlock(m.quoteText, m.quoteAuthor);

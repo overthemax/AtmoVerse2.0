@@ -70,6 +70,7 @@ def main():
     if not re.match(r"^\d+\.\d+\.\d+$", args.version):
         sys.exit(f"Versione non valida: {args.version} (serve x.y.z)")
 
+    files = collect_files(args.sd)
     manifest = {
         "version": args.version,
         "firmware": {
@@ -78,7 +79,11 @@ def main():
             "sha256": sha256(args.firmware),
         },
         "files_base_url": f"https://raw.githubusercontent.com/{args.repo}/{args.tag}/sd_files",
-        "files": collect_files(args.sd),
+        "files": files,
+        # Impronta dell'elenco dei file: se non cambia tra due release, il
+        # dispositivo non ricontrolla la SD (vedi syncKey in Updater.cpp)
+        "files_digest": hashlib.sha256("\n".join(
+            f"{f['path']}|{f['sha256']}|{int(f['keep'])}" for f in files).encode()).hexdigest(),
     }
     # Compatto: il dispositivo lo tiene in RAM durante il controllo
     args.out.write_text(json.dumps(manifest, separators=(",", ":")) + "\n", encoding="utf-8")

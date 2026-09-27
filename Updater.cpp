@@ -586,6 +586,12 @@ struct ManifestHeader {
   String fwUrl;
   size_t fwSize = 0;
   String fwSha;
+  String filesDigest;  // Impronta dell'elenco dei file della SD (vuota nei manifest vecchi)
+
+  // Contenuto di SYNCED_RELEASE dopo una sincronizzazione: l'impronta dei file
+  // se il manifest la riporta, altrimenti la versione. Con l'impronta, una
+  // release che cambia solo il firmware non fa ricontrollare la SD.
+  String syncKey() const { return filesDigest.length() ? "files:" + filesDigest : version; }
 };
 
 // Legge solo versione, firmware e indirizzo dei file: l'elenco dei file viene
@@ -596,6 +602,7 @@ static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
   filter["version"] = true;
   filter["files_base_url"] = true;
   filter["firmware"] = true;
+  filter["files_digest"] = true;
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, input, DeserializationOption::Filter(filter));
   if (err) {
@@ -608,6 +615,7 @@ static bool parseManifestHeader(TInput& input, ManifestHeader& h) {
   h.fwUrl = doc["firmware"]["url"] | "";
   h.fwSize = doc["firmware"]["size"] | 0;
   h.fwSha = doc["firmware"]["sha256"] | "";
+  h.filesDigest = doc["files_digest"] | "";
   return h.version.length() > 0;
 }
 
@@ -641,9 +649,13 @@ static int buildNeededList(uint64_t& totalBytes, uint64_t& diskBytes) {
       if (!path.startsWith("/") || path.indexOf("..") >= 0 || path.indexOf('|') >= 0 ||
           path.startsWith(STAGING_DIR) || sha.length() != 64) continue;
 
-      if (SD.exists(path)) {
-        if (keep) continue;                      // File dell'utente già presente
-        if (sha256OfFile(path) == sha) continue; // Già aggiornato
+      File probe = SD.open(path, FILE_READ);
+      if (probe) {
+        size_t have = probe.size();
+        probe.close();
+        if (keep) continue;  // File dell'utente già presente
+        // Dimensione diversa: di sicuro da scaricare, senza rileggere il file
+        if (have == size && sha256OfFile(path) == sha) continue;  // Già aggiornato
       }
       out.printf("%s|%u|%s\n", path.c_str(), (unsigned)size, sha.c_str());
       count++;
@@ -847,9 +859,9 @@ bool checkForUpdates(bool fullScan) {
   uint64_t neededDisk = 0;
   String synced = sd ? readTextFile(SYNCED_RELEASE) : String();
   synced.trim();
-  bool filesInSync = !fullScan && synced.length() > 0 && synced == h.version;
+  bool filesInSync = !fullScan && synced.length() > 0 && synced == h.syncKey();
   if (filesInSync) {
-    Serial.println("[UPDATE] File della SD già allineati alla release " + h.version);
+    Serial.println("[UPDATE] File della SD già allineati (" + h.version + "): controllo saltato");
   } else if (sd && h.baseUrl.length() > 0) {
     if (SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     SD.mkdir(STAGING_DIR);
@@ -886,7 +898,7 @@ bool checkForUpdates(bool fullScan) {
 
   // Nessun file da scaricare: la SD è allineata a questa release
   if (sd && neededCount == 0 && !filesInSync && h.baseUrl.length() > 0) {
-    writeTextFile(SYNCED_RELEASE, h.version);
+    writeTextFile(SYNCED_RELEASE, h.syncKey());
   }
 
   if (!firmwareNewer && neededCount == 0) {
@@ -929,7 +941,7 @@ bool checkForUpdates(bool fullScan) {
 
   // 5. Tutto verificato: i file vengono applicati ora (o al riavvio, se interrotti)
   if (neededCount > 0) {
-    writeTextFile(STAGED_RELEASE, h.version);
+    writeTextFile(STAGED_RELEASE, h.syncKey());
     writeTextFile(READY_MARKER, "1");
   }
 
