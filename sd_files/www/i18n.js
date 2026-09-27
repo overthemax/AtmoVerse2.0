@@ -102,7 +102,7 @@
     'Indirizzo IP': 'IP address', 'Segnale': 'Signal', 'Carica': 'Charge', 'In carica': 'Charging',
     'A batteria': 'On battery', 'Tensione': 'Voltage', 'Corrente': 'Current', 'Autonomia stimata': 'Estimated runtime',
     'Sensore': 'Sensor', 'Lettura non riuscita.': 'Reading failed.',
-    'Tasto a sfioramento': 'Touch button', 'Valore a riposo': 'Idle value', 'Soglia': 'Threshold',
+    'Ultimo riavvio': 'Last restart', 'Tasto a sfioramento': 'Touch button', 'Valore a riposo': 'Idle value', 'Soglia': 'Threshold',
     'Valore più basso': 'Lowest value', 'A batteria: riposo / soglia': 'On battery: idle / threshold',
     'Risvegli dal tocco': 'Touch wake-ups', 'Tocchi riconosciuti': 'Touches recognized',
     'Falsi tocchi': 'False touches', 'Risveglio al tocco': 'Touch wake-up', 'Attivo': 'On',

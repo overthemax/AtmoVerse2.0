@@ -4,6 +4,7 @@
 #include <SD.h>
 #include <GxEPD2_BW.h>
 #include "Debug.h"
+#include <esp_system.h>
 
 // GxEPD2 black and white display, 5.83" GDEW0583T8
 GxEPD2_BW<GxEPD2_583_T8, GxEPD2_583_T8::HEIGHT> display(GxEPD2_583_T8(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
@@ -59,4 +60,21 @@ void initHardware() {
     while (!Serial && millis() < 3000);
   }
   // SPI for the display is started in setup(), before initDisplay()
+}
+
+// Why the board restarted last time, for the log and the diagnostics page
+const char* resetReasonText() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return "power on";
+    case ESP_RST_EXT:      return "reset pin";
+    case ESP_RST_SW:       return "restart by the firmware";
+    case ESP_RST_PANIC:    return "crash (panic)";
+    case ESP_RST_INT_WDT:  return "interrupt watchdog";
+    case ESP_RST_TASK_WDT: return "task watchdog";
+    case ESP_RST_WDT:      return "watchdog";
+    case ESP_RST_DEEPSLEEP: return "wake from deep sleep";
+    case ESP_RST_BROWNOUT: return "brownout (supply voltage too low)";
+    case ESP_RST_SDIO:     return "SDIO";
+    default:               return "unknown";
+  }
 }

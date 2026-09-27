@@ -69,6 +69,7 @@
           ['Scheda', 'LOLIN32 (ESP32)'],
           ['Display', 'E-ink 5,83" 648×480'],
           ['Acceso da', uptime(health.uptime_sec || 0)],
+          ['Ultimo riavvio', health.reset_reason || '—'],
           ['Memoria libera', Math.round((health.free_heap || 0) / 1024) + ' KB'],
           ['Scheda SD', health.sd_ok ? 'OK' : 'Non disponibile'],
         ]);

@@ -153,6 +153,7 @@ void setup() {
   // update of the SD files
   initUpdater();
   Serial.println("[SETUP] AtmoVerse " ATMOVERSE_VERSION);
+  Serial.printf("[SETUP] Last restart: %s\n", resetReasonText());
 
   // Time zone at once: the RTC time (UTC) is shown correctly
   // even without internet

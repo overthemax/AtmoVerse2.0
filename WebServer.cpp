@@ -643,6 +643,7 @@ void handleClientRequests() {
     DynamicJsonDocument doc(1024);
     doc["status"] = "ok";
     doc["uptime_sec"] = (uint32_t)(millis() / 1000);
+    doc["reset_reason"] = resetReasonText();
     doc["free_heap"] = (uint32_t)ESP.getFreeHeap();
     doc["apMode"] = apMode;
     doc["ip"] = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();

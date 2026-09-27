@@ -32,6 +32,9 @@ void initHardware();
 // Safe, centralized SD card initialization
 bool initSD();
 
+// Why the board restarted last time (power on, crash, brownout...)
+const char* resetReasonText();
+
 // Global display object
 // Black and white driver, as in the standard library
 #include <GxEPD2_BW.h>
