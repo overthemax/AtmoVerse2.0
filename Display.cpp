@@ -95,6 +95,11 @@ void showConfigSaved() {
   waitDisplayIdle(10000);
 }
 
+void showRestarting() {
+  showMessage(TR("Riavvio in corso", "Restarting"), TR("AtmoVerse torna tra pochi istanti.", "AtmoVerse is back in a moment."));
+  waitDisplayIdle(10000);  // The message must reach the panel before the restart
+}
+
 void updateDisplay() {
   // The setup screen only while the access point is really active: if the
   // WiFi drops for a moment the weather screen stays (with the last data)
@@ -110,6 +115,7 @@ void updateDisplay() {
   m.weatherUpdateOk = lastWeatherUpdateSuccess;
   m.city = config.city;
   m.metric = strlen(config.units) == 0 || strcmp(config.units, "metric") == 0;
+  m.use24h = config.use24hFormat;
   m.wifiOn = WiFi.status() == WL_CONNECTED;
   if (m.wifiOn) m.ip = WiFi.localIP().toString();
 
@@ -119,7 +125,7 @@ void updateDisplay() {
   m.quoteText = q.text;
   m.quoteAuthor = q.author;
   if (currentWeather.valid && initSD()) {
-    const char* iconPath = weatherIconPath(weatherIconFor(currentWeather.weather_id, isNightTime(), currentWeather.wind_speed));
+    const char* iconPath = weatherIconPath(currentWeather.weather_id, isNightTime(), windSpeedMs());
     if (!loadIconBitmap(iconPath, m)) {
       Serial.printf("[DISPLAY] Cannot read icon: %s\n", iconPath);
     }

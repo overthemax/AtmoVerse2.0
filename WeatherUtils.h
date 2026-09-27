@@ -18,6 +18,8 @@ struct WeatherData {
   char description[64];   // Descrizione meteo
   float moon_phase;       // Fase lunare (0-1): 0=luna nuova, 0.25=primo quarto, 0.5=luna piena, 0.75=ultimo quarto
   time_t last_update;     // Timestamp dell'aggiornamento
+  time_t sunrise;         // Sunrise and sunset (UTC), from OpenWeatherMap
+  time_t sunset;
   bool valid;             // Flag che indica se i dati sono validi
 };
 
@@ -30,5 +32,12 @@ bool parseWeatherData(String& json);
 String urlEncodeParam(const char* text);
 bool isWeatherDataValid();
 bool isNightTime();
+
+// Wind speed in m/s whatever the units (OpenWeatherMap sends mph with imperial units)
+float windSpeedMs();
+
+// Beaufort thresholds (m/s): force 6 "strong breeze" and force 8 "gale"
+const float WIND_STRONG_MS = 10.8f;  // 39 km/h
+const float WIND_GALE_MS = 17.2f;    // 62 km/h
 
 #endif // WEATHER_UTILS_H

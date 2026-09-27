@@ -20,9 +20,6 @@
 #define CONFIG_READ_MAX_RETRIES 3
 #define CONFIG_RETRY_DELAY_MS 500
 
-// Costanti per intervalli di controllo nel loop
-#define WEB_SERVER_CHECK_INTERVAL_MS 800
-
 // Costanti per display e boot (ottimizzate per avvio veloce)
 #define BOOT_SPLASH_DURATION_MS 500  // Ridotto da 800ms
 #define BOOT_DELAY_MS 200           // Ridotto da 400ms

@@ -43,6 +43,7 @@ struct ScreenModel {
   String ip;
   bool wifiOn = false;  // Icona WiFi nell'intestazione
   bool metric = true;
+  bool use24h = true;   // false = 12-hour clock with AM/PM
   uint16_t iconWidth = 0;
   uint16_t iconHeight = 0;
   uint8_t icon[ICON_MAX_BYTES] = {};

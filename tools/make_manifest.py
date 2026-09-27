@@ -19,11 +19,11 @@ from pathlib import Path
 
 # File dell'utente (modificabili dagli editor web): scaricati solo se mancano,
 # mai sovrascritti
-KEEP_IF_PRESENT = {"/quotes.json", "/layout.json"}
+KEEP_IF_PRESENT = {"/quotes.json"}
 
 # Cartelle e file della SD gestiti dagli aggiornamenti.
 # icons_bmp/ (35 MB, sorgenti delle icone) non è usata dal firmware ed è esclusa.
-MANAGED = ["www", "icons", "quotes.json", "layout.json"]
+MANAGED = ["www", "icons", "quotes.json"]
 
 # Il dispositivo compone l'URL come base + percorso, senza codifica
 SAFE_PATH = re.compile(r"^/[A-Za-z0-9._/-]+$")

@@ -2,56 +2,114 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7a5429">
   <title>Diagnostica - AtmoVerse</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js"></script>
 </head>
 <body>
-  <script src="js/nav.js"></script>
-  <div class="quotes-manager" style="max-width: 800px;">
-    <h1>Diagnostica</h1>
+  <div class="container">
+    <header>
+      <h1>Diagnostica</h1>
+      <div class="header-actions">
+        <a class="btn btn-secondary" href="/">Home</a>
+      </div>
+    </header>
 
-    <div class="add-quote-form">
-      <div class="section-title"><div class="section-icon">📶</div>Rete</div>
-      <div class="info-group"><strong>AP Mode:</strong> <span id="apMode">-</span></div>
-      <div class="info-group"><strong>IP:</strong> <span id="ip">-</span></div>
-      <div class="info-group"><strong>RSSI:</strong> <span id="rssi">-</span> dBm</div>
+    <div class="card">
+      <h2 class="card-title">Dispositivo</h2>
+      <ul id="device" class="status-list"><li><div class="spinner"></div></li></ul>
     </div>
 
-    <div class="add-quote-form">
-      <div class="section-title"><div class="section-icon">💾</div>Sistema</div>
-      <div class="info-group"><strong>Uptime:</strong> <span id="uptime">-</span></div>
-      <div class="info-group"><strong>Free Heap:</strong> <span id="heap">-</span> B</div>
-      <div class="info-group"><strong>SD:</strong> <span id="sd">-</span></div>
+    <div class="card">
+      <h2 class="card-title">Rete</h2>
+      <ul id="network" class="status-list"><li><div class="spinner"></div></li></ul>
     </div>
 
-    <div class="add-quote-form">
-      <div class="section-title"><div class="section-icon">⚙️</div>Stato</div>
-      <div class="info-group"><strong>Status:</strong> <span id="status">-</span></div>
+    <div class="card">
+      <h2 class="card-title">Batteria</h2>
+      <ul id="battery" class="status-list"><li><div class="spinner"></div></li></ul>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Aggiornamenti</h2>
+      <ul id="updates" class="status-list"><li><div class="spinner"></div></li></ul>
+      <button class="btn btn-primary mt-4" onclick="checkUpdates()">Controlla aggiornamenti</button>
+      <div id="message-container"></div>
     </div>
   </div>
 
   <script>
-    async function loadHealth() {
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const rows = (list) => list.map(([k, v]) => `<li><span class="label">${esc(k)}</span><span>${esc(v)}</span></li>`).join('');
+    const failed = (id) => { $(id).innerHTML = '<li class="message message-error">Lettura non riuscita.</li>'; };
+
+    function uptime(s) {
+      const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+      return (d ? d + ' g ' : '') + h + ' h ' + m + ' min';
+    }
+
+    async function load() {
       try {
-        const res = await fetch('/api/health');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        document.getElementById('status').textContent = data.status || 'n/a';
-        document.getElementById('ip').textContent = data.ip || 'n/a';
-        document.getElementById('rssi').textContent = (data.rssi !== undefined ? data.rssi : 'n/a');
-        document.getElementById('heap').textContent = data.free_heap !== undefined ? data.free_heap : 'n/a';
-        document.getElementById('apMode').textContent = data.apMode ? 'Sì' : 'No';
-        document.getElementById('sd').textContent = data.sd_ok ? 'OK' : 'Non disponibile';
-        // Uptime leggibile
-        const s = data.uptime_sec || 0;
-        const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
-        document.getElementById('uptime').textContent = `${h}h ${m}m ${sec}s`;
+        const [health, settings] = await Promise.all([
+          fetch('/api/health', { cache: 'no-store' }).then(r => r.json()),
+          fetch('/api/settings', { cache: 'no-store' }).then(r => r.json()),
+        ]);
+        $('device').innerHTML = rows([
+          ['Firmware', settings.version || '—'],
+          ['Scheda', 'LOLIN32 (ESP32)'],
+          ['Display', 'E-ink 5,83" 648×480'],
+          ['Acceso da', uptime(health.uptime_sec || 0)],
+          ['Memoria libera', Math.round((health.free_heap || 0) / 1024) + ' KB'],
+          ['Scheda SD', health.sd_ok ? 'OK' : 'Non disponibile'],
+        ]);
+        $('network').innerHTML = rows([
+          ['Modalità', health.apMode ? 'Modalità configurazione' : 'Rete di casa'],
+          ['Rete WiFi', settings.ssid || '—'],
+          ['Indirizzo IP', health.ip || '—'],
+          ['Segnale', health.rssi > -127 ? health.rssi + ' dBm' : '—'],
+        ]);
+        $('updates').innerHTML = rows([['Stato', settings.updateStatus || '—']]);
       } catch (e) {
-        document.getElementById('status').textContent = 'errore';
+        failed('device'); failed('network'); failed('updates');
+      }
+      try {
+        const b = await fetch('/api/battery', { cache: 'no-store' }).then(r => r.json());
+        if (!b.available) {
+          $('battery').innerHTML = rows([['Sensore', 'Non disponibile']]);
+        } else {
+          const rem = b.remaining_min > 0 ? Math.floor(b.remaining_min / 60) + ' h ' + (b.remaining_min % 60) + ' min' : '—';
+          $('battery').innerHTML = rows([
+            ['Carica', b.percent + '%'],
+            ['Stato', b.charging ? 'In carica' : 'A batteria'],
+            ['Tensione', b.voltage.toFixed(2) + ' V'],
+            ['Corrente', Math.abs(b.current_mA).toFixed(0) + ' mA'],
+            ['Autonomia stimata', rem],
+          ]);
+        }
+      } catch (e) {
+        failed('battery');
       }
     }
-    document.addEventListener('DOMContentLoaded', loadHealth);
+
+    function showMessage(text, type) {
+      $('message-container').innerHTML = `<div class="message message-${type}">${esc(text)}</div>`;
+    }
+
+    async function checkUpdates() {
+      try {
+        const r = await fetch('/api/update/check', { method: 'POST' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        showMessage("🔍 Controllo aggiornamenti avviato: il display mostra l'avanzamento se c'è una nuova versione", 'info');
+      } catch (e) {
+        showMessage('❌ Errore: ' + e.message, 'error');
+      }
+    }
+
+    load();
+    setInterval(load, 30000);
   </script>
 </body>
 </html>

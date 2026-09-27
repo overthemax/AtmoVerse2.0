@@ -22,6 +22,7 @@ void displaySetupScreen(String apName, String ipAddress);
 void showAPModeInfo();
 
 void showConfigSaved();                     // "Settings saved", waits until it is on the panel
+void showRestarting();                      // "Restarting", waits until it is on the panel
 
 // Update download: phase, files, percentage, estimated seconds (-1 = unknown)
 void showUpdateProgress(const char* phase, int filesDone, int filesTotal, int percent, int etaSec);

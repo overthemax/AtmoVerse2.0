@@ -15,6 +15,7 @@
       <div class="header-actions">
         <a class="btn" href="/settings.html">Impostazioni</a>
         <a class="btn" href="/quotes-editor.html">Citazioni</a>
+        <a class="btn" href="/diagnostics.html">Diagnostica</a>
       </div>
     </header>
 
@@ -69,7 +70,7 @@
           <div class="weather-condition">${esc(cond.charAt(0).toUpperCase() + cond.slice(1))} · percepita ${num(w.feels_like)}°</div>
           <div class="weather-details">
             <div><span class="label">Umidità</span><span class="value">${num(w.humidity)}%</span></div>
-            <div><span class="label">Vento</span><span class="value">${num(w.wind_speed * 3.6)} km/h</span></div>
+            <div><span class="label">Vento</span><span class="value">${w.units === 'imperial' ? num(w.wind_speed * 2.237) + ' mph' : num(w.wind_speed * 3.6) + ' km/h'}</span></div>
             <div><span class="label">Pressione</span><span class="value">${num(w.pressure)} hPa</span></div>
           </div>
           <p class="hint mt-4">Aggiornato ${esc(w.last_update || '')}</p>`;

@@ -93,6 +93,13 @@
     '⚠️ Impossibile caricare le citazioni. File non presente sulla SD.': '⚠️ Cannot load the quotes. File not on the SD card.',
     '❌ Errore durante il salvataggio': '❌ Error while saving', '❌ Testo e autore sono obbligatori': '❌ Text and author are required',
     '❌ Data non valida: usa 12-25 oppure 2026-12-25': '❌ Invalid date: use 12-25 or 2026-12-25',
+    // Diagnostica
+    'Diagnostica': 'Diagnostics', 'Diagnostica - AtmoVerse': 'Diagnostics - AtmoVerse', 'Rete': 'Network',
+    'Scheda': 'Board', 'Acceso da': 'Running for', 'Memoria libera': 'Free memory', 'Scheda SD': 'SD card',
+    'Non disponibile': 'Not available', 'Modalità': 'Mode', 'Rete di casa': 'Home network',
+    'Indirizzo IP': 'IP address', 'Segnale': 'Signal', 'Carica': 'Charge', 'In carica': 'Charging',
+    'A batteria': 'On battery', 'Tensione': 'Voltage', 'Corrente': 'Current', 'Autonomia stimata': 'Estimated runtime',
+    'Sensore': 'Sensor', 'Lettura non riuscita.': 'Reading failed.',
   };
 
   // Messaggi composti (con numeri o dettagli dell'errore)
@@ -106,6 +113,9 @@
     [/^Sei assolutamente sicuro\? Verranno eliminate (\d+) citazioni!$/, 'Are you absolutely sure? $1 quotes will be deleted!'],
     [/^Le modifiche alle ore (\d+) non sono salvate\. Continuare e perderle\?$/, 'Changes to hour $1 are not saved. Continue and lose them?'],
     [/^ogni (\d+) min$/, 'every $1 min'],
+    [/^(\d+) g (\d+) h (\d+) min$/, '$1 d $2 h $3 min'],
+    [/^(.*) · percepita (.*)$/, '$1 · feels like $2'],
+    [/^❌ Errore: (.*)$/, '❌ Error: $1'],
     // Stato degli aggiornamenti (dal firmware)
     [/^Nessun controllo eseguito$/, 'No check yet'],
     [/^Aggiornato \(versione (.*)\)$/, 'Up to date (version $1)'],

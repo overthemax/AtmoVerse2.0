@@ -108,65 +108,41 @@ String getWeatherCategory() {
     return "";
   }
   
-  // Determina la categoria in base al codice meteo di OpenWeatherMap
+  // Category from the OpenWeatherMap condition code. Precipitation and fog
+  // come first; strong wind comes before the clear/cloudy codes, which cover
+  // every remaining case (before, the wind check came after them and was never
+  // reached, and its thresholds were km/h while the data is in m/s).
   int weatherId = currentWeather.weather_id;
-  float windSpeed = currentWeather.wind_speed;
+  float wind = windSpeedMs();
 
-  // 2xx: Temporali / Tempeste
+  // 2xx: thunderstorms; the most violent ones or gale-force wind -> storm
   if (weatherId >= 200 && weatherId <= 232) {
-    // Codici pif intensi oppure vento molto forte f Tempesta
-    if (weatherId == 202 || weatherId == 212 || weatherId == 221 || weatherId == 232 || windSpeed >= 40.0f) {
-      return "tempesta";
-    } else {
-      return "temporale";
-    }
+    bool violent = weatherId == 202 || weatherId == 212 || weatherId == 221 || weatherId == 232;
+    return (violent || wind >= WIND_GALE_MS) ? "tempesta" : "temporale";
   }
 
-  // 3xx: Pioggerella / Pioggia leggera
-  if (weatherId >= 300 && weatherId <= 321) {
+  // 3xx drizzle, 500 light rain, 520 light shower -> light rain
+  if ((weatherId >= 300 && weatherId <= 321) || weatherId == 500 || weatherId == 520) {
     return "pioggia_leggera";
   }
-
-  // 5xx: Pioggia (distinguiamo leggera da intensa)
-  // 500=light rain, 520=light shower rain -> pioggia_leggera
-  // 501=moderate rain, 502-531=heavy/shower rain -> pioggia
-  if (weatherId == 500 || weatherId == 520) {
-    return "pioggia_leggera";
-  }
-  if (weatherId == 501 || (weatherId >= 502 && weatherId <= 531)) {
+  if (weatherId >= 501 && weatherId <= 531) {
     return "pioggia";
   }
-
-  // Neve: 600-622
   if (weatherId >= 600 && weatherId < 700) {
     return "neve";
   }
-
-  // Nebbia/atmosfera: 700-781
   if (weatherId >= 700 && weatherId < 800) {
     return "nebbia";
   }
 
-  // Sereno e nuvole: 800-804
-  if (weatherId == 800) {
-    return "cielo_sereno";
-  }
-  if (weatherId == 801) {
-    return "poche_nuvole";
-  }
-  if (weatherId == 802) {
-    return "nuvole_sparse";
-  }
-  if (weatherId == 803 || weatherId == 804) {
-    return "nuvole_abbondanti";
-  }
+  // Dry weather with strong wind
+  if (wind >= WIND_GALE_MS) return "tempesta";
+  if (wind >= WIND_STRONG_MS) return "vento";
 
-  // Condizioni di vento forte senza altre indicazioni specifiche
-  if (windSpeed > 20.0f) {
-    return "vento";
-  }
-  
-  // In caso di assenza di condizioni specifiche, usa la categoria basata sul momento della giornata
+  if (weatherId == 800) return "cielo_sereno";
+  if (weatherId == 801) return "poche_nuvole";
+  if (weatherId == 802) return "nuvole_sparse";
+  if (weatherId == 803 || weatherId == 804) return "nuvole_abbondanti";
   return "";
 }
 

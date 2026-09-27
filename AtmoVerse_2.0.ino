@@ -158,23 +158,11 @@ void setup() {
   // anche se non c'è internet
   applyTimezone();
 
-  // Verifica finale di validità della configurazione
-  if (!checkConfigValidity()) {
-    // Configurazione non valida, avvio AP
-    startAccessPoint(true);
-    showAPModeInfo();
-    return;
-  }
-
-  // Se non esisteva il file di configurazione ma è stato creato il default, salvalo
-  if (!configFileExists) {
-    saveConfig();
-  }
-
   // Inizializza il generatore casuale con rumore ADC + hardware RNG
   randomSeed(analogRead(0) ^ (esp_random() & 0xFFFF));
 
-  // Inizializzazione hardware
+  // Hardware avviato prima della modalità AP: anche durante la configurazione
+  // servono la batteria (mostrata sul display) e l'ora dell'RTC
   initHardware();
 
   // Batteria: INA219 cercato sempre; se manca la batteria non viene mostrata
@@ -183,6 +171,14 @@ void setup() {
 
   // Inizializza RTC DS3231 - imposta subito il clock interno se disponibile
   rtcBegin();
+
+  // Verifica finale di validità della configurazione
+  if (!checkConfigValidity()) {
+    // Configurazione non valida, avvio AP
+    startAccessPoint(true);
+    showAPModeInfo();
+    return;
+  }
 
 
   // --- Resto ---
@@ -416,12 +412,10 @@ void loop() {
   }
   
   
-  // Gestisci le richieste web e il captive portal ma limitalo in frequenza
-  static unsigned long lastWebServerCheck = 0;
-  if (currentMillis - lastWebServerCheck >= WEB_SERVER_CHECK_INTERVAL_MS) {
-    lastWebServerCheck = currentMillis;
-    handleClientRequests(); // Gestisce sia server che DNS captive portal
-  }
+  // Web requests and captive portal DNS at every loop pass (about every 10 ms):
+  // a page loads its HTML, CSS and scripts with separate requests, and serving
+  // one every 800 ms made each page take about 3 seconds to open
+  handleClientRequests();
   
   // A batteria, col WiFi spento: si dorme fino allo scatto del minuto
   if (eco) {

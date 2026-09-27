@@ -101,6 +101,8 @@ bool parseWeatherData(String& json) {
   currentWeather.pressure = doc["main"]["pressure"];
   currentWeather.wind_speed = doc["wind"]["speed"];
   currentWeather.wind_deg = doc["wind"]["deg"];
+  currentWeather.sunrise = doc["sys"]["sunrise"] | 0;
+  currentWeather.sunset = doc["sys"]["sunset"] | 0;
   
   // Estrai informazioni sul tempo
   JsonObject weather = doc["weather"][0];
@@ -165,14 +167,26 @@ bool isWeatherDataValid() {
   return true;
 }
 
-// Funzione per determinare se è notte
+// Night between sunset and sunrise. The times come from OpenWeatherMap and
+// change by a few minutes a day, so the last ones received are compared as
+// times of day (seconds since midnight UTC). Without weather data the night
+// is from 19:00 to 7:00.
 bool isNightTime() {
-  time_t now;
+  time_t now = time(nullptr);
+  const long DAY = 86400;
+  if (currentWeather.sunrise > 0 && currentWeather.sunset > currentWeather.sunrise) {
+    long t = now % DAY;
+    long rise = currentWeather.sunrise % DAY;
+    long set = currentWeather.sunset % DAY;
+    // Where sunset falls after midnight UTC the interval wraps around
+    return rise < set ? (t < rise || t >= set) : (t >= set && t < rise);
+  }
   struct tm timeinfo;
-  time(&now);
   localtime_r(&now, &timeinfo);
-  
-  // Considera notte dalle 19:00 alle 7:00
-  int currentHour = timeinfo.tm_hour;
-  return (currentHour >= 19 || currentHour < 7);
+  return timeinfo.tm_hour >= 19 || timeinfo.tm_hour < 7;
+}
+
+float windSpeedMs() {
+  bool imperial = strcmp(config.units, "imperial") == 0;
+  return imperial ? currentWeather.wind_speed * 0.44704f : currentWeather.wind_speed;
 }

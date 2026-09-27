@@ -603,6 +603,15 @@ void handleClientRequests() {
 
   // Health check semplice con info di diagnostica
   // Controllo aggiornamenti richiesto dalla pagina web (eseguito dal loop)
+  // Restart requested from the settings page
+  if (path == "/api/restart" && method == "POST") {
+    sendJsonResponse(client, "{\"success\":true}");
+    showRestarting();
+    markFirmwareHealthy();  // Wanted restart: the firmware works, no rollback
+    delay(300);
+    ESP.restart();
+  }
+
   if (path == "/api/update/check" && method == "POST") {
     requestUpdateCheck();
     sendJsonResponse(client, "{\"success\":true,\"message\":\"Controllo aggiornamenti avviato\"}");
@@ -888,7 +897,8 @@ void handleClientRequests() {
     weather["feels_like"] = currentWeather.feels_like;
     weather["humidity"] = currentWeather.humidity;
     weather["pressure"] = currentWeather.pressure;
-    weather["wind_speed"] = currentWeather.wind_speed;  // m/s (units=metric)
+    weather["wind_speed"] = windSpeedMs();  // Always m/s, whatever the units
+    weather["units"] = config.units;
     weather["wind_deg"] = currentWeather.wind_deg;
 
     // Condizione meteo
@@ -1141,8 +1151,8 @@ void handleClientRequests() {
   
   // Gestione specifica per la pagina /info
   if (path == "/info" && method == "GET") {
-    // Utilizziamo direttamente il percorso info.html per coerenza
-    serveFileFromSD(client, "/info.html");
+    // The old Info page is now part of the diagnostics page
+    serveFileFromSD(client, "/diagnostics.html");
     return;
   }
 

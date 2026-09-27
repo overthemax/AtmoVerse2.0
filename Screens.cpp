@@ -140,6 +140,23 @@ static String twoDigits(int v) {
   return v < 10 ? "0" + String(v) : String(v);
 }
 
+// Time as shown on the display: "14:05" or, with the 12-hour clock, "2:05"
+// plus the "AM"/"PM" suffix. Only the display changes: every time-based
+// choice (quotes of the literary clock, scheduled quotes) uses the 24-hour time.
+static String clockText(int hour, int minute, bool use24h, String* suffix) {
+  if (use24h) {
+    if (suffix) *suffix = "";
+    return twoDigits(hour) + ":" + twoDigits(minute);
+  }
+  int h12 = hour % 12 == 0 ? 12 : hour % 12;  // 0:xx -> 12:xx AM, 12:xx -> 12:xx PM
+  String ampm = hour < 12 ? "AM" : "PM";
+  if (suffix) {
+    *suffix = ampm;
+    return String(h12) + ":" + twoDigits(minute);
+  }
+  return String(h12) + ":" + twoDigits(minute) + " " + ampm;
+}
+
 static bool clockValid() {
   return time(nullptr) > 1700000000;  // Ora sincronizzata (NTP o RTC)
 }
@@ -338,7 +355,14 @@ void drawMainScreen(const ScreenModel& m) {
 
   // Ora
   u8g2.setFont(FONT_TIME);
-  textLeft(MARGIN - 2, 118, timeOk ? twoDigits(t.tm_hour) + ":" + twoDigits(t.tm_min) : String("--:--"));
+  String ampm;
+  String clock = timeOk ? clockText(t.tm_hour, t.tm_min, m.use24h, &ampm) : String("--:--");
+  textLeft(MARGIN - 2, 118, clock);
+  if (ampm.length()) {
+    int clockWidth = textWidth(clock);
+    u8g2.setFont(FONT_BODY);
+    textLeft(MARGIN - 2 + clockWidth + 8, 118, ampm);
+  }
 
   // Temperatura e condizione
   u8g2.setFont(FONT_TEMP);
@@ -403,7 +427,7 @@ void drawMainScreen(const ScreenModel& m) {
   } else if (w.last_update > 1700000000) {
     struct tm u;
     localtime_r(&w.last_update, &u);
-    String when = twoDigits(u.tm_hour) + ":" + twoDigits(u.tm_min);
+    String when = clockText(u.tm_hour, u.tm_min, m.use24h, nullptr);
     textLeft(MARGIN, footerY, m.weatherUpdateOk
         ? String(TR("Aggiornato alle ", "Updated at ")) + when
         : String(TR("Meteo non aggiornato", "Weather not updated")) + MIDDOT + TR("ultimo alle ", "last at ") + when);

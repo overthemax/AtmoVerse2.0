@@ -33,7 +33,7 @@
 
 volatile UpdateState updateState = UPDATE_IDLE;
 
-static String lastStatus = "Nessun controllo eseguito";
+static String lastStatus;  // Empty until the first check (see getUpdateStatusText)
 static String updateNotice;       // Vedi getUpdateNotice()
 static bool sdWriteFailed = false;  // L'ultimo downloadToFile è fallito scrivendo sulla SD
 
@@ -64,7 +64,7 @@ String getUpdateNotice() {
 }
 
 String getUpdateStatusText() {
-  return lastStatus;
+  return lastStatus.length() ? lastStatus : String(TR("Nessun controllo eseguito", "No check yet"));
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +508,9 @@ void initUpdater() {
     // il bootloader ha ripristinato quella precedente
     prefs.putString(KEY_BAD, attempt);
     prefs.remove(KEY_ATTEMPT);
-    lastStatus = "La versione " + attempt + " non si è avviata: ripristinata la " ATMOVERSE_VERSION;
+    lastStatus = String(TR("La versione ", "Version ")) + attempt +
+                 TR(" non si è avviata: ripristinata la " ATMOVERSE_VERSION,
+                    " did not start: restored " ATMOVERSE_VERSION);
     Serial.println("[UPDATE] " + lastStatus);
   }
   prefs.end();
@@ -709,7 +711,7 @@ static bool downloadNeededFiles(const String& baseUrl) {
       }
     }
     if (!done) {
-      lastStatus = "Download non riuscito: " + path;
+      lastStatus = String(TR("Download non riuscito: ", "Download failed: ")) + path;
       ok = false;
       break;
     }
@@ -772,7 +774,7 @@ bool checkForUpdates(bool fullScan) {
     infoOk = fetchReleaseInfo(manifestUrl, manifestSha);
   }
   if (!infoOk) {
-    lastStatus = "Server degli aggiornamenti non raggiungibile";
+    lastStatus = TR("Server degli aggiornamenti non raggiungibile", "Update server not reachable");
     Serial.println("[UPDATE] " + lastStatus);
     return false;
   }
@@ -814,7 +816,7 @@ bool checkForUpdates(bool fullScan) {
   }
 
   if (!downloaded) {
-    lastStatus = "Server degli aggiornamenti non raggiungibile";
+    lastStatus = TR("Server degli aggiornamenti non raggiungibile", "Update server not reachable");
     Serial.println("[UPDATE] " + lastStatus);
     if (sd) SD.remove(MANIFEST_TMP);
     return false;
@@ -827,7 +829,7 @@ bool checkForUpdates(bool fullScan) {
     parsed = parseManifestHeader(text, h);
   }
   if (!parsed) {
-    lastStatus = "Manifest non valido";
+    lastStatus = TR("Manifest non valido", "Invalid manifest");
     Serial.println("[UPDATE] " + lastStatus);
     if (sd) SD.remove(MANIFEST_TMP);
     return false;
@@ -840,6 +842,7 @@ bool checkForUpdates(bool fullScan) {
   prefs.end();
 
   bool firmwareNewer = compareVersions(h.version.c_str(), ATMOVERSE_VERSION) > 0 && badVersion != h.version;
+  bool firmwarePostponed = false;
 
   // Con la batteria bassa e senza caricatore il firmware non si installa: uno
   // spegnimento durante la scrittura verrebbe recuperato dal rollback, ma è
@@ -849,8 +852,10 @@ bool checkForUpdates(bool fullScan) {
     Serial.printf("[UPDATE] Firmware %s rimandato: batteria al %d%%, non in carica\n",
                   h.version.c_str(), battery.getPercentage());
     firmwareNewer = false;
-    lastStatus = "Firmware " + h.version + " disponibile: si installa con la batteria sopra il " +
-                 String(BATTERY_MIN_FIRMWARE_UPDATE_PERCENT) + "% o in carica";
+    firmwarePostponed = true;
+    lastStatus = "Firmware " + h.version +
+                 TR(" disponibile: si installa con la batteria sopra il ", " available: it installs with the battery above ") +
+                 String(BATTERY_MIN_FIRMWARE_UPDATE_PERCENT) + TR("% o in carica", "% or while charging");
   }
 
   // 3. Quali file della SD sono cambiati? (elenco scritto sulla SD, non in RAM)
@@ -904,7 +909,10 @@ bool checkForUpdates(bool fullScan) {
   if (!firmwareNewer && neededCount == 0) {
     if (sd && SD.exists(STAGING_DIR)) removeTree(STAGING_DIR);
     updateNotice = "";
-    lastStatus = String("Aggiornato (versione ") + ATMOVERSE_VERSION + ")";
+    // With a postponed firmware the status keeps saying why it was not installed
+    if (!firmwarePostponed) {
+      lastStatus = String(TR("Aggiornato (versione ", "Up to date (version ")) + ATMOVERSE_VERSION + ")";
+    }
     Serial.println("[UPDATE] " + lastStatus);
     return true;
   }
@@ -929,7 +937,7 @@ bool checkForUpdates(bool fullScan) {
       reportProgress(true);
     }
     if (h.fwUrl.length() == 0 || h.fwSize == 0 || !downloadFirmware(h.fwUrl, h.fwSize, h.fwSha)) {
-      finishWithError("Installazione del firmware " + h.version + " non riuscita");
+      finishWithError(String(TR("Installazione del firmware non riuscita: ", "Firmware installation failed: ")) + h.version);
       return false;
     }
 
@@ -947,7 +955,7 @@ bool checkForUpdates(bool fullScan) {
 
   if (firmwareNewer) {
     updateNotice = "";
-    lastStatus = "Installata la versione " + h.version + ", riavvio";
+    lastStatus = String(TR("Installata la versione ", "Installed version ")) + h.version + TR(", riavvio", ", restarting");
     Serial.println("[UPDATE] " + lastStatus);
     delay(500);
     ESP.restart();  // I file della SD vengono applicati all'avvio da initUpdater()
@@ -955,7 +963,7 @@ bool checkForUpdates(bool fullScan) {
 
   applyPendingSdUpdate();
   updateNotice = "";
-  lastStatus = "File della SD aggiornati";
+  lastStatus = TR("File della SD aggiornati", "SD card files updated");
   Serial.printf("[UPDATE] %d file della SD aggiornati\n", neededCount);
   endDownloadPhase();
   return true;
