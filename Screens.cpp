@@ -4,9 +4,9 @@
  *
  * 648 x 480 grid, 32 px side margins.
  *   0 -  54  header: weekday and date on the left, city on the right
- *  54 - 238  time, temperature and condition on the left, icon on the right
- * 238 - 290  four values: feels like, humidity, wind, pressure
- * 300 - 452  quote, with a font that adapts to its length
+ *  54 - 228  time, temperature and condition on the left, icon on the right
+ * 228 - 280  four values: feels like, humidity, wind, pressure
+ * 290 - 452  quote, with a font that adapts to its length
  * 460 - 480  footer: last update, IP address, battery
  */
 
@@ -36,7 +36,7 @@
 static const int MARGIN = 32;
 
 // Quote box
-static const int QUOTE_TOP = 300;
+static const int QUOTE_TOP = 290;
 static const int QUOTE_BOTTOM = 452;
 static const int QUOTE_MAX_LINES = 8;
 static const int AUTHOR_MAX_LINES = 3;  // The author wraps, it is never cut
@@ -314,13 +314,18 @@ static void drawServiceFooter(const ScreenModel& m, const String& text) {
 // Main screen
 // ---------------------------------------------------------------------------
 
-// Icon from the model, scaled by an integer factor (sharp edges, no interpolation)
-static void drawIcon(const ScreenModel& m, int x, int y, int scale) {
+// Icon from the model, scaled by num/den without interpolation: every source
+// pixel becomes a solid block (sharp edges). With x2 every block is 2x2; a
+// slightly smaller factor makes some blocks one pixel thinner.
+static void drawIcon(const ScreenModel& m, int x, int y, int num, int den) {
   int bytesPerRow = (m.iconWidth + 7) / 8;
   for (int r = 0; r < m.iconHeight; r++) {
+    int y0 = y + r * num / den, y1 = y + (r + 1) * num / den;
+    if (y1 <= y0) continue;
     for (int c = 0; c < m.iconWidth; c++) {
       if (m.icon[r * bytesPerRow + c / 8] & (0x80 >> (c % 8))) {
-        display.fillRect(x + c * scale, y + r * scale, scale, scale, GxEPD_BLACK);
+        int x0 = x + c * num / den, x1 = x + (c + 1) * num / den;
+        if (x1 > x0) display.fillRect(x0, y0, x1 - x0, y1 - y0, GxEPD_BLACK);
       }
     }
   }
@@ -403,19 +408,25 @@ void drawMainScreen(const ScreenModel& m) {
   if (condition.length() && condition[0] >= 'a' && condition[0] <= 'z') condition[0] = condition[0] - 32;
   textLeft(MARGIN, 210, condition);
 
-  // Weather icon: 100 px BMP read by the loop, scaled exactly x2.
-  // What is actually drawn (not the bounding box) is centered between the
-  // header rule and the data labels, so rain and lightning never touch them
+  // Weather icon: 100 px BMP read by the loop, scaled x2. What is actually
+  // drawn (not the bounding box) is centered between the header rule and the
+  // data labels. The tallest icons (rain, lightning: 182 px at x2) are shrunk
+  // just enough to fit the 173 px, so they never touch the rule or the labels.
   const int iconArea = 200;
-  const int iconSpaceTop = 56, iconSpaceBottom = 239;  // Taller icons: 182 px
+  const int iconSpaceTop = 56, iconSpaceBottom = 229;
   if (weatherOk && m.iconWidth > 0) {
-    int scale = max(1, iconArea / max((int)m.iconWidth, (int)m.iconHeight));
+    int num = max(1, iconArea / max((int)m.iconWidth, (int)m.iconHeight));
+    int den = 1;
     int first, last;
     iconInkRows(m, first, last);
     if (first < 0) { first = 0; last = m.iconHeight - 1; }
-    int inkH = (last - first + 1) * scale;
-    int y = iconSpaceTop + (iconSpaceBottom - iconSpaceTop - inkH) / 2 - first * scale;
-    drawIcon(m, W - MARGIN - iconArea + (iconArea - m.iconWidth * scale) / 2, y, scale);
+    int inkRows = last - first + 1;
+    int space = iconSpaceBottom - iconSpaceTop;
+    if (inkRows * num > space) { num = space; den = inkRows; }
+    int inkH = inkRows * num / den;
+    int y = iconSpaceTop + (space - inkH) / 2 - first * num / den;
+    int drawnW = m.iconWidth * num / den;
+    drawIcon(m, W - MARGIN - iconArea + (iconArea - drawnW) / 2, y, num, den);
   }
 
   // Four values
@@ -436,11 +447,11 @@ void drawMainScreen(const ScreenModel& m) {
   for (int i = 0; i < 4; i++) {
     int x = MARGIN + i * colW;
     u8g2.setFont(FONT_LABEL);
-    textLeft(x, 252, labels[i]);
+    textLeft(x, 242, labels[i]);
     u8g2.setFont(FONT_VALUE);
-    textLeft(x, 276, values[i]);
+    textLeft(x, 266, values[i]);
   }
-  display.drawFastHLine(MARGIN, 290, W - 2 * MARGIN, GxEPD_BLACK);
+  display.drawFastHLine(MARGIN, 280, W - 2 * MARGIN, GxEPD_BLACK);
 
   // Quote
   drawQuoteBlock(m.quoteText, m.quoteAuthor);

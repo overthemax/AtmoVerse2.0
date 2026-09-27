@@ -130,18 +130,26 @@ def hline(d, y):
     d.line([(MARGIN, y), (W - MARGIN - 1, y)], fill=0)
 
 
-def draw_icon(img, name, x, y, scale=2):
-    icon = Image.open(f"{ICONS}/{name}.bmp").convert("1")
-    if isinstance(y, tuple):
-        # As in Screens.cpp: centers what is actually drawn between y[0] and y[1]
-        from PIL import ImageOps as _ops
-        box = _ops.invert(icon.convert("L")).getbbox() or (0, 0, icon.width, icon.height)
-        ink = (box[3] - box[1]) * scale
-        y = y[0] + (y[1] - y[0] - ink) // 2 - box[1] * scale
-    icon = icon.resize((icon.width * scale, icon.height * scale), Image.NEAREST)
-    # Black pixels only, like the firmware (the icon background does not cover the graphics)
+def draw_icon(img, name, area_right, y, area=200):
+    """As the weather icon in Screens.cpp: x2, centered between y[0] and y[1],
+    shrunk by num/den if what is drawn is taller than that space."""
     from PIL import ImageOps
-    img.paste(0, (x, y), ImageOps.invert(icon.convert("L")))
+    icon = Image.open(f"{ICONS}/{name}.bmp").convert("1")
+    box = ImageOps.invert(icon.convert("L")).getbbox() or (0, 0, icon.width, icon.height)
+    num, den = max(1, area // max(icon.width, icon.height)), 1
+    rows, space = box[3] - box[1], y[1] - y[0]
+    if rows * num > space:
+        num, den = space, rows
+    top = y[0] + (space - rows * num // den) // 2 - box[1] * num // den
+    left = area_right - area + (area - icon.width * num // den) // 2
+    px, d = icon.load(), ImageDraw.Draw(img)
+    for r in range(icon.height):
+        y0, y1 = top + r * num // den, top + (r + 1) * num // den
+        for c in range(icon.width):
+            x0, x1 = left + c * num // den, left + (c + 1) * num // den
+            # Black pixels only, like the firmware
+            if px[c, r] == 0 and x1 > x0 and y1 > y0:
+                d.rectangle([x0, y0, x1 - 1, y1 - 1], fill=0)
 
 
 def draw_battery(img, d, xr, baseline, pct, charging=False):
@@ -168,7 +176,7 @@ def choose_style(text, author, width, height):
 
 
 def draw_quote(img, text, author):
-    top, bottom = 300, 452
+    top, bottom = 290, 452
     width, height = W - 2 * MARGIN, bottom - top
     # As quoteLayout in Screens.cpp: one verse per line if it fits, else " / "
     verses = "\xab" + text.replace(" / ", "\n").replace("\\n", "\n") + "\xbb"
@@ -187,12 +195,12 @@ def draw_quote(img, text, author):
     return tf
 
 
-def main_screen(quote, author, out):
+def main_screen(quote, author, out, icon="wi-day-cloudy"):
     img = Image.new("1", (W, H), 1)
     d = ImageDraw.Draw(img)
     left(img, "fur17_tf", MARGIN, 44, "Venerd\xec 26 settembre")
     right(img, "luRS14_tf", W - MARGIN, 44, "Roma")
-    hline(d, 60)
+    hline(d, 54)
     # WiFi icon to the left of the city (as drawWifiIcon in Screens.cpp)
     city_w = F["luRS14_tf"].width("Roma")
     wx = W - MARGIN - city_w - 12 - 18
@@ -203,13 +211,13 @@ def main_screen(quote, author, out):
     left(img, "fur49_tn", MARGIN - 2, 118, "10:42")
     left(img, "fur35_tf", MARGIN, 180, "18\xb0")
     left(img, "luRS14_tf", MARGIN, 210, "Nubi sparse")
-    draw_icon(img, "wi-day-cloudy", W - MARGIN - 200, (62, 247))
+    draw_icon(img, icon, W - MARGIN, (56, 229))
     colw = (W - 2 * MARGIN) // 4
     for i, (lab, val) in enumerate([("Percepita", "17\xb0"), ("Umidit\xe0", "62%"),
                                     ("Vento", "12 km/h"), ("Pressione", "1016 hPa")]):
-        left(img, "luRS10_tf", MARGIN + i * colw, 260, lab)
-        left(img, "luBS14_tf", MARGIN + i * colw, 284, val)
-    hline(d, 298)
+        left(img, "luRS10_tf", MARGIN + i * colw, 242, lab)
+        left(img, "luBS14_tf", MARGIN + i * colw, 266, val)
+    hline(d, 280)
     style = draw_quote(img, quote, author)
     left(img, "luRS08_tf", MARGIN, H - 12, "Aggiornato alle 10:30")
     center(img, "luRS08_tf", W // 2, H - 12, "192.168.1.23")
