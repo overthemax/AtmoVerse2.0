@@ -200,12 +200,13 @@ back = back - union([rr_prism(4.0, 14.0, 1.9, FRONT_D - 0.1, BACK_T + 0.2, cx=25
 # --- Supporto cilindrico sul retro, stampato insieme al coperchio ---
 # Il case poggia sullo spigolo inferiore posteriore e sul cilindro, inclinato
 # di TILT_DEG. Centro del cilindro: tocca il tavolo nella posa inclinata.
-STAND_R, STAND_L, STAND_OUT = 20.0, 90.0, 12.0
+# Capsula sottile: diametro 20 mm, estremità arrotondate, incassata 1 mm nel retro
+STAND_R, STAND_L, STAND_OUT = 10.0, 64.0, 9.0
 t = math.radians(TILT_DEG)
 stand_y = DEPTH + STAND_OUT
 stand_z = (STAND_R + STAND_OUT * math.sin(t)) / math.cos(t)
 stand = Pos(CX, stand_y, stand_z) * Rot(0, 90, 0) * Cylinder(STAND_R, STAND_L)
-stand = fillet(stand.edges(), 3.0)
+stand = fillet(stand.edges(), STAND_R - 0.6)   # estremità quasi semisferiche
 # Solo la parte dietro al coperchio (non deve entrare nel vano)
 stand = stand - Pos(CX - STAND_L, 0, 0) * Box(2 * STAND_L, DEPTH - 0.6, HEIGHT, align=MIN3)
 back = back + stand

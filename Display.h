@@ -1,3 +1,10 @@
+/**
+ * @file Display.h
+ * @brief What the rest of the firmware asks the display to show
+ *
+ * Each function builds a ScreenModel in the main loop and hands it to the
+ * display task (DisplayTask.h), which draws it on core 0 (Screens.h).
+ */
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
@@ -6,48 +13,22 @@
 #include "WeatherUtils.h"
 #include "Hardware.h"
 
-// Dichiarazioni delle funzioni per il display
-void initDisplay();
-void displayStartupScreen();
-void updateDisplay();
+void initDisplay();           // Initialises the panel and starts the display task
+void displayStartupScreen();  // "Starting..." screen
+void updateDisplay();         // Main screen: time, weather, quote, battery
+
+// Setup screen with the QR code of the configuration network
 void displaySetupScreen(String apName, String ipAddress);
 void showAPModeInfo();
-void drawWeatherIcon(int x, int y, int weatherId, bool isNight, int iconSize = 160);
-void drawBattery(int x, int y, int percentage);
-void drawProgress(int x, int y, int width, int progress);
-void displayError(const char* message);
-void showSDCardMissing();
-void showConfigSaved();  // Mostra conferma salvataggio configurazione
-void drawCityInfo(int x, int y, const char* cityName);
-void drawTemperature(int x, int y, float temp, float feelsLike);
-void drawHumidity(int x, int y, float humidity);
-void drawPressure(int x, int y, float pressure);
-void drawWind(int x, int y, float windSpeed);
-void drawDateTime(int x, int y);
-void drawLastUpdate(int x, int y, time_t lastUpdate);
-void drawQuote(int x, int y, int maxWidth, int fontSize = 14);
-void showStatusOnDisplay(const char* msg);
-// Download di un aggiornamento: fase, file, percentuale, secondi stimati (-1 = ignoti)
+
+void showStatusOnDisplay(const char* msg);  // Simple text message
+void showConfigSaved();                     // "Settings saved", waits until it is on the panel
+
+// Update download: phase, files, percentage, estimated seconds (-1 = unknown)
 void showUpdateProgress(const char* phase, int filesDone, int filesTotal, int percent, int etaSec);
-// Errore dell'aggiornamento che richiede un intervento (es. SD piena)
+// Update error that needs user action (e.g. SD card full)
 void showUpdateError(const char* title, const char* text);
-// Batteria scarica: faccina stanca (resta visibile durante il sonno profondo)
+// Battery empty: tired face (stays visible during deep sleep)
 void showBatteryEmpty();
-
-// Funzioni per layout personalizzabili
-void drawDefaultLayout();  // Layout di default quando /layout.json non esiste
-
-// Funzioni per grafica migliorata
-void drawThermometerIcon(int x, int y, int size);
-void drawDropletIcon(int x, int y, int size);
-void drawWindIcon(int x, int y, int size);
-void drawHorizontalDivider(int x, int y, int width, bool decorative = false);
-void drawVerticalDivider(int x, int y, int height);
-void drawRoundedBox(int x, int y, int width, int height, int radius, bool filled = false);
-void drawDecorativeFrame(int margin = 5);
-void drawWeatherDataWithIcons(int x, int y, int iconSize);
-void drawSDCardError();  // Schermata errore SD semplificata
-void drawBigDigit(int x, int y, int digit, int height);  // Disegna una singola cifra grande
-void drawBigNumber(int x, int y, float number, int height, bool showDecimal = true);  // Disegna numero grande (es. temperatura)
 
 #endif // DISPLAY_H
