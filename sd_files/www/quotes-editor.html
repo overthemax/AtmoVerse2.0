@@ -14,20 +14,20 @@
       <h1>Editor Citazioni</h1>
       <div class="header-actions">
         <button class="btn btn-secondary" onclick="location.href='index.html'">Home</button>
-        <button class="btn btn-primary" onclick="activeTab === 'orari' ? saveClockHour() : saveQuotes()">Salva</button>
-        <button class="btn btn-success" onclick="activeTab === 'orari' ? addClockQuote() : addNewQuote()">Nuova Citazione</button>
+        <button class="btn btn-primary" onclick="activeTab === 'clock' ? saveClockHour() : saveQuotes()">Salva</button>
+        <button class="btn btn-success" onclick="activeTab === 'clock' ? addClockQuote() : addNewQuote()">Nuova Citazione</button>
       </div>
     </header>
 
     <div id="message-container"></div>
 
-    <!-- Due gruppi di citazioni: meteo/programmate (quotes.json) e orologio letterario (/orari) -->
+    <!-- Due gruppi di citazioni: meteo/programmate (quotes.json) e orologio letterario (/clock) -->
     <div class="tabs" role="tablist">
-      <button class="tab active" id="tab-btn-meteo" role="tab" onclick="showTab('meteo')">Meteo e programmate</button>
-      <button class="tab" id="tab-btn-orari" role="tab" onclick="showTab('orari')">Orologio letterario</button>
+      <button class="tab active" id="tab-btn-weather" role="tab" onclick="showTab('weather')">Meteo e programmate</button>
+      <button class="tab" id="tab-btn-clock" role="tab" onclick="showTab('clock')">Orologio letterario</button>
     </div>
 
-    <div id="tab-orari" class="tab-panel hidden">
+    <div id="tab-clock" class="tab-panel hidden">
       <div class="card">
         <h2 class="card-title">Orologio letterario</h2>
         <p class="hint">Citazioni che citano l'orario: hanno la precedenza su quelle del meteo e compaiono
@@ -58,7 +58,7 @@
       </div>
     </div>
 
-    <div id="tab-meteo" class="tab-panel">
+    <div id="tab-weather" class="tab-panel">
     <!-- Statistiche -->
     <div class="card">
       <h2 class="card-title">Statistiche</h2>
@@ -165,10 +165,10 @@
 
       <div class="form-group">
         <label for="edit-category">Categoria</label>
-        <input type="text" id="edit-category" placeholder="es: motivazione, pioggia, mattina">
+        <input type="text" id="edit-category" placeholder="es: rain, clear_sky">
         <small style="color: var(--text-secondary);">
-          Categorie suggerite: motivazione, pioggia, pioggia_leggera, cielo_sereno, poche_nuvole, 
-          nuvole_sparse, nuvole_abbondanti, temporale, neve, nebbia, vento, mattina, pomeriggio, sera
+          Categorie del meteo: rain, light_rain, thunderstorm, storm, clear_sky, few_clouds,
+          scattered_clouds, cloudy, fog, snow, wind
         </small>
       </div>
 
@@ -180,28 +180,28 @@
         </small>
         <div class="grid-2" style="margin-top: 8px;">
           <div>
-            <label for="edit-ora">Ora di inizio</label>
-            <input type="time" id="edit-ora">
+            <label for="edit-at">Ora di inizio</label>
+            <input type="time" id="edit-at">
           </div>
           <div>
-            <label for="edit-durata">Durata (minuti)</label>
-            <input type="number" id="edit-durata" min="1" max="1440" placeholder="60">
+            <label for="edit-duration">Durata (minuti)</label>
+            <input type="number" id="edit-duration" min="1" max="1440" placeholder="60">
           </div>
         </div>
         <div style="margin-top: 8px;">
-          <label for="edit-data">Data</label>
-          <input type="text" id="edit-data" placeholder="12-25 (ogni anno) oppure 2026-12-25 (una volta)" pattern="(\d{4}-)?\d{2}-\d{2}">
+          <label for="edit-date">Data</label>
+          <input type="text" id="edit-date" placeholder="12-25 (ogni anno) oppure 2026-12-25 (una volta)" pattern="(\d{4}-)?\d{2}-\d{2}">
         </div>
         <div style="margin-top: 8px;">
           <label>Giorni (nessuno = tutti)</label>
-          <div id="edit-giorni" style="display: flex; flex-wrap: wrap; gap: 10px;">
-            <label><input type="checkbox" value="lun"> Lun</label>
-            <label><input type="checkbox" value="mar"> Mar</label>
-            <label><input type="checkbox" value="mer"> Mer</label>
-            <label><input type="checkbox" value="gio"> Gio</label>
-            <label><input type="checkbox" value="ven"> Ven</label>
-            <label><input type="checkbox" value="sab"> Sab</label>
-            <label><input type="checkbox" value="dom"> Dom</label>
+          <div id="edit-days" style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <label><input type="checkbox" value="mon"> Lun</label>
+            <label><input type="checkbox" value="tue"> Mar</label>
+            <label><input type="checkbox" value="wed"> Mer</label>
+            <label><input type="checkbox" value="thu"> Gio</label>
+            <label><input type="checkbox" value="fri"> Ven</label>
+            <label><input type="checkbox" value="sat"> Sab</label>
+            <label><input type="checkbox" value="sun"> Dom</label>
           </div>
         </div>
       </fieldset>
@@ -459,26 +459,65 @@
     }
     let editingIndex = -1;
 
+    // Names used before 2.1.17 (Italian) -> current names. An old file is
+    // converted when it is loaded; before the first save the original is
+    // downloaded as a backup.
+    const LEGACY_SECTIONS = {
+      pioggia: 'rain', pioggia_leggera: 'light_rain', temporale: 'thunderstorm', tempesta: 'storm',
+      cielo_sereno: 'clear_sky', poche_nuvole: 'few_clouds', nuvole_sparse: 'scattered_clouds',
+      nuvole_abbondanti: 'cloudy', nebbia: 'fog', neve: 'snow', vento: 'wind',
+      programmate: 'scheduled', motivazione: 'motivation'
+    };
+    const LEGACY_FIELDS = { ora: 'at', durata: 'duration', giorni: 'days', data: 'date', time: 'period' };
+    const LEGACY_TAGS = {
+      mattina: 'morning', pomeriggio: 'afternoon', sera: 'evening', giorno: 'day', notte: 'night',
+      inverno: 'winter', primavera: 'spring', estate: 'summer', autunno: 'autumn',
+      lun: 'mon', mar: 'tue', mer: 'wed', gio: 'thu', ven: 'fri', sab: 'sat', dom: 'sun'
+    };
+    const TAG_FIELDS = ['period', 'season', 'days'];
+    let legacyBackup = null;  // Original quotes.json text, while it still has the old names
+
+    // One quote with the current field names and tag values
+    function modernizeQuote(item) {
+      const out = {};
+      for (const [k, v] of Object.entries(item)) {
+        const key = LEGACY_FIELDS[k] && !(LEGACY_FIELDS[k] in item) ? LEGACY_FIELDS[k] : k;
+        out[key] = TAG_FIELDS.includes(key) && typeof v === 'string'
+          ? v.split(',').map(t => LEGACY_TAGS[t.trim().toLowerCase()] || t.trim()).join(',')
+          : v;
+      }
+      return out;
+    }
+
     // Carica citazioni
     async function loadQuotes() {
       try {
         const response = await fetch('/quotes.json?raw=1');
         if (response.ok) {
-          const data = await response.json();
+          const raw = await response.text();
+          const data = JSON.parse(raw);
+          // Every field is kept (period, season, at, duration, days, date...):
+          // on save the editor rewrites the whole quotes.json
+          let converted = false;
           quotes = Array.isArray(data) ? data : Object.entries(data).flatMap(([category, items]) =>
-            // Si conservano TUTTI i campi (time, season, ora, durata, giorni, data...):
-            // al salvataggio l'editor riscrive l'intero quotes.json
-            Array.isArray(items) ? items.map(item => ({
-              ...item,
-              text: item.text || item.quote || '',
-              author: item.author || '',
-              category
-            })) : []
+            Array.isArray(items) ? items.map(item => {
+              const current = modernizeQuote(item);
+              if (category in LEGACY_SECTIONS || JSON.stringify(current) !== JSON.stringify(item)) converted = true;
+              return {
+                ...current,
+                text: item.text || item.quote || '',
+                author: item.author || '',
+                category: LEGACY_SECTIONS[category] || category
+              };
+            }) : []
           );
+          legacyBackup = converted ? raw : null;
           updateStats();
           updateCategoryFilter();
           renderQuotes();
-          showMessage('✅ Citazioni caricate: ' + quotes.length, 'success');
+          showMessage(converted
+            ? '⚠️ Il file usa i nomi italiani: al salvataggio verrà convertito ai nomi inglesi, dopo aver scaricato una copia di backup'
+            : '✅ Citazioni caricate: ' + quotes.length, converted ? 'info' : 'success');
         } else {
           quotes = [];
           renderQuotes();
@@ -570,7 +609,7 @@
             <div>
               <strong>— ${authorInfo}</strong>
               ${quote.category ? `<span class="quote-category">${esc(quote.category)}</span>` : ''}
-              ${(quote.ora || quote.data) ? `<span class="quote-category">🗓️ ${esc([quote.data, quote.ora ? quote.ora + ' per ' + (quote.durata || 60) + ' min' : '', quote.giorni].filter(Boolean).join(' · '))}</span>` : ''}
+              ${(quote.at || quote.date) ? `<span class="quote-category">🗓️ ${esc([quote.date, quote.at ? quote.at + ' · ' + (quote.duration || 60) + ' min' : '', quote.days].filter(Boolean).join(' · '))}</span>` : ''}
               ${sizeLabel ? `<small style="margin-left: 8px; color: var(--text-secondary);">${sizeLabel} ${alignLabel}</small>` : ''}
             </div>
           </div>
@@ -648,21 +687,21 @@
       document.getElementById('edit-modal').classList.remove('hidden');
     }
 
-    // Campi di programmazione (ora, durata, data, giorni)
+    // Schedule fields (at, duration, date, days)
     function setScheduleFields(q) {
-      document.getElementById('edit-ora').value = q.ora || '';
-      document.getElementById('edit-durata').value = q.durata || '';
-      document.getElementById('edit-data').value = q.data || '';
-      const days = (q.giorni || '').split(',').map(d => d.trim());
-      document.querySelectorAll('#edit-giorni input').forEach(cb => { cb.checked = days.includes(cb.value); });
+      document.getElementById('edit-at').value = q.at || '';
+      document.getElementById('edit-duration').value = q.duration || '';
+      document.getElementById('edit-date').value = q.date || '';
+      const days = (q.days || '').split(',').map(d => d.trim());
+      document.querySelectorAll('#edit-days input').forEach(cb => { cb.checked = days.includes(cb.value); });
     }
 
     function readScheduleFields() {
-      const ora = document.getElementById('edit-ora').value;
-      const durata = parseInt(document.getElementById('edit-durata').value, 10);
-      const data = document.getElementById('edit-data').value.trim();
-      const giorni = Array.from(document.querySelectorAll('#edit-giorni input:checked')).map(cb => cb.value).join(',');
-      return { ora, durata: isNaN(durata) ? null : durata, data, giorni };
+      const at = document.getElementById('edit-at').value;
+      const duration = parseInt(document.getElementById('edit-duration').value, 10);
+      const date = document.getElementById('edit-date').value.trim();
+      const days = Array.from(document.querySelectorAll('#edit-days input:checked')).map(cb => cb.value).join(',');
+      return { at, duration: isNaN(duration) ? null : duration, date, days };
     }
 
     // Modifica citazione
@@ -699,31 +738,31 @@
       }
       
       const schedule = readScheduleFields();
-      if (schedule.data && !/^(\d{4}-)?\d{2}-\d{2}$/.test(schedule.data)) {
+      if (schedule.date && !/^(\d{4}-)?\d{2}-\d{2}$/.test(schedule.date)) {
         showMessage('❌ Data non valida: usa 12-25 oppure 2026-12-25', 'error');
         return;
       }
-      const scheduled = !!(schedule.ora || schedule.data);
+      const scheduled = !!(schedule.at || schedule.date);
 
-      // Si parte dalla citazione esistente per non perdere i campi che il
-      // modulo non mostra (es. time, season)
+      // Start from the existing quote so the fields the form does not show
+      // (e.g. period, season) are kept
       const quote = {
         ...(editingIndex === -1 ? {} : quotes[editingIndex]),
         text,
         author,
-        // Con ora o data la citazione va tra le programmate
-        category: scheduled ? 'programmate' : (category || 'motivazione'),
+        // With a time or a date the quote goes to the scheduled ones
+        category: scheduled ? 'scheduled' : (category || 'motivation'),
         authorNote,
         fontSize,
         align,
         authorStyle,
         authorSameLine
       };
-      delete quote.ora; delete quote.durata; delete quote.data; delete quote.giorni;
-      if (schedule.ora) quote.ora = schedule.ora;
-      if (schedule.ora && schedule.durata) quote.durata = schedule.durata;
-      if (schedule.data) quote.data = schedule.data;
-      if (scheduled && schedule.giorni) quote.giorni = schedule.giorni;
+      delete quote.at; delete quote.duration; delete quote.date; delete quote.days;
+      if (schedule.at) quote.at = schedule.at;
+      if (schedule.at && schedule.duration) quote.duration = schedule.duration;
+      if (schedule.date) quote.date = schedule.date;
+      if (scheduled && schedule.days) quote.days = schedule.days;
       
       if (editingIndex === -1) {
         // Nuova citazione
@@ -783,7 +822,7 @@
         // La scheda lo scrive sulla SD mentre arriva (la raccolta supera i 40 KB).
         const out = {};
         for (const q of quotes) {
-          const cat = q.category || 'motivazione';
+          const cat = q.category || 'motivation';
           const item = {};
           for (const [k, v] of Object.entries(q)) {
             if (k === 'category' || v === '' || v === null || v === undefined) continue;
@@ -791,6 +830,9 @@
           }
           (out[cat] = out[cat] || []).push(item);
         }
+        // The first save of an old file converts it: the original is kept
+        // on the computer first
+        if (legacyBackup) downloadText('quotes-backup-2.1.16.json', legacyBackup);
         const response = await fetch('/api/quotes/raw', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -799,6 +841,7 @@
         const res = await response.json().catch(() => ({}));
 
         if (response.ok && res.success) {
+          legacyBackup = null;
           showMessage(`✅ Salvate ${quotes.length} citazioni su /quotes.json`, 'success');
         } else {
           showMessage('❌ Errore durante il salvataggio', 'error');
@@ -806,6 +849,16 @@
       } catch (error) {
         showMessage('❌ Errore: ' + error.message, 'error');
       }
+    }
+
+    function downloadText(name, text) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], {type: 'application/json'}));
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
 
     // Mostra messaggio
@@ -820,11 +873,11 @@
     }
 
     // -----------------------------------------------------------------
-    // Orologio letterario: /orari/HH.txt, righe "MM|testo|Autore, Opera".
+    // Orologio letterario: /clock/HH.txt, righe "MM|testo|Autore, Opera".
     // Si carica e si salva un'ora alla volta (i file insieme sono troppo
     // grandi per la memoria della scheda).
     // -----------------------------------------------------------------
-    let activeTab = 'meteo';
+    let activeTab = 'weather';
     let clockSummary = null;     // {hours:[{h,count,minutes}], total, covered}
     let clockHour = -1;          // Ora aperta
     let clockQuotes = [];        // [{m, text, author, work, fit}]
@@ -835,18 +888,18 @@
 
     function showTab(name) {
       activeTab = name;
-      document.getElementById('tab-meteo').classList.toggle('hidden', name !== 'meteo');
-      document.getElementById('tab-orari').classList.toggle('hidden', name !== 'orari');
-      document.getElementById('tab-btn-meteo').classList.toggle('active', name === 'meteo');
-      document.getElementById('tab-btn-orari').classList.toggle('active', name === 'orari');
-      if (name === 'orari' && !clockSummary) {
+      document.getElementById('tab-weather').classList.toggle('hidden', name !== 'weather');
+      document.getElementById('tab-clock').classList.toggle('hidden', name !== 'clock');
+      document.getElementById('tab-btn-weather').classList.toggle('active', name === 'weather');
+      document.getElementById('tab-btn-clock').classList.toggle('active', name === 'clock');
+      if (name === 'clock' && !clockSummary) {
         loadClockSummary().then(() => openClockHour(new Date().getHours()));
       }
     }
 
     async function loadClockSummary() {
       try {
-        const r = await fetch('/api/orari');
+        const r = await fetch('/api/clock');
         if (!r.ok) throw new Error('HTTP ' + r.status);
         clockSummary = await r.json();
         renderHourGrid();
@@ -880,11 +933,11 @@
       if (h === clockHour) return;
       if (clockDirty && !confirm('Le modifiche alle ore ' + pad2(clockHour) + ' non sono salvate. Continuare e perderle?')) return;
       try {
-        const [textRes, fitRes] = await Promise.all([fetch('/api/orari?h=' + h), fetch('/api/orari?h=' + h + '&fit=1')]);
+        const [textRes, fitRes] = await Promise.all([fetch('/api/clock?h=' + h), fetch('/api/clock?h=' + h + '&fit=1')]);
         if (!textRes.ok) throw new Error('HTTP ' + textRes.status);
         const text = await textRes.text();
         const fit = fitRes.ok ? (await fitRes.json()).fit : [];
-        // Stesse righe considerate dal firmware in sendOrariFit (non vuote)
+        // Stesse righe considerate dal firmware in sendClockFit (non vuote)
         const lines = text.split('\n').map(l => l.trim()).filter(l => l.length);
         clockQuotes = lines.map((line, i) => {
           const a = line.indexOf('|'), b = line.indexOf('|', a + 1);
@@ -954,7 +1007,7 @@
     }
 
     function addClockQuote(m) {
-      if (activeTab !== 'orari' || clockHour < 0) return;
+      if (activeTab !== 'clock' || clockHour < 0) return;
       clockEditing = -1;
       const minute = Number.isInteger(m) ? m : new Date().getMinutes();
       openClockModal({m: minute, text: '', author: '', work: ''}, 'Nuova citazione delle ' + pad2(clockHour));
@@ -1012,7 +1065,7 @@
         .map(({q}) => pad2(q.m) + '|' + q.text + '|' + (q.work ? q.author + ', ' + q.work : q.author))
         .join('\n') + (clockQuotes.length ? '\n' : '');
       try {
-        const r = await fetch('/api/orari?h=' + h, {method: 'POST', headers: {'Content-Type': 'text/plain; charset=utf-8'}, body});
+        const r = await fetch('/api/clock?h=' + h, {method: 'POST', headers: {'Content-Type': 'text/plain; charset=utf-8'}, body});
         const res = await r.json().catch(() => ({}));
         if (!r.ok || !res.success) throw new Error(res.message || 'HTTP ' + r.status);
         setClockDirty(false);

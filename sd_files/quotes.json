@@ -1,39 +1,39 @@
 {
-  "pioggia": [
+  "rain": [
     {"text": "Taci. Su le soglie del bosco non odo parole che dici umane; ma odo parole più nuove che parlano gocciole e foglie lontane. Ascolta. Piove dalle nuvole sparse.", "author": "Gabriele D'Annunzio, La pioggia nel pineto"}
   ],
-  "pioggia_leggera": [
+  "light_rain": [
     {"text": "Piange nel mio cuore come piove sulla città.", "author": "Paul Verlaine, Romanze senza parole"}
   ],
-  "temporale": [
+  "thunderstorm": [
     {"text": "E cielo e terra si mostrò qual era: la terra ansante, livida, in sussulto; il cielo ingombro, tragico, disfatto.", "author": "Giovanni Pascoli, Il lampo"}
   ],
-  "tempesta": [
+  "storm": [
     {"text": "Passata è la tempesta: odo augelli far festa, e la gallina, tornata in su la via, che ripete il suo verso.", "author": "Giacomo Leopardi, La quiete dopo la tempesta"}
   ],
-  "cielo_sereno": [
+  "clear_sky": [
     {"text": "Quel cielo di Lombardia, così bello quand'è bello, così splendido, così in pace.", "author": "Alessandro Manzoni, I promessi sposi"},
     {"text": "E quindi uscimmo a riveder le stelle.", "author": "Dante Alighieri, Inferno"}
   ],
-  "poche_nuvole": [
+  "few_clouds": [
     {"text": "Vagavo solitario come una nuvola che fluttua alta sopra valli e colli.", "author": "William Wordsworth, Vagavo solitario come una nuvola"}
   ],
-  "nuvole_sparse": [
+  "scattered_clouds": [
     {"text": "Vagavo solitario come una nuvola che fluttua alta sopra valli e colli.", "author": "William Wordsworth, Vagavo solitario come una nuvola"}
   ],
-  "nuvole_abbondanti": [
+  "cloudy": [
     {"text": "Quando il cielo basso e greve pesa come un coperchio sullo spirito che geme in preda a lunghi affanni...", "author": "Charles Baudelaire, Spleen"}
   ],
-  "nebbia": [
+  "fog": [
     {"text": "Nascondi le cose lontane, tu nebbia impalpabile e scialba, tu fumo che ancora rampolli, su l'alba.", "author": "Giovanni Pascoli, Nebbia"}
   ],
-  "neve": [
+  "snow": [
     {"text": "Lenta fiocca la neve pe 'l cielo cinerëo: gridi, suoni di vita più non salgono da la città.", "author": "Giosuè Carducci, Nevicata"}
   ],
-  "vento": [
+  "wind": [
     {"text": "O selvaggio vento dell'ovest, tu respiro dell'autunno.", "author": "Percy Bysshe Shelley, Ode al vento occidentale"}
   ],
-  "programmate": [
-    {"text": "Buongiorno! Ogni mattina è una pagina bianca.", "author": "", "ora": "07:00", "durata": 90, "giorni": "lun,mar,mer,gio,ven"}
+  "scheduled": [
+    {"text": "Buongiorno! Ogni mattina è una pagina bianca.", "author": "", "at": "07:00", "duration": 90, "days": "mon,tue,wed,thu,fri"}
   ]
 }

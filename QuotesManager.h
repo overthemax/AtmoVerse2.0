@@ -7,36 +7,43 @@
 #include <ArduinoJson.h>
 #include "WeatherUtils.h"
 
-// Struttura per rappresentare una citazione
+// A quote shown on the display
 struct Quote {
   String text;
   String author;
 };
 
-// Categorie di tempo del giorno
+// Parts of the day
 enum TimeCategory {
   MORNING,   // 5:00 - 11:59
   AFTERNOON, // 12:00 - 17:59
   EVENING,   // 18:00 - 4:59
 };
 
-// Recupera una citazione basata sul momento del giorno e sulle condizioni meteo
+// Literary clock folder on the SD card: one file per hour, CLOCK_DIR "/08.txt",
+// lines "MM|text|Author, Work". Before 2.1.17 it was LEGACY_CLOCK_DIR.
+#define CLOCK_DIR "/clock"
+#define LEGACY_CLOCK_DIR "/orari"
+
+// Renames the pre-2.1.17 literary clock folder, once, at boot
+void migrateClockFolder();
+
+// Quote for the display: scheduled, then literary clock, then weather
 Quote getQuoteForDisplay();
 
-// Orologio letterario (/orari/HH.txt, righe "MM|testo|Autore, Opera"):
-// true se la citazione viene mostrata per intero dal display
+// Literary clock: true if the display shows the whole quote
 bool clockQuoteFits(const String& text, const String& author);
 
-// Ottiene la categoria temporale corrente
+// Current part of the day
 TimeCategory getCurrentTimeCategory();
 
-// Carica una citazione casuale per la categoria specificata
+// Random quote from a quotes.json section
 bool loadRandomQuote(const String& category, Quote& quote);
 
-// Determina la categoria meteo corrente
+// quotes.json section for the current weather ("" if there is none)
 String getWeatherCategory();
 
-// Stato: ultima citazione mostrata sul display
+// Last quote shown on the display
 void setCurrentQuote(const Quote& q);
 Quote getCurrentQuote();
 

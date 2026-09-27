@@ -58,9 +58,11 @@
     'Usa **grassetto**, *corsivo*, \\n per andare a capo': 'Use **bold**, *italic*, \\n for a new line',
     'Anteprima Live': 'Live preview', 'La tua citazione apparirà qui...': 'Your quote will appear here...',
     'Autore *': 'Author *', 'Autore': 'Author', 'Note Autore': 'Author notes', 'es: filosofo, scrittore': 'e.g. philosopher, writer',
-    'es: motivazione, pioggia, mattina': 'e.g. motivazione, pioggia, mattina',
-    'Categorie suggerite: motivazione, pioggia, pioggia_leggera, cielo_sereno, poche_nuvole, nuvole_sparse, nuvole_abbondanti, temporale, neve, nebbia, vento, mattina, pomeriggio, sera':
-      'Suggested categories (internal names): motivazione, pioggia, pioggia_leggera, cielo_sereno, poche_nuvole, nuvole_sparse, nuvole_abbondanti, temporale, neve, nebbia, vento, mattina, pomeriggio, sera',
+    'es: rain, clear_sky': 'e.g. rain, clear_sky',
+    'Categorie del meteo: rain, light_rain, thunderstorm, storm, clear_sky, few_clouds, scattered_clouds, cloudy, fog, snow, wind':
+      'Weather categories: rain, light_rain, thunderstorm, storm, clear_sky, few_clouds, scattered_clouds, cloudy, fog, snow, wind',
+    '⚠️ Il file usa i nomi italiani: al salvataggio verrà convertito ai nomi inglesi, dopo aver scaricato una copia di backup':
+      '⚠️ The file uses the Italian names: saving converts it to the English names, after downloading a backup copy',
     'Programmazione (facoltativa)': 'Schedule (optional)',
     'Compila ora e/o data per mostrare la citazione in un momento preciso: ha la precedenza su quelle del meteo. Con la sola data vale tutto il giorno.':
       'Fill in time and/or date to show the quote at a precise moment: it takes priority over weather quotes. With only a date it lasts all day.',
@@ -142,8 +144,10 @@
 
   function tr(s) {
     if (typeof s !== 'string') return s;
-    const key = s.trim();
-    if (!key) return s;
+    const trimmed = s.trim();
+    if (!trimmed) return s;
+    // Text split over several lines in the HTML: spaces are collapsed
+    const key = trimmed.replace(/\s+/g, ' ');
     let out = null;
     if (Object.prototype.hasOwnProperty.call(EN, key)) out = EN[key];
     else {
@@ -152,8 +156,9 @@
       }
     }
     if (out === null) return s;
-    // Mantiene gli spazi attorno al testo originale
-    return s.slice(0, s.indexOf(key)) + out + s.slice(s.indexOf(key) + key.length);
+    // Keeps the spaces around the original text
+    const start = s.indexOf(trimmed);
+    return s.slice(0, start) + out + s.slice(start + trimmed.length);
   }
 
   const ATTRS = ['placeholder', 'title', 'aria-label'];

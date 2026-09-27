@@ -109,6 +109,7 @@ void setup() {
   // --- SD CARD su HSPI - INIZIALIZZO PRIMA DELLA DISPLAY ---
   // Inizializzazione centralizzata SD PRIMA per evitare conflitti SPI
   bool sdAvailable = initSD();
+  if (sdAvailable) migrateClockFolder();  // /orari -> /clock (2.1.17)
   
   // --- DISPLAY: Inizializza e mostra schermata di boot DOPO SD ---
   delay(BOOT_DELAY_MS);

@@ -1,6 +1,6 @@
 # AtmoVerse 2.0 - Git Ignore File
 
-# File di backup
+# Backup files
 *.bak
 *.backup
 *.old
@@ -12,7 +12,7 @@
 build.log
 debug.log
 
-# IDE specifici
+# IDE files
 .vscode/
 .idea/
 *.code-workspace
@@ -31,38 +31,40 @@ build/
 *.a
 *.so
 
-# OS specifici
+# OS files
 Thumbs.db
 desktop.ini
 .Spotlight-V100
 .Trashes
 
-# Documentazione temporanea
+# Editor swap files
 *.swp
 *.swo
 
-# File di configurazione personali (mantenere template)
-# conf.json su SD card non è nel repo
+# Personal settings: conf.json lives on the SD card only, never in the repository
 
-# File temporanei di compilazione
+# Python caches
 __pycache__/
 *.py[cod]
 
-# Node modules se presente web UI
+# Node modules
 node_modules/
 
-# Cartelle temporanee
+# Temporary folders
 temp/
 tmp/
 
-# Credenziali Arduino IoT Cloud: mai su git
+# Arduino IoT Cloud credentials: never in git
 CloudSecrets.h
 
-# Citazioni private (orologio letterario): solo sulla SD, mai su GitHub
+# Private literary clock quotes: on the SD card only, never on GitHub
+# (the folder was called orari before 2.1.17)
+clock/
+sd_files/clock/
 orari/
 sd_files/orari/
 quotes.csv
 
-# Bozze e risultati temporanei del CAD (Amagine3D)
+# CAD drafts and temporary results (Amagine3D)
 cad/.amagine3d-drafts/
 cad/*.json

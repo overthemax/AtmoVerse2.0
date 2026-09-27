@@ -11,8 +11,8 @@ SD card
 ├── quotes.json      Weather and scheduled quotes (downloaded only if missing)
 ├── icons/           Weather icons, 1-bit BMP (Weather Icons by Erik Flowers)
 ├── www/             Web interface: index, settings, quotes editor, diagnostics
-└── orari/           Optional: literary clock quotes, one file per hour
-                     (made with tools/prepara_citazioni_orarie.py, never in git)
+└── clock/           Optional: literary clock quotes, one file per hour
+                     (made with tools/make_clock_quotes.py, never in git)
 ```
 
 Files you add yourself are never deleted: an update only writes the files

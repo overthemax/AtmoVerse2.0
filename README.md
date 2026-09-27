@@ -45,7 +45,7 @@ ESP32 · 5.83″ e-ink display · battery powered · self-updating from GitHub �
   </tr>
 </table>
 
-<sub>Images are rendered from the code with the display's real fonts (<code>tools/anteprima_display.py</code>), with sample data, in Italian.</sub>
+<sub>Images are rendered from the code with the display's real fonts (<code>tools/preview_display.py</code>), with sample data, in Italian.</sub>
 
 ---
 
@@ -122,8 +122,8 @@ AtmoVerse restarts, connects, downloads what is missing and shows the weather. T
 For every display refresh the quote is chosen in this order:
 
 1. **Scheduled**, if one is active: with a start time and duration, days of the week, or a date (every year or once).
-2. **Literary clock**: a quote that mentions the current time, from `/orari/00.txt … 23.txt` on the SD card (optional).
-3. **Weather**: a quote that suits the weather and the time of day.
+2. **Literary clock**: a quote that mentions the current time, from `/clock/00.txt … 23.txt` on the SD card (optional).
+3. **Weather**: a quote from the `quotes.json` section for the current weather (`rain`, `light_rain`, `thunderstorm`, `storm`, `clear_sky`, `few_clouds`, `scattered_clouds`, `cloudy`, `fog`, `snow`, `wind`), preferring quotes tagged for the time of day (`period`: `morning`, `afternoon`, `evening`, `day`, `night`) and the season (`season`: `winter`, `spring`, `summer`, `autumn`).
 
 Everything is edited from the web editor (`/quotes-editor.html`), which has two tabs:
 
@@ -133,16 +133,18 @@ Everything is edited from the web editor (`/quotes-editor.html`), which has two 
 Example of a scheduled quote in `quotes.json`:
 
 ```json
-"programmate": [
+"scheduled": [
   { "text": "Good morning! Every morning is a blank page.", "author": "Anonymous",
-    "ora": "07:00", "durata": 90, "giorni": "lun,mar,mer,gio,ven" }
+    "at": "07:00", "duration": 90, "days": "mon,tue,wed,thu,fri" }
 ]
 ```
 
-The `/orari` files can also be generated from a CSV `HH:MM|phrase|text|work|author`. They live on the SD card only and are never part of the repository or of the updates:
+`date` (`"12-25"` every year, `"2026-12-25"` once) can replace or accompany `at`. Files written before version 2.1.17 use Italian names (`programmate`, `ora`, `durata`, `giorni`, `data`, `pioggia`…): the device still reads them, and the editor converts the file to the English names on the first save, after downloading a backup copy. The `/orari` folder is renamed to `/clock` automatically at start-up.
+
+The `/clock` files can also be generated from a CSV `HH:MM|phrase|text|work|author`. They live on the SD card only and are never part of the repository or of the updates:
 
 ```bash
-python tools/prepara_citazioni_orarie.py quotes.csv E:/
+python tools/make_clock_quotes.py quotes.csv E:/
 ```
 
 ---
@@ -168,7 +170,7 @@ At start-up and every 6 hours AtmoVerse checks the latest release and downloads 
 - **Chain of trust.** The release information comes from `api.github.com` with a verified certificate, including the SHA-256 of `manifest.json`. The manifest is accepted only if its hash matches, and it carries the SHA-256 of the firmware and of every SD file. GitHub serves release files from a CDN whose Let's Encrypt "Root YR" chain the ESP32 certificate bundle cannot verify, so those downloads are encrypted but checked by hash instead.
 - **SD files** (`sd_files/`): prepared in `/upd` and applied all together, even after an interruption. The release the SD card matches is remembered, so the periodic check skips re-hashing every file (a manual check from the web page always does the full check).
 - **Firmware**: written to the second app slot, 3 attempts. If the new version does not survive its first 60 seconds, the bootloader goes back to the previous one and the faulty version is never downloaded again.
-- **Personal files** (settings, `quotes.json`, `layout.json`, `/orari`): never overwritten.
+- **Personal files** (settings, `quotes.json`, `/clock`): never overwritten.
 - If the SD card is full, the display explains how much space is needed.
 
 ### Publishing a new version
@@ -199,12 +201,15 @@ Reachable at the IP address shown at the bottom of the display (during setup: `h
 | `GET /api/weather` | Current weather |
 | `GET/POST /api/settings` | Read or save the settings. The API key is never returned; an empty password or API key keeps the stored one |
 | `GET /api/wifi/scan` | Visible WiFi networks |
-| `GET/POST /api/quotes` | Read or save the weather and scheduled quotes |
-| `GET /api/orari` | Literary clock summary: quotes and covered minutes per hour |
-| `GET /api/orari?h=8` · `?h=8&fit=1` | One hour of the literary clock, or which of its quotes fit the display |
-| `POST /api/orari?h=8` | Save one hour (plain text, max 64 KB, written via a temporary file) |
+| `GET /quotes.json` · `POST /api/quotes/raw` | Read or save the weather and scheduled quotes (the whole file, written via a temporary file) |
+| `GET /api/quote/current` | Quote shown on the display |
+| `GET /api/clock` | Literary clock summary: quotes and covered minutes per hour |
+| `GET /api/clock?h=8` · `?h=8&fit=1` | One hour of the literary clock, or which of its quotes fit the display |
+| `POST /api/clock?h=8` | Save one hour (plain text, max 64 KB, written via a temporary file) |
 | `GET /api/battery` | Voltage, current, percentage, charging |
+| `GET /api/health` | Uptime, free memory, IP address, WiFi signal, SD card (used by the diagnostics page) |
 | `POST /api/update/check` | Check for updates now |
+| `POST /api/restart` | Restart the device |
 
 > The web interface has no password: anyone on your home network can change the settings. Use AtmoVerse only on networks you trust.
 

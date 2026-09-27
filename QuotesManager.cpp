@@ -1,11 +1,11 @@
 #include "QuotesManager.h"
 #include "Hardware.h"
 #include <Arduino.h>
-#include "AtmoVerseConstants.h" // Per JSON_BUFFER_LARGE
-#include <SD.h> // Aggiunto per SD
+#include "AtmoVerseConstants.h" // JSON_BUFFER_LARGE
+#include <SD.h>
 #include "Screens.h"  // quoteFitsDisplay()
 
-// Stato in memoria della citazione attualmente mostrata sul display
+// Quote currently shown on the display
 static Quote g_currentQuote = {"", ""};
 
 void setCurrentQuote(const Quote& q) {
@@ -16,18 +16,67 @@ Quote getCurrentQuote() {
   return g_currentQuote;
 }
 
-// Percorso del file JSON contenente le citazioni sulla SD
+// Quotes file on the SD card
 const char* QUOTES_FILE = "/quotes.json";
 
-// Ottiene la categoria temporale corrente
+// ---------------------------------------------------------------------------
+// English names and their pre-2.1.17 Italian equivalents
+// ---------------------------------------------------------------------------
+// quotes.json files written before 2.1.17 use Italian section names, field
+// names and values. They are still read; the quote editor converts the file
+// to the English names when it saves it.
+
+struct NamePair {
+  const char* en;
+  const char* legacy;
+};
+
+static const NamePair SECTION_NAMES[] = {
+  {"rain", "pioggia"},
+  {"light_rain", "pioggia_leggera"},
+  {"thunderstorm", "temporale"},
+  {"storm", "tempesta"},
+  {"clear_sky", "cielo_sereno"},
+  {"few_clouds", "poche_nuvole"},
+  {"scattered_clouds", "nuvole_sparse"},
+  {"cloudy", "nuvole_abbondanti"},
+  {"fog", "nebbia"},
+  {"snow", "neve"},
+  {"wind", "vento"},
+  {"scheduled", "programmate"},
+};
+
+// Values of the "period", "season" and "days" fields
+static const NamePair TAG_NAMES[] = {
+  {"morning", "mattina"}, {"afternoon", "pomeriggio"}, {"evening", "sera"},
+  {"day", "giorno"}, {"night", "notte"},
+  {"winter", "inverno"}, {"spring", "primavera"}, {"summer", "estate"}, {"autumn", "autunno"},
+  {"sun", "dom"}, {"mon", "lun"}, {"tue", "mar"}, {"wed", "mer"}, {"thu", "gio"}, {"fri", "ven"}, {"sat", "sab"},
+};
+
+template <size_t N>
+static const char* legacyOf(const NamePair (&table)[N], const char* en) {
+  for (const NamePair& p : table) {
+    if (strcmp(p.en, en) == 0) return p.legacy;
+  }
+  return nullptr;
+}
+
+// Value of a text field, or of its pre-2.1.17 name when missing
+static const char* fieldOf(JsonObject obj, const char* name, const char* legacy) {
+  const char* v = obj[name] | "";
+  return v[0] != '\0' ? v : (obj[legacy] | "");
+}
+
+// Current part of the day
 TimeCategory getCurrentTimeCategory() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 0)) {
-    return AFTERNOON; // Default in caso di errore
+    return AFTERNOON; // No valid time yet
   }
-  
+
   int hour = timeinfo.tm_hour;
-  
+
   if (hour >= 5 && hour < 12) {
     return MORNING;
   } else if (hour >= 12 && hour < 18) {
@@ -37,26 +86,26 @@ TimeCategory getCurrentTimeCategory() {
   }
 }
 
-// Verifica se la stringa timeValue (eventualmente contenente più valori separati da virgola)
-// contiene il valore target (case-insensitive), ad esempio "mattina,giorno" contiene "mattina".
-static bool timeMatches(const char* timeValue, const String& target) {
-  if (!timeValue) return false;
+// True if the comma-separated list (e.g. "morning,day") contains target,
+// ignoring case
+static bool listContains(const char* list, const String& target) {
+  if (!list) return false;
   if (target.length() == 0) return false;
 
-  String timeStr = String(timeValue);
-  timeStr.trim();
-  if (timeStr.length() == 0) return false;
+  String listStr = String(list);
+  listStr.trim();
+  if (listStr.length() == 0) return false;
 
   int start = 0;
-  int len = timeStr.length();
+  int len = listStr.length();
   while (start <= len) {
-    int commaIndex = timeStr.indexOf(',', start);
+    int commaIndex = listStr.indexOf(',', start);
     String token;
     if (commaIndex == -1) {
-      token = timeStr.substring(start);
-      start = len + 1; // termina il ciclo
+      token = listStr.substring(start);
+      start = len + 1; // last token
     } else {
-      token = timeStr.substring(start, commaIndex);
+      token = listStr.substring(start, commaIndex);
       start = commaIndex + 1;
     }
 
@@ -73,6 +122,13 @@ static bool timeMatches(const char* timeValue, const String& target) {
   return false;
 }
 
+// Like listContains, also accepting the Italian name of the tag
+static bool tagMatches(const char* list, const char* tag) {
+  if (listContains(list, tag)) return true;
+  const char* legacy = legacyOf(TAG_NAMES, tag);
+  return legacy && listContains(list, legacy);
+}
+
 static bool isCertainAuthor(const char* authorValue) {
   if (!authorValue) return false;
   String a = String(authorValue);
@@ -81,155 +137,130 @@ static bool isCertainAuthor(const char* authorValue) {
   return a.indexOf(',') >= 0;
 }
 
-static String getCurrentSeasonTag() {
+static const char* getCurrentSeasonTag() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 0)) {
     return "";
   }
   int month = timeinfo.tm_mon + 1;
   if (month == 12 || month == 1 || month == 2) {
-    return "inverno";
+    return "winter";
   } else if (month >= 3 && month <= 5) {
-    return "primavera";
+    return "spring";
   } else if (month >= 6 && month <= 8) {
-    return "estate";
-  } else if (month >= 9 && month <= 11) {
-    return "autunno";
+    return "summer";
   }
-  return "";
+  return "autumn";
 }
 
-// Determina la categoria meteo corrente in base al codice meteo
+// quotes.json section for the current weather
 String getWeatherCategory() {
   extern WeatherData currentWeather;
-  
-  // Se i dati meteo non sono validi o assenti, usa la categoria temporale
+
   if (!currentWeather.valid) {
     return "";
   }
-  
+
   // Category from the OpenWeatherMap condition code. Precipitation and fog
   // come first; strong wind comes before the clear/cloudy codes, which cover
-  // every remaining case (before, the wind check came after them and was never
-  // reached, and its thresholds were km/h while the data is in m/s).
+  // every remaining case.
   int weatherId = currentWeather.weather_id;
   float wind = windSpeedMs();
 
   // 2xx: thunderstorms; the most violent ones or gale-force wind -> storm
   if (weatherId >= 200 && weatherId <= 232) {
     bool violent = weatherId == 202 || weatherId == 212 || weatherId == 221 || weatherId == 232;
-    return (violent || wind >= WIND_GALE_MS) ? "tempesta" : "temporale";
+    return (violent || wind >= WIND_GALE_MS) ? "storm" : "thunderstorm";
   }
 
   // 3xx drizzle, 500 light rain, 520 light shower -> light rain
   if ((weatherId >= 300 && weatherId <= 321) || weatherId == 500 || weatherId == 520) {
-    return "pioggia_leggera";
+    return "light_rain";
   }
   if (weatherId >= 501 && weatherId <= 531) {
-    return "pioggia";
+    return "rain";
   }
   if (weatherId >= 600 && weatherId < 700) {
-    return "neve";
+    return "snow";
   }
   if (weatherId >= 700 && weatherId < 800) {
-    return "nebbia";
+    return "fog";
   }
 
   // Dry weather with strong wind
-  if (wind >= WIND_GALE_MS) return "tempesta";
-  if (wind >= WIND_STRONG_MS) return "vento";
+  if (wind >= WIND_GALE_MS) return "storm";
+  if (wind >= WIND_STRONG_MS) return "wind";
 
-  if (weatherId == 800) return "cielo_sereno";
-  if (weatherId == 801) return "poche_nuvole";
-  if (weatherId == 802) return "nuvole_sparse";
-  if (weatherId == 803 || weatherId == 804) return "nuvole_abbondanti";
+  if (weatherId == 800) return "clear_sky";
+  if (weatherId == 801) return "few_clouds";
+  if (weatherId == 802) return "scattered_clouds";
+  if (weatherId == 803 || weatherId == 804) return "cloudy";
   return "";
 }
 
-// Carica una citazione casuale per la categoria specificata
-bool loadRandomQuote(const String& category, Quote& quote) {
-  // Inizializza la SD in modo centralizzato
-  if (!initSD()) {
-    Serial.println("[QUOTES] loadRandomQuote - ERRORE: initSD() fallita");
-    return false;
+// Reads one section of quotes.json (or its pre-2.1.17 name) into doc.
+// Only that section is parsed, so the whole file never sits in RAM.
+static JsonArray loadSection(const char* section, JsonDocument& doc) {
+  if (!initSD() || !SD.exists(QUOTES_FILE)) {
+    Serial.println("[QUOTES] /quotes.json not found on the SD card");
+    return JsonArray();
   }
-  
-  // Verifica che il file quotes.json esista
-  if (!SD.exists(QUOTES_FILE)) {
-    Serial.println("[QUOTES] loadRandomQuote - ERRORE: /quotes.json non trovato su SD");
-    return false;
-  }
-  
   File file = SD.open(QUOTES_FILE, FILE_READ);
   if (!file) {
-    Serial.println("[QUOTES] loadRandomQuote - ERRORE: impossibile aprire /quotes.json");
-    return false;
+    Serial.println("[QUOTES] Cannot open /quotes.json");
+    return JsonArray();
   }
-  
-  // Usa una DynamicJsonDocument filtrata per analizzare solo la categoria richiesta
-#if defined(ESP32)
-  Serial.print("[QUOTES] loadRandomQuote - heap prima JSON: ");
-  Serial.println(ESP.getFreeHeap());
-#endif
-  DynamicJsonDocument doc(JSON_BUFFER_LARGE);
-  DynamicJsonDocument filter(JSON_BUFFER_SMALL);
-  filter[category] = true;
+
+  const char* legacy = legacyOf(SECTION_NAMES, section);
+  JsonDocument filter;
+  filter[section] = true;
+  if (legacy) filter[legacy] = true;
   DeserializationError error = deserializeJson(doc, file, DeserializationOption::Filter(filter));
   file.close();
-  
   if (error) {
-    Serial.print("[QUOTES] loadRandomQuote - ERRORE deserializeJson: ");
-    Serial.println(error.c_str());
-    return false;
+    Serial.printf("[QUOTES] quotes.json is not valid JSON: %s\n", error.c_str());
+    return JsonArray();
   }
-  
-#if defined(ESP32)
-  Serial.print("[QUOTES] loadRandomQuote - heap dopo JSON: ");
-  Serial.println(ESP.getFreeHeap());
-#endif
-  
-  // Verifica che la categoria richiesta esista
-  if (!doc.containsKey(category) || doc[category].size() == 0) {
-    Serial.print("[QUOTES] loadRandomQuote - categoria non trovata nel JSON: ");
-    Serial.println(category);
-    return false;
-  }
-  
-  // Recupera citazioni per la categoria richiesta
-  JsonArray categoryQuotes = doc[category].as<JsonArray>();
-  int total = categoryQuotes.size();
+
+  JsonArray list = doc[section].as<JsonArray>();
+  if ((list.isNull() || list.size() == 0) && legacy) list = doc[legacy].as<JsonArray>();
+  return list;
+}
+
+// Random quote from a quotes.json section, preferring quotes tagged for the
+// current part of the day and season and with a known work
+bool loadRandomQuote(const String& category, Quote& quote) {
+  JsonDocument doc;
+  JsonArray categoryQuotes = loadSection(category.c_str(), doc);
+  int total = categoryQuotes.isNull() ? 0 : categoryQuotes.size();
   if (total == 0) {
-    Serial.print("[QUOTES] loadRandomQuote - array vuoto per categoria: ");
-    Serial.println(category);
+    Serial.println("[QUOTES] No quotes in the section: " + category);
     return false;
   }
 
-  // Determina fascia oraria corrente (specifica e ampia)
-  TimeCategory timeCategory = getCurrentTimeCategory();
-  String specificTime; // mattina / pomeriggio / sera
-  String broadTime;    // giorno / notte
-  String seasonTag = getCurrentSeasonTag();
+  // Current part of the day, specific and broad
+  const char* specificTime; // morning / afternoon / evening
+  const char* broadTime;    // day / night
+  const char* seasonTag = getCurrentSeasonTag();
 
-  switch (timeCategory) {
+  switch (getCurrentTimeCategory()) {
     case MORNING:
-      specificTime = "mattina";
-      broadTime = "giorno";
+      specificTime = "morning";
+      broadTime = "day";
       break;
     case AFTERNOON:
-      specificTime = "pomeriggio";
-      broadTime = "giorno";
+      specificTime = "afternoon";
+      broadTime = "day";
       break;
     case EVENING:
     default:
-      specificTime = "sera";
-      broadTime = "notte";
+      specificTime = "evening";
+      broadTime = "night";
       break;
   }
 
-  int selectedIndex = -1;
-
-  // Selezione a pool cumulativo: aggiungi candidati da step progressivamente
-  // più permissivi finché il pool raggiunge MIN_POOL o si esauriscono gli step.
+  // Cumulative pool: candidates are added from progressively looser steps
+  // until the pool reaches MIN_POOL or the steps run out
   const int MAX_CANDIDATES = 50;
   const int MIN_POOL = 3;
   int candidates[MAX_CANDIDATES];
@@ -239,121 +270,94 @@ bool loadRandomQuote(const String& category, Quote& quote) {
     for (int j = 0; j < candidateCount; j++) if (candidates[j] == idx) return true;
     return false;
   };
-  auto seasonOkFor = [&](const char* s) -> bool {
-    if (seasonTag.length() == 0) return true;
-    String sv = String(s); sv.trim();
-    return (sv.length() == 0 || timeMatches(s, seasonTag));
+  // A quote without a season fits every season
+  auto seasonOk = [&](JsonObject obj) -> bool {
+    if (seasonTag[0] == '\0') return true;
+    String sv = String(obj["season"] | ""); sv.trim();
+    return sv.length() == 0 || tagMatches(sv.c_str(), seasonTag);
+  };
+  // "period" was called "time" before 2.1.17
+  auto periodOf = [](JsonObject obj) -> const char* {
+    return fieldOf(obj, "period", "time");
+  };
+  // Adds the quotes with a known work that pass the test
+  auto addCandidates = [&](auto test) {
+    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
+      if (alreadyIn(i)) continue;
+      JsonObject obj = categoryQuotes[i].as<JsonObject>();
+      if (isCertainAuthor(obj["author"] | "") && test(obj)) candidates[candidateCount++] = i;
+    }
   };
 
-  // Step 1: time specifico (mattina/pomeriggio/sera) + stagione + autore certo
-  if (candidateCount < MIN_POOL && specificTime.length() > 0) {
-    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
-      if (alreadyIn(i)) continue;
-      JsonObject obj = categoryQuotes[i].as<JsonObject>();
-      if (!isCertainAuthor(obj["author"] | "")) continue;
-      if (seasonOkFor(obj["season"] | "") && timeMatches(obj["time"] | "", specificTime))
-        candidates[candidateCount++] = i;
-    }
-  }
-
-  // Step 2: time ampio (giorno/notte) + stagione + autore certo
-  if (candidateCount < MIN_POOL && broadTime.length() > 0) {
-    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
-      if (alreadyIn(i)) continue;
-      JsonObject obj = categoryQuotes[i].as<JsonObject>();
-      if (!isCertainAuthor(obj["author"] | "")) continue;
-      if (seasonOkFor(obj["season"] | "") && timeMatches(obj["time"] | "", broadTime))
-        candidates[candidateCount++] = i;
-    }
-  }
-
-  // Step 3: stagione only + autore certo (qualsiasi orario)
+  // Step 1: specific part of the day + season
+  addCandidates([&](JsonObject o) { return seasonOk(o) && tagMatches(periodOf(o), specificTime); });
+  // Step 2: day/night + season
   if (candidateCount < MIN_POOL) {
-    for (int i = 0; i < total && candidateCount < MAX_CANDIDATES; i++) {
-      if (alreadyIn(i)) continue;
-      JsonObject obj = categoryQuotes[i].as<JsonObject>();
-      if (!isCertainAuthor(obj["author"] | "")) continue;
-      if (seasonOkFor(obj["season"] | ""))
-        candidates[candidateCount++] = i;
-    }
+    addCandidates([&](JsonObject o) { return seasonOk(o) && tagMatches(periodOf(o), broadTime); });
   }
-
-  // Step 4: nessun filtro, accetta tutti (anche senza autore certo)
+  // Step 3: season only, any time
+  if (candidateCount < MIN_POOL) {
+    addCandidates([&](JsonObject o) { return seasonOk(o); });
+  }
+  // Step 4: no filter at all, unknown works included
   if (candidateCount == 0) {
     for (int i = 0; i < total && i < MAX_CANDIDATES; i++)
       candidates[i] = i;
     candidateCount = min(total, MAX_CANDIDATES);
   }
 
-  selectedIndex = candidates[random(candidateCount)];
-
+  int selectedIndex = candidates[random(candidateCount)];
   JsonObject selected = categoryQuotes[selectedIndex].as<JsonObject>();
 
   const char* selText = selected["text"] | "";
   const char* selAuthor = selected["author"] | "";
-  const char* selTime = selected["time"] | "";
-  const char* selSeason = selected["season"] | "";
 
-  // Verifica se la nuova citazione è diversa da quella attuale
   Quote prev = getCurrentQuote();
-  bool changed = (prev.text != String(selText)) || (prev.author != String(selAuthor));
-
-  if (changed) {
-    Serial.print("[QUOTES] loadRandomQuote - categoria: ");
-    Serial.print(category);
-    Serial.print(", indice: ");
-    Serial.println(selectedIndex);
-
-    if (selTime && selTime[0] != '\0') {
-      Serial.print("[QUOTES]   time: ");
-      Serial.println(selTime);
-    }
-    if (selSeason && selSeason[0] != '\0') {
-      Serial.print("[QUOTES]   season: ");
-      Serial.println(selSeason);
-    }
-
-    Serial.print("[QUOTES]   autore: ");
-    Serial.println(selAuthor);
-    Serial.print("[QUOTES]   testo: ");
-    Serial.println(selText);
+  if (prev.text != String(selText) || prev.author != String(selAuthor)) {
+    Serial.printf("[QUOTES] Section %s, quote %d of %d\n", category.c_str(), selectedIndex + 1, total);
+    const char* selPeriod = periodOf(selected);
+    const char* selSeason = selected["season"] | "";
+    if (selPeriod[0] != '\0') Serial.printf("[QUOTES]   period: %s\n", selPeriod);
+    if (selSeason[0] != '\0') Serial.printf("[QUOTES]   season: %s\n", selSeason);
   }
 
   quote.text = String(selText);
   quote.author = String(selAuthor);
-  
+
   return true;
 }
 
 // ---------------------------------------------------------------------------
-// Citazioni programmate
+// Scheduled quotes
 // ---------------------------------------------------------------------------
-// Sezione "programmate" di quotes.json. Ogni voce:
+// "scheduled" section of quotes.json. Each entry:
 //   "text", "author"
-//   "ora":    "HH:MM"        inizio (facoltativo)
-//   "durata": minuti         per quanto resta attiva dall'"ora" (default 60)
-//   "giorni": "lun,mer,ven"  giorni della settimana (facoltativo)
-//   "data":   "MM-DD" ogni anno, oppure "YYYY-MM-DD" una volta (facoltativo);
-//             con la sola data la citazione vale tutto il giorno
-// Serve almeno uno tra "ora" e "data". Se più voci sono attive vince la più
-// specifica (data + ora, poi data, poi ora); a parità si sceglie a caso.
+//   "at":       "HH:MM"          start (optional)
+//   "duration": minutes          how long it stays active after "at" (default 60)
+//   "days":     "mon,wed,fri"    days of the week (optional)
+//   "date":     "MM-DD" every year, or "YYYY-MM-DD" once (optional);
+//               with a date only, the quote lasts the whole day
+// At least one of "at" and "date" is required. When several entries are
+// active the most specific wins (date + time, then date, then time); ties are
+// broken at random. Before 2.1.17 the fields were "ora", "durata", "giorni"
+// and "data", with Italian day names.
 
-static const char* SCHEDULED_KEY = "programmate";
+static const char* SCHEDULED_KEY = "scheduled";
 
-// "HH:MM" -> minuti dalla mezzanotte, -1 se non valido
+// "HH:MM" -> minutes since midnight, -1 if not valid
 static int parseClock(const char* s) {
   int h, m;
   if (!s || sscanf(s, "%d:%d", &h, &m) != 2 || h < 0 || h > 23 || m < 0 || m > 59) return -1;
   return h * 60 + m;
 }
 
-// "lun,mar,..." contiene il giorno tm_wday (0 = domenica)?
+// Does "mon,tue,..." contain the day tm_wday (0 = Sunday)?
 static bool dayMatches(const char* days, int wday) {
-  static const char* names[] = {"dom", "lun", "mar", "mer", "gio", "ven", "sab"};
-  return timeMatches(days, names[wday]);
+  static const char* names[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
+  return tagMatches(days, names[wday]);
 }
 
-// "MM-DD" o "YYYY-MM-DD" corrisponde alla data di oggi?
+// Is "MM-DD" or "YYYY-MM-DD" today?
 static bool dateMatches(const char* date, const struct tm& t) {
   int y, m, d;
   if (sscanf(date, "%d-%d-%d", &y, &m, &d) == 3) {
@@ -367,19 +371,10 @@ static bool dateMatches(const char* date, const struct tm& t) {
 
 static bool loadScheduledQuote(Quote& quote) {
   struct tm t;
-  if (!getLocalTime(&t, 0)) return false;  // Senza ora valida niente programmate
-  if (!initSD() || !SD.exists(QUOTES_FILE)) return false;
+  if (!getLocalTime(&t, 0)) return false;  // No valid time, no scheduled quotes
 
-  File file = SD.open(QUOTES_FILE, FILE_READ);
-  if (!file) return false;
-  DynamicJsonDocument doc(JSON_BUFFER_LARGE);
-  DynamicJsonDocument filter(JSON_BUFFER_SMALL);
-  filter[SCHEDULED_KEY] = true;
-  DeserializationError error = deserializeJson(doc, file, DeserializationOption::Filter(filter));
-  file.close();
-  if (error) return false;
-
-  JsonArray list = doc[SCHEDULED_KEY].as<JsonArray>();
+  JsonDocument doc;
+  JsonArray list = loadSection(SCHEDULED_KEY, doc);
   if (list.isNull() || list.size() == 0) return false;
 
   int nowMin = t.tm_hour * 60 + t.tm_min;
@@ -389,22 +384,22 @@ static bool loadScheduledQuote(Quote& quote) {
 
   for (int i = 0; i < (int)list.size(); i++) {
     JsonObject q = list[i].as<JsonObject>();
-    const char* ora = q["ora"] | "";
-    const char* data = q["data"] | "";
-    const char* giorni = q["giorni"] | "";
-    bool hasTime = ora[0] != '\0';
-    bool hasDate = data[0] != '\0';
+    const char* at = fieldOf(q, "at", "ora");
+    const char* date = fieldOf(q, "date", "data");
+    const char* days = fieldOf(q, "days", "giorni");
+    bool hasTime = at[0] != '\0';
+    bool hasDate = date[0] != '\0';
     if (!hasTime && !hasDate) continue;
 
-    if (hasDate && !dateMatches(data, t)) continue;
-    if (giorni[0] != '\0' && !dayMatches(giorni, t.tm_wday)) continue;
+    if (hasDate && !dateMatches(date, t)) continue;
+    if (days[0] != '\0' && !dayMatches(days, t.tm_wday)) continue;
 
     if (hasTime) {
-      int start = parseClock(ora);
+      int start = parseClock(at);
       if (start < 0) continue;
-      int duration = q["durata"] | 60;
+      int duration = q["duration"].is<int>() ? q["duration"].as<int>() : (q["durata"] | 60);
       if (duration < 1) duration = 1;
-      // Minuti trascorsi dall'inizio, anche a cavallo della mezzanotte
+      // Minutes since the start, also across midnight
       int elapsed = (nowMin - start + 1440) % 1440;
       if (elapsed >= duration) continue;
     }
@@ -415,7 +410,7 @@ static bool loadScheduledQuote(Quote& quote) {
       bestCount = 1;
       chosen = i;
     } else if (score == bestScore) {
-      // Scelta casuale uniforme tra le voci ugualmente specifiche
+      // Uniform random choice among equally specific entries
       bestCount++;
       if (random(bestCount) == 0) chosen = i;
     }
@@ -429,19 +424,28 @@ static bool loadScheduledQuote(Quote& quote) {
 }
 
 // ---------------------------------------------------------------------------
-// Citazioni "orologio letterario": /orari/HH.txt sulla SD
+// Literary clock quotes: CLOCK_DIR/HH.txt on the SD card
 // ---------------------------------------------------------------------------
-// Un file per ora, una riga per citazione: "MM|testo|Autore, Opera"
-// (generati da tools/prepara_citazioni_orarie.py e copiati a mano sulla SD:
-// non fanno parte degli aggiornamenti automatici e non vengono mai toccati).
-// Si legge solo il file dell'ora corrente, riga per riga, senza caricarlo in RAM.
+// One file per hour, one line per quote: "MM|text|Author, Work"
+// (made by tools/make_clock_quotes.py or the quote editor; never part of the
+// automatic updates). Only the current hour's file is read, line by line,
+// without loading it into RAM.
 
-// Scarto rapido prima della misura vera: oltre questa lunghezza la citazione
-// non entra nel riquadro nemmeno col carattere più piccolo
+void migrateClockFolder() {
+  if (!initSD()) return;
+  if (SD.exists(LEGACY_CLOCK_DIR) && !SD.exists(CLOCK_DIR)) {
+    bool ok = SD.rename(LEGACY_CLOCK_DIR, CLOCK_DIR);
+    Serial.printf("[QUOTES] Literary clock folder %s renamed to %s: %s\n",
+                  LEGACY_CLOCK_DIR, CLOCK_DIR, ok ? "ok" : "FAILED");
+  }
+}
+
+// Quick check before the real measurement: longer quotes do not fit the box
+// even with the smallest font
 static const size_t CLOCK_QUOTE_MAX_CHARS = 700;
 
 bool clockQuoteFits(const String& text, const String& author) {
-  // Prefiltro sulla lunghezza: misurare testi enormi col font costa tempo
+  // Length first: measuring huge texts with the font takes time
   return text.length() <= CLOCK_QUOTE_MAX_CHARS && quoteFitsDisplay(text, author);
 }
 
@@ -450,15 +454,15 @@ static bool loadClockQuote(Quote& quote) {
   if (!getLocalTime(&t, 0)) return false;
   if (!initSD()) return false;
 
-  char path[16];
-  snprintf(path, sizeof(path), "/orari/%02d.txt", t.tm_hour);
+  char path[20];
+  snprintf(path, sizeof(path), CLOCK_DIR "/%02d.txt", t.tm_hour);
   File f = SD.open(path, FILE_READ);
   if (!f) return false;
 
   char minute[3];
   snprintf(minute, sizeof(minute), "%02d", t.tm_min);
 
-  // Scelta casuale uniforme tra le righe del minuto (reservoir sampling)
+  // Uniform random choice among the lines of this minute (reservoir sampling)
   int matches = 0;
   String chosen;
   while (f.available()) {
@@ -466,7 +470,7 @@ static bool loadClockQuote(Quote& quote) {
     if (line.length() < 4 || line[0] != minute[0] || line[1] != minute[1] || line[2] != '|') continue;
     int sep = line.indexOf('|', 3);
     if (sep < 0 || (size_t)(sep - 3) > CLOCK_QUOTE_MAX_CHARS) continue;
-    // Solo citazioni che il display mostra per intero (font adattivo compreso)
+    // Only quotes the display shows in full (adaptive font included)
     String author = line.substring(sep + 1);
     author.trim();
     if (!clockQuoteFits(line.substring(3, sep), author)) continue;
@@ -483,55 +487,40 @@ static bool loadClockQuote(Quote& quote) {
   return true;
 }
 
-// Funzione principale per ottenere una citazione da visualizzare.
-// Priorità: 1) programmate (quotes.json)  2) orologio letterario (/orari)
-//           3) categoria meteo corrente
+// Quote for the display.
+// Priority: 1) scheduled (quotes.json)  2) literary clock (CLOCK_DIR)
+//           3) current weather section
 Quote getQuoteForDisplay() {
   Quote quote;
   Quote prev = getCurrentQuote();
 
-  // 1) Citazione programmata attiva in questo momento
+  // 1) Scheduled quote active now
   bool loaded = loadScheduledQuote(quote);
   String category = loaded ? String(SCHEDULED_KEY) : "";
 
-  // 2) Citazione che cita l'orario attuale
+  // 2) Quote that mentions the current time
   if (!loaded) {
     loaded = loadClockQuote(quote);
-    if (loaded) category = "orari";
+    if (loaded) category = "clock";
   }
 
-  // 3) Citazione per la categoria meteo corrente
+  // 3) Quote for the current weather
   if (!loaded) {
     category = getWeatherCategory();
     loaded = (category.length() > 0) && loadRandomQuote(category, quote);
   }
 
   if (!loaded) {
-    // Nessuna citazione per questa categoria: si lascia quella precedente
-    // (prima veniva mostrato sul display il testo di debug "cat: <categoria>")
-    Serial.println("[QUOTES] Nessuna citazione per la categoria: " + category);
+    // Nothing found: the previous quote stays on the display
+    Serial.println("[QUOTES] No quote for the section: " + (category.length() ? category : String("(no weather)")));
     quote = prev;
   }
-  
-  // Logga solo se la citazione è cambiata rispetto alla precedente
-  bool changed = (quote.text != prev.text) || (quote.author != prev.author);
-  if (changed) {
-    Serial.print("[QUOTES] getQuoteForDisplay - categoria meteo: ");
-    if (category.length() == 0) {
-      Serial.println("(vuota, uso fallback)");
-    } else {
-      Serial.println(category);
-    }
-    if (quote.text == "citazione non trovata, controllare la sd ed il file quotes.json") {
-      Serial.println("[QUOTES] getQuoteForDisplay - fallback: nessuna citazione valida trovata");
-    }
-    Serial.print("[QUOTES] getQuoteForDisplay - citazione finale: ");
-    Serial.println(quote.text);
-    Serial.print("[QUOTES] getQuoteForDisplay - autore finale: ");
-    Serial.println(quote.author);
+
+  if (quote.text != prev.text || quote.author != prev.author) {
+    Serial.println("[QUOTES] New quote (" + category + "): " + quote.text + " — " + quote.author);
   }
-  
-  // Memorizza come citazione corrente per sincronizzazione Web
+
+  // Kept for the web page
   setCurrentQuote(quote);
   return quote;
 }

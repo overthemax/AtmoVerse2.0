@@ -48,7 +48,7 @@ licensed under the [SIL Open Font License 1.1](LICENSES/OFL-1.1.txt).
 ## Quotes
 
 Quotes are short excerpts attributed to their authors and works. The literary
-clock files (`/orari`) are not part of this repository or of the updates: they
+clock files (`/clock`) are not part of this repository or of the updates: they
 stay on the user's own SD card.
 
 ## Tools (not distributed with the firmware)

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Converte un CSV di citazioni "a orario" nei file letti da AtmoVerse.
+"""Converts a CSV of time quotes into the files read by AtmoVerse.
 
-Formato del CSV (separatore |), una citazione per riga:
-    HH:MM|espressione dell'orario|testo|opera|autore
+CSV format (| separator), one quote per line:
+    HH:MM|phrase naming the time|text|work|author
 
-Uscita: una cartella "orari" con un file per ora (00.txt ... 23.txt).
-Ogni riga dei file:
-    MM|testo|Autore, Opera
-Il firmware legge solo il file dell'ora corrente e sceglie a caso tra le
-citazioni del minuto attuale (vedi loadClockQuote in QuotesManager.cpp).
+Output: a "clock" folder with one file per hour (00.txt ... 23.txt).
+Each line of the files:
+    MM|text|Author, Work
+The firmware reads only the current hour's file and picks at random among
+the quotes of the current minute (see loadClockQuote in QuotesManager.cpp).
 
-I file generati vanno copiati nella radice della SD (cartella /orari).
-Non vanno messi nel repository: le citazioni possono essere protette da
-diritto d'autore e restano solo sulla SD.
+Copy the generated folder to the root of the SD card (/clock).
+Never put the files in the repository: the quotes may be copyrighted and
+stay on the SD card only.
 
-Uso:
-    python tools/prepara_citazioni_orarie.py quotes.csv  C:/percorso/SD
+Usage:
+    python tools/make_clock_quotes.py quotes.csv  C:/path/to/SD
 """
 import sys
 from collections import defaultdict
@@ -24,18 +24,18 @@ from pathlib import Path
 
 def clean(text: str) -> str:
     text = text.strip()
-    # Nel CSV alcune citazioni sono racchiuse tra virgolette con "" per le interne
+    # Some quotes in the CSV are wrapped in quotes, with "" for inner ones
     if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
         text = text[1:-1]
     text = text.replace('""', '"').strip()
-    # Il separatore dei file di uscita e gli a capo non possono comparire nel testo
+    # The output separator and line breaks cannot appear in the text
     return " ".join(text.replace("|", "/").split())
 
 
 def main():
     if len(sys.argv) != 3:
         sys.exit(__doc__)
-    src, dest = Path(sys.argv[1]), Path(sys.argv[2]) / "orari"
+    src, dest = Path(sys.argv[1]), Path(sys.argv[2]) / "clock"
     dest.mkdir(parents=True, exist_ok=True)
 
     per_hour = defaultdict(list)
@@ -65,7 +65,7 @@ def main():
         total += len(lines)
 
     minutes = {(h, l[:2]) for h, ls in per_hour.items() for l in ls}
-    print(f"{total} citazioni in {dest} ({len(minutes)} minuti su 1440 coperti, {skipped} righe scartate)")
+    print(f"{total} quotes in {dest} ({len(minutes)} of 1440 minutes covered, {skipped} lines skipped)")
 
 
 if __name__ == "__main__":
