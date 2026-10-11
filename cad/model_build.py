@@ -35,7 +35,13 @@ MCU_L, MCU_W, MCU_T = 50.5, 26.3, 8.0             # WEMOS LOLIN32 (misurata) in 
 MCU_TOTAL_L = 72.8                                # scheda + adattatore micro-USB -> USB-C (misurata)
 ADAPTER_L = 23.3                                  # adattatore da solo (misurato): ~1 mm entra nella presa micro-USB
 ADAPTER_W, ADAPTER_T = 11.0, 6.0                  # sezione dell'adattatore (misurata)
-ADAPTER_OFF_Y, ADAPTER_OFF_Z = 0.0, 0.0           # centro presa USB-C rispetto alla micro-USB (coassiale, verificato)
+# La presa micro-USB (e quindi l'adattatore, dritto) non è al centro della larghezza
+# della scheda: è a filo del lato lungo inferiore (verso il tavolo, scheda vista dal
+# davanti con la USB a destra). Offset del centro dell'adattatore rispetto all'asse
+# della scheda: in profondità 0, in altezza -(MCU_W - ADAPTER_W) / 2.
+ADAPTER_OFF_Y = 0.0
+ADAPTER_OFF_Z = -(MCU_W - ADAPTER_W) / 2
+USBC_Z = 68.15                                    # centro dell'asola nella cornice già stampata (riferimento fisso)
 ADAPTER_CLR = 0.2                                 # gioco per lato dell'adattatore nell'asola della parete
 MCU_STANDOFF = 4.0                                # sotto la scheda: pin e saldature
 SD_W, SD_H = 51.0, 23.0                           # modulo SD
@@ -131,11 +137,11 @@ tabs = union([
 # faccia è a filo con l'esterno; il cavo si innesta direttamente da fuori.
 mcu_x0 = WIDTH - MCU_TOTAL_L
 adapter_x0 = mcu_x0 + MCU_L                  # fine scheda = inizio adattatore
-MCU_Z0 = 55.0   # sopra l'alloggio batteria (la scheda ora arriva fin sopra la batteria)
+MCU_Z0 = USBC_Z - ADAPTER_OFF_Z - MCU_W / 2       # la scheda si sistema attorno all'asola esistente
 mcu_pcb_y = FRONT_D - MCU_STANDOFF - 1.6     # faccia componenti della scheda
 usb_y = mcu_pcb_y - 1.5                      # centro della presa micro-USB
-usb_z = MCU_Z0 + MCU_W / 2
-usbc_y, usbc_z = usb_y + ADAPTER_OFF_Y, usb_z + ADAPTER_OFF_Z   # centro della presa USB-C
+usb_z = MCU_Z0 + MCU_W / 2                   # asse della scheda
+usbc_y, usbc_z = usb_y + ADAPTER_OFF_Y, usb_z + ADAPTER_OFF_Z   # centro dell'adattatore (= USBC_Z)
 # Asola nella parete destra con la sezione dell'adattatore più il gioco:
 # ADAPTER_W lungo Z (larghezza della scheda), ADAPTER_T lungo Y (spessore)
 usbc_w, usbc_t = ADAPTER_W + 2 * ADAPTER_CLR, ADAPTER_T + 2 * ADAPTER_CLR
@@ -251,8 +257,15 @@ mcu_supports = mcu_supports + adapter_pad
 # Colonna destra dal basso: LOLIN32 (con adattatore), SD. INA219 + RTC in alto a
 # sinistra, sopra la batteria (con l'adattatore la colonna destra non basta più).
 # La scheda driver sta in basso al centro: il cavo piatto del pannello esce lì ed è corto.
-right_x0 = WIDTH - WALL - 4.0 - max(SD_W, INA_W + 6 + RTC_W) - FRAME_CLR - FRAME_T  # colonna allineata alla parete destra
+# SD sopra la LOLIN32; spostata verso il centro quanto basta per stare lontana
+# dalla colonnina della vite in alto a destra (SD_BOSS_CLR attorno al diam. BOSS_D).
+SD_BOSS_CLR = 0.5
 SD_Z0 = MCU_Z0 + MCU_W + 4
+_sd_top = SD_Z0 + SD_H + FRAME_CLR + FRAME_T
+_bx, _bz = boss_pts[3]
+_dz = max(0.0, _bz - _sd_top)
+right_x0 = min(WIDTH - WALL - 4.0 - SD_W - FRAME_CLR - FRAME_T,
+               _bx - math.sqrt(max(0.0, (BOSS_D / 2 + SD_BOSS_CLR) ** 2 - _dz ** 2)) - SD_W - FRAME_CLR - FRAME_T)
 INA_X0, INA_Z0 = BATT_X0, BATT_Z0 + BATT_H + 10.0   # sopra l'alloggio batteria, sotto le feritoie
 RTC_X0 = INA_X0 + INA_W + 6
 DRV_X0, DRV_Z0 = BATT_X0 + BATT_W + 0.5 + cradle_t + 3.0, 15.0   # in basso a destra, accanto alla batteria e sopra la colonnina
