@@ -203,6 +203,9 @@ void setup() {
   }
   setupServer();
   getWeatherData();
+  // On battery the web page stays reachable for 10 minutes after power-on,
+  // as after a touch, then the WiFi is switched off
+  if (!apMode && ecoActive()) ecoOpenWebWindow();
   updateDisplay();
 }
 
@@ -260,7 +263,11 @@ void loop() {
       lastChargePoll = currentMillis;
       if (battery.pollCharging()) {
         ecoPowerChanged();
-        lastDisplayUpdate = 0;
+        // Redraw at once, before the WiFi reconnects (battery and WiFi icon change now)
+        if (!apMode) {
+          updateDisplay();
+          lastDisplayUpdate = millis() ? millis() : 1;
+        }
       }
     }
 
@@ -403,6 +410,8 @@ void loop() {
     } else {
       refreshDue = (unsigned long)(currentMillis - lastDisplayUpdate) >= refreshMs;
     }
+    // Drawn before the WiFi reconnected with a different address: redraw
+    if (displayIpOutdated()) refreshDue = true;
     if (refreshDue) {
       lastDisplayUpdate = currentMillis ? currentMillis : 1;
       updateDisplay();

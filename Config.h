@@ -38,6 +38,7 @@ struct Config {
 bool loadConfig();
 bool saveConfig();
 bool checkConfigValidity();
+bool eraseConfig();  // Factory reset: deletes the settings files (restart needed)
 
 // Dichiarazione variabili esterne
 extern Config config;

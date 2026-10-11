@@ -12,6 +12,8 @@
 #include "NetworkUtils.h"
 #include "WebServer.h"
 #include "DisplayTask.h"
+#include "Display.h"
+#include "Updater.h"
 
 extern bool apMode;
 extern unsigned long lastDisplayUpdate;
@@ -45,6 +47,13 @@ static unsigned long webWindowUntil = 0;
 static unsigned long wifiOnSince = 0;
 static bool wifiFailed = false;
 static unsigned long wifiFailedAt = 0;
+
+// Redraws the display at once, before the WiFi connects: the WiFi icon and
+// the address appear with a single e-ink refresh (~4.5 s) after the touch
+static void redrawNow() {
+  updateDisplay();
+  lastDisplayUpdate = millis() ? millis() : 1;
+}
 
 // Nothing to do in the interrupt: touches are read by ecoPollTouch and ecoSleep
 static void IRAM_ATTR onTouchInterrupt() {}
@@ -112,6 +121,56 @@ static bool touchConfirmed() {
   return below >= 3;
 }
 
+// Long press, after a confirmed touch: holding the screw 10 s restarts the
+// board, 30 s erases the settings, 45 s cancels (for a mistake: keep holding).
+// The display says what releasing will do, and nothing happens until the
+// finger is lifted: a reading stuck under the threshold (a wrong calibration,
+// a short circuit) never releases, so it can never erase anything; after
+// 60 s it is treated as a fault and the touch wake-up is switched off until
+// the next power change.
+static const unsigned long HOLD_RESTART_MS = 10000;
+static const unsigned long HOLD_ERASE_MS = 30000;
+static const unsigned long HOLD_CANCEL_MS = 45000;
+static const unsigned long HOLD_STUCK_MS = 60000;
+static const unsigned long RELEASE_MS = 300;  // Short gaps under the finger are not a release
+
+static void handleLongPress() {
+  static const char* const ACTIONS[] = {"", "restart", "erase the settings", "cancel"};
+  unsigned long start = millis(), lastTouched = start;
+  int stage = 0;
+  while (millis() - lastTouched < RELEASE_MS) {
+    if (touchRead(TOUCH_PIN) < touchThreshold) lastTouched = millis();
+    unsigned long held = lastTouched - start;
+    if (held >= HOLD_STUCK_MS) {
+      touchWakeEnabled = false;
+      Serial.println("[ECO] Touch held for over 60 s: fault, touch wake-up off until the next power change");
+      redrawNow();
+      return;
+    }
+    int now = held >= HOLD_CANCEL_MS ? 3 : held >= HOLD_ERASE_MS ? 2 : held >= HOLD_RESTART_MS ? 1 : 0;
+    if (now > stage) {
+      stage = now;
+      Serial.printf("[ECO] Long press: release to %s\n", ACTIONS[stage]);
+      showTouchHold(stage);
+    }
+    delay(50);
+  }
+  if (stage == 0) return;
+  if (stage == 3) {
+    Serial.println("[ECO] Long press cancelled");
+    redrawNow();  // Back to the main screen
+    return;
+  }
+
+  markFirmwareHealthy();  // Wanted restart: the firmware works, no rollback
+  if (stage == 2 && eraseConfig()) {
+    showSettingsErased();
+  } else {
+    showRestarting();
+  }
+  ESP.restart();
+}
+
 // Reads the touch button while the board is awake. On battery a touch opens
 // the web page; with the charger plugged in it does nothing (everything is
 // already on) but it is logged, so the wiring can be tested over USB.
@@ -132,11 +191,12 @@ void ecoPollTouch() {
   if (ecoActive()) {
     Serial.printf("[ECO] Touch (value %u): web page active for 10 minutes\n", (unsigned)value);
     ecoOpenWebWindow();
-    lastDisplayUpdate = 0;  // Redraw at once: WiFi icon and address in the footer
+    redrawNow();
   } else {
     Serial.printf("[ECO] Touch on GPIO%d: value %u, threshold %u (on the charger: no action)\n",
                   TOUCH_PIN, (unsigned)value, (unsigned)touchThreshold);
   }
+  handleLongPress();
 }
 
 bool ecoActive() {
@@ -216,7 +276,8 @@ void ecoSleep(unsigned long maxMs) {
       falseTouches = 0;
       Serial.println("[ECO] Touch: web page active for 10 minutes");
       ecoOpenWebWindow();
-      lastDisplayUpdate = 0;  // Redraw at once: WiFi icon and address in the footer
+      redrawNow();
+      handleLongPress();
     } else {
       touchesFalse++;
       if (++falseTouches >= MAX_FALSE_TOUCHES) {

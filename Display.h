@@ -15,6 +15,9 @@
 
 void initDisplay();           // Initialises the panel and starts the display task
 void displayStartupScreen();  // "Starting..." screen
+// true when the display shows the WiFi with an address that is not the
+// current one (it is drawn before the WiFi reconnects, see Display.cpp)
+bool displayIpOutdated();
 void updateDisplay();         // Main screen: time, weather, quote, battery
 
 // Setup screen with the QR code of the configuration network
@@ -23,6 +26,10 @@ void showAPModeInfo();
 
 void showConfigSaved();                     // "Settings saved", waits until it is on the panel
 void showRestarting();                      // "Restarting", waits until it is on the panel
+// Long press on the touch screw: what releasing it now will do
+// (1 = restart, 2 = erase the settings, 3 = cancel)
+void showTouchHold(int stage);
+void showSettingsErased();                  // Waits until it is on the panel
 
 // Update download: phase, files, percentage, estimated seconds (-1 = unknown)
 void showUpdateProgress(const char* phase, int filesDone, int filesTotal, int percent, int etaSec);

@@ -127,23 +127,45 @@ bool connectToWiFi(const char* ssid, const char* password) {
 
   if (WiFi.getMode() != WIFI_STA) {
     WiFi.mode(WIFI_STA);
-    delay(1000);
+    delay(100);
   }
 
   WiFi.setAutoReconnect(true);
   WiFi.setSleep(false);      // No modem sleep while connecting: more stable
   WiFi.persistent(false);    // No flash writes for the WiFi credentials
 
-  WiFi.begin(ssid, password);
+  // Fast reconnect: with the channel and access point of the last connection
+  // the scan of every channel is skipped (~1 s instead of 2-4 s on battery,
+  // where the WiFi is switched on at every touch). If the router moved to
+  // another channel, the normal connection follows after FAST_TIMEOUT_MS.
+  static String lastSsid;
+  static int32_t lastChannel = 0;
+  static uint8_t lastBssid[6];
+  const unsigned long FAST_TIMEOUT_MS = 4000;
+  bool fast = lastChannel > 0 && lastSsid == ssid;
+  if (fast) {
+    WiFi.begin(ssid, password, lastChannel, lastBssid);
+  } else {
+    WiFi.begin(ssid, password);
+  }
 
-  int attemptCount = 0;
-  const int maxAttempts = 60;  // 30 seconds (60 * 500 ms)
-  while (WiFi.status() != WL_CONNECTED && attemptCount < maxAttempts) {
-    delay(500);
-    attemptCount++;
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
+    if (fast && millis() - start > FAST_TIMEOUT_MS) {
+      Serial.println("[WIFI] Fast reconnect failed: scanning every channel");
+      fast = false;
+      lastChannel = 0;
+      WiFi.disconnect();
+      WiFi.begin(ssid, password);
+    }
+    delay(100);
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    lastSsid = ssid;
+    lastChannel = WiFi.channel();
+    memcpy(lastBssid, WiFi.BSSID(), sizeof(lastBssid));
+    Serial.printf("[WIFI] Connected in %lu ms (channel %ld)\n", millis() - start, (long)lastChannel);
     setupTimeServer();
     return true;
   }

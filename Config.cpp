@@ -163,3 +163,16 @@ bool saveConfig() {
   SD.remove(LEGACY_CONFIG_FILE);  // Only one configuration file from now on
   return true;
 }
+
+// Factory reset of the settings: the files are deleted, so the next start has
+// the default configuration and opens the setup access point. Quotes, icons
+// and web pages on the SD card are kept.
+bool eraseConfig() {
+  if (!initSD()) return false;
+  SD.remove(CONFIG_TMP);
+  SD.remove(LEGACY_CONFIG_FILE);
+  SD.remove(CONFIG_FILE);
+  bool erased = !SD.exists(CONFIG_FILE) && !SD.exists(LEGACY_CONFIG_FILE);
+  Serial.println(erased ? "[CONFIG] Settings erased" : "[CONFIG] Cannot erase the settings");
+  return erased;
+}
