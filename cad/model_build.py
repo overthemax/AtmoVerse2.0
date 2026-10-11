@@ -10,7 +10,10 @@ y=DEPTH), Z altezza. Parti:
 - "front": cornice con finestra del display, vano, 4 colonnine con inserti M3
            e due piedini anteriori
 - "back":  coperchio con bordo di centraggio, alloggi per batteria e moduli e
-           la guida a coda di rondine del supporto; si chiude con 4 viti M3 dal retro
+           la guida a coda di rondine del supporto; si chiude con 4 viti M3 dal retro.
+           Versione 2 (COVER_EXTRA_D = 4): una fascia di 4 mm tra cornice e piastra
+           dà più profondità interna; schede e moduli restano dove erano rispetto
+           alla cornice (i supporti si allungano), le viti sono annegate a filo.
 - "stand": piastra "arco" (pezzo separato, entra di lato nella guida)
 In arancione i componenti acquistati (solo riferimento).
 """
@@ -50,6 +53,7 @@ CHIN = 18.0         # fascia inferiore: piega del cavo piatto
 FPC_GAP = 1.5       # spazio dietro al pannello
 ELEC_DEPTH = 15.0   # spazio per batteria ed elettronica
 BACK_T = 2.5        # coperchio posteriore
+COVER_EXTRA_D = 4.0  # coperchio v2: profondità in più (fascia tra cornice e piastra); 0 = coperchio originale
 TILT_DEG = 15.0
 CORNER_R = 16.0     # raggio degli angoli della sagoma
 FRONT_EDGE_R = 3.0  # arrotondamento dello spigolo frontale
@@ -60,7 +64,9 @@ POCKET_W, POCKET_H = PANEL_W + 2 * CLR, PANEL_H + 2 * CLR
 WIDTH = POCKET_W + 2 * BEZEL_SIDE
 HEIGHT = CHIN + POCKET_H + BEZEL_SIDE
 DEPTH = FRONT_T + FPC_GAP + ELEC_DEPTH + BACK_T   # il pannello sta dentro l'incavo
-FRONT_D = DEPTH - BACK_T
+FRONT_D = DEPTH - BACK_T                          # retro della cornice (battuta del coperchio)
+PLATE_Y = FRONT_D + COVER_EXTRA_D                 # faccia interna della piastra del coperchio
+REAR_Y = PLATE_Y + BACK_T                         # faccia posteriore del coperchio
 CX, CZ = WIDTH / 2, HEIGHT / 2
 pocket_x0 = (WIDTH - POCKET_W) / 2
 pocket_z0 = CHIN
@@ -92,6 +98,10 @@ def edges_at_y(shape, y):
 BOSS_D = 8.0
 INSERT_D, INSERT_L = 4.0, 6.5
 SCREW_CLEAR_D = 3.4
+# Testa cilindrica M3 (ISO 4762: diam. 5.5 x 3) annegata a filo del retro
+SCREW_HEAD_D, SCREW_HEAD_H = 5.5, 3.0
+SCREW_CB_D = SCREW_HEAD_D + 0.3           # sede della testa (gioco 0.3 sul diametro)
+SCREW_CB_DEPTH = SCREW_HEAD_H if COVER_EXTRA_D > 0 else 0.0
 PANEL_Y = FRONT_T - PANEL_RECESS      # faccia anteriore del pannello (fondo dell'incavo)
 BOSS_FRONT_Y = PANEL_Y + PANEL_T + 0.2   # le colonnine premono gli angoli del pannello
 # Sulla diagonale di ogni angolo tondo, fuse con la parete (0.5 mm di sovrapposizione)
@@ -162,19 +172,31 @@ feet = union([yz_prism(foot_pts, x0, FOOT_W) for x0 in (FOOT_INSET, WIDTH - FOOT
 front = front + feet
 
 # --- Coperchio posteriore ---
-back = rr_prism(WIDTH, HEIGHT, CORNER_R, FRONT_D, BACK_T)
-back = fillet(edges_at_y(back, DEPTH), BACK_EDGE_R)
-back = fillet(edges_at_y(back, FRONT_D), 0.8)
 # Bordo di centraggio che entra nel vano della cornice (gioco 0.3 per lato)
 LIP_W, LIP_H, LIP_CLR = 1.6, 3.0, 0.3
 lip_o = WALL + LIP_CLR
+# Guscio: fascia di COVER_EXTRA_D che prosegue il contorno della cornice, poi la
+# piastra. La fascia è spessa fino al filo interno del bordo di centraggio, così
+# il bordo resta attaccato; sulle colonnine della cornice poggiano 4 colonnine
+# del coperchio (stesso diametro) che portano la spinta delle viti.
+back = rr_prism(WIDTH, HEIGHT, CORNER_R, FRONT_D, COVER_EXTRA_D + BACK_T)
+back = fillet(edges_at_y(back, REAR_Y), BACK_EDGE_R)
+back = fillet(edges_at_y(back, FRONT_D), 0.8)
+if COVER_EXTRA_D > 0:
+    band_in = lip_o + LIP_W
+    back = back - rr_prism(WIDTH - 2 * band_in, HEIGHT - 2 * band_in, CORNER_R - band_in,
+                           FRONT_D - 0.1, COVER_EXTRA_D + 0.1)
+    back = back + union([y_cyl(x, z, FRONT_D, COVER_EXTRA_D + 0.1, BOSS_D) for x, z in boss_pts])
 lip = rr_prism(WIDTH - 2 * lip_o, HEIGHT - 2 * lip_o, CORNER_R - lip_o, FRONT_D - LIP_H, LIP_H + 0.1) - \
     rr_prism(WIDTH - 2 * (lip_o + LIP_W), HEIGHT - 2 * (lip_o + LIP_W), CORNER_R - lip_o - LIP_W,
              FRONT_D - LIP_H - 0.1, LIP_H + 0.3) - \
     union([y_cyl(x, z, FRONT_D - LIP_H - 0.1, LIP_H + 0.3, BOSS_D + 1.0) for x, z in boss_pts])
 back = back + lip
 
-# Alloggio batteria: quattro angolari alti 8 mm (la batteria si ferma con biadesivo)
+# Alloggio batteria: quattro angolari alti 8 mm (la batteria si ferma con biadesivo).
+# La batteria resta incollata alla piastra: nel coperchio v2 arretra di COVER_EXTRA_D
+# (più spazio davanti, verso il pannello). Gli angolari hanno una tacca attorno
+# alle colonnine della cornice.
 BATT_X0, BATT_Z0 = 14.5, 7.0   # più in basso possibile: baricentro basso (sopra il bordo di centraggio)
 cradle_h, cradle_t, cradle_l = 8.0, 1.6, 10.0
 bx0, bz0 = BATT_X0 - 0.5 - cradle_t, BATT_Z0 - 0.5 - cradle_t
@@ -183,37 +205,48 @@ corners = []
 for cx, cz, sx, sz in [(bx0, bz0, 1, 1), (bx1, bz0, -1, 1), (bx0, bz1, 1, -1), (bx1, bz1, -1, -1)]:
     ax = cx if sx > 0 else cx + cradle_t - cradle_l
     az = cz if sz > 0 else cz + cradle_t - cradle_l
-    corners.append(Pos(ax, FRONT_D - cradle_h, cz) * Box(cradle_l, cradle_h + 0.1, cradle_t, align=MIN3))
-    corners.append(Pos(cx, FRONT_D - cradle_h, az) * Box(cradle_t, cradle_h + 0.1, cradle_l, align=MIN3))
-back = back + union(corners)
+    corners.append(Pos(ax, PLATE_Y - cradle_h, cz) * Box(cradle_l, cradle_h + 0.1, cradle_t, align=MIN3))
+    corners.append(Pos(cx, PLATE_Y - cradle_h, az) * Box(cradle_t, cradle_h + 0.1, cradle_l, align=MIN3))
+boss_keepout = union([y_cyl(x, z, -1, FRONT_D + 1.05, BOSS_D + 1.0) for x, z in boss_pts])
+back = back + (union(corners) - boss_keepout)
 
-# Moduli: cornicette basse (si fissano con biadesivo, i fori non servono)
+# Moduli: cornicette basse (si fissano con biadesivo, i fori non servono).
+# Il modulo appoggia sempre a y = FRONT_D: nel coperchio v2 la cornicetta scende
+# fino alla piastra e il modulo poggia su due appoggi alle estremità (in mezzo
+# restano COVER_EXTRA_D mm liberi per fili e saldature).
 FRAME_H, FRAME_T, FRAME_CLR = 3.0, 1.2, 0.4
+LEDGE_W = 4.0       # larghezza degli appoggi alle estremità del modulo
 
 
 def frame(x0, z0, w, h, height=FRAME_H):
     ow, oh = w + 2 * (FRAME_CLR + FRAME_T), h + 2 * (FRAME_CLR + FRAME_T)
     o = Pos(x0 - FRAME_CLR - FRAME_T, FRONT_D - height, z0 - FRAME_CLR - FRAME_T) * \
-        Box(ow, height + 0.1, oh, align=MIN3)
+        Box(ow, height + COVER_EXTRA_D + 0.1, oh, align=MIN3)
     i = Pos(x0 - FRAME_CLR, FRONT_D - height - 0.1, z0 - FRAME_CLR) * \
-        Box(w + 2 * FRAME_CLR, height + 0.3, h + 2 * FRAME_CLR, align=MIN3)
-    return o - i
+        Box(w + 2 * FRAME_CLR, height + COVER_EXTRA_D + 0.3, h + 2 * FRAME_CLR, align=MIN3)
+    out = o - i
+    if COVER_EXTRA_D > 0:
+        out = out + union([Pos(xl, FRONT_D, z0 - FRAME_CLR) * Box(LEDGE_W, COVER_EXTRA_D + 0.1, h + 2 * FRAME_CLR,
+                                                                   align=MIN3)
+                           for xl in (x0 - FRAME_CLR, x0 + w + FRAME_CLR - LEDGE_W)])
+    return out
 
 
 # LOLIN32: quattro appoggi alti MCU_STANDOFF sotto i bordi e due sponde
 mcu_supports = union([
-    Pos(x, FRONT_D - MCU_STANDOFF, z) * Box(6.0, MCU_STANDOFF + 0.1, 3.0, align=MIN3)
+    Pos(x, FRONT_D - MCU_STANDOFF, z) * Box(6.0, MCU_STANDOFF + COVER_EXTRA_D + 0.1, 3.0, align=MIN3)
     for x in (mcu_x0 + 4, mcu_x0 + MCU_L - 10) for z in (MCU_Z0, MCU_Z0 + MCU_W - 3)
 ]) + union([
-    Pos(mcu_x0 + 10, FRONT_D - MCU_STANDOFF - 2.5, z) * Box(30.0, MCU_STANDOFF + 2.6, FRAME_T, align=MIN3)
+    Pos(mcu_x0 + 10, FRONT_D - MCU_STANDOFF - 2.5, z) * Box(30.0, MCU_STANDOFF + COVER_EXTRA_D + 2.6, FRAME_T,
+                                                         align=MIN3)
     for z in (MCU_Z0 - FRAME_CLR - FRAME_T, MCU_Z0 + MCU_W + FRAME_CLR)
 ])
 # Adattatore USB-C: lo tiene l'asola nella parete; in più un appoggio basso a
 # metà del tratto interno, con gioco (non lo forza contro la presa micro-USB)
 ADAPTER_PAD_GAP = 0.6
 adapter_back_y = usbc_y + ADAPTER_T / 2 + ADAPTER_PAD_GAP
-adapter_pad = Pos(adapter_x0 + (WIDTH - WALL - adapter_x0) / 2, (adapter_back_y + FRONT_D + 0.1) / 2, usbc_z) * \
-    Box(8.0, FRONT_D + 0.1 - adapter_back_y, 8.0)
+adapter_pad = Pos(adapter_x0 + (WIDTH - WALL - adapter_x0) / 2, (adapter_back_y + PLATE_Y + 0.1) / 2, usbc_z) * \
+    Box(8.0, PLATE_Y + 0.1 - adapter_back_y, 8.0)
 mcu_supports = mcu_supports + adapter_pad
 # Colonna destra dal basso: LOLIN32 (con adattatore), SD. INA219 + RTC in alto a
 # sinistra, sopra la batteria (con l'adattatore la colonna destra non basta più).
@@ -232,20 +265,59 @@ modules = union([
 back = back + mcu_supports + modules
 
 # Fori passanti per le viti, feritoie di aerazione arrotondate
-back = back - union([y_cyl(x, z, FRONT_D - LIP_H - 0.2, BACK_T + LIP_H + 0.4, SCREW_CLEAR_D) for x, z in boss_pts])
+back = back - union([y_cyl(x, z, FRONT_D - LIP_H - 0.2, REAR_Y - FRONT_D + LIP_H + 0.4, SCREW_CLEAR_D)
+                     for x, z in boss_pts])
+if SCREW_CB_DEPTH > 0:   # testa annegata: sede cilindrica dal retro
+    back = back - union([y_cyl(x, z, REAR_Y - SCREW_CB_DEPTH, SCREW_CB_DEPTH + 0.5, SCREW_CB_D) for x, z in boss_pts])
 
 # Tasto a sfioramento: la vite in alto a destra (guardando il retro, quindi
-# x piccola) fa da elettrodo. Un capocorda ad anello M3 si infila sotto la
-# testa della colonnina, in un incavo sul lato interno del coperchio, e un filo
-# lo collega al GPIO2 (ingresso touch T2) della LOLIN32.
+# x piccola) fa da elettrodo. Un capocorda ad anello M3 si infila sopra la
+# colonnina della cornice (a contatto con l'inserto in ottone), in un incavo sul
+# lato anteriore del coperchio, e un filo lo collega al GPIO2 (ingresso touch T2)
+# della LOLIN32. Il dito tocca la testa della vite, annegata a filo del retro.
 TOUCH_X, TOUCH_Z = boss_pts[2]            # (boss_off, HEIGHT - boss_off)
-LUG_D, LUG_DEPTH, LUG_TAIL_W, LUG_TAIL_L = 7.5, 0.8, 3.5, 12.0
+if COVER_EXTRA_D > 0:
+    # v2: sede più ampia (anello M3 fino a diam. ~7, gira un poco senza forzare);
+    # un poco meno profonda dello spessore dell'anello (~0.8), così il coperchio lo stringe
+    # contro l'inserto. Canale largo per la linguetta e, oltre l'anello, una tasca
+    # profonda per la parte crimpata e il filo verso l'interno.
+    LUG_D, LUG_DEPTH, LUG_TAIL_W, LUG_TAIL_L = 8.6, 0.6, 5.5, 13.0   # LUG_DEPTH: spessore anello - 0.1/0.2
+    LUG_BARREL_R0, LUG_BARREL_W, LUG_BARREL_DEPTH = 3.6, 6.0, 3.4   # si ferma sotto la sede della testa
+else:
+    LUG_D, LUG_DEPTH, LUG_TAIL_W, LUG_TAIL_L = 7.5, 0.8, 3.5, 12.0
+    LUG_BARREL_R0, LUG_BARREL_W, LUG_BARREL_DEPTH = 0.0, 0.0, 0.0
 lug_seat = y_cyl(TOUCH_X, TOUCH_Z, FRONT_D - 0.1, LUG_DEPTH + 0.1, LUG_D)
 # Scanalatura per la linguetta del capocorda, lungo la diagonale verso l'interno
 lug_tail = Pos(TOUCH_X, FRONT_D - 0.1, TOUCH_Z) * Rot(0, 45, 0) * \
     Pos(LUG_TAIL_L / 2, (LUG_DEPTH + 0.1) / 2, 0) * Box(LUG_TAIL_L, LUG_DEPTH + 0.1, LUG_TAIL_W)
 back = back - lug_seat - lug_tail
-back = back - union([rr_prism(4.0, 14.0, 1.9, FRONT_D - 0.1, BACK_T + 0.2, cx=25 + i * 9, cz=HEIGHT - 26)
+if LUG_BARREL_DEPTH > 0:
+    lug_barrel = Pos(TOUCH_X, FRONT_D - 0.1, TOUCH_Z) * Rot(0, 45, 0) * \
+        Pos(LUG_BARREL_R0 + LUG_TAIL_L / 2, (LUG_BARREL_DEPTH + 0.1) / 2, 0) * \
+        Box(LUG_TAIL_L, LUG_BARREL_DEPTH + 0.1, LUG_BARREL_W)
+    back = back - lug_barrel
+
+# Segno del tasto: tre archi "WiFi" incisi sul retro che partono dalla testa
+# della vite-touch (il punto del simbolo) verso il centro del coperchio.
+# Tratti di MARK_W mm, incisi MARK_DEPTH mm: si stampano senza supporti.
+MARK_DEPTH, MARK_W = 0.6, 1.0
+MARK_R = (5.0, 7.0, 9.0)        # raggi (linea media) degli archi attorno alla vite
+MARK_SPAN = 80.0                # apertura degli archi (gradi), centrata sulla diagonale verso l'interno
+if COVER_EXTRA_D > 0:
+    _mk_pl = Plane(origin=(TOUCH_X, REAR_Y - MARK_DEPTH, TOUCH_Z), x_dir=(1, 0, 0), z_dir=(0, 1, 0))  # y locale = -Z
+
+    def _arc_stroke(r):
+        a0, a1 = math.radians(45 - MARK_SPAN / 2), math.radians(45 + MARK_SPAN / 2)
+        n = 12
+        ro, ri = r + MARK_W / 2, r - MARK_W / 2
+        pts = [(ro * math.cos(a0 + (a1 - a0) * k / n), ro * math.sin(a0 + (a1 - a0) * k / n)) for k in range(n + 1)] + \
+              [(ri * math.cos(a1 - (a1 - a0) * k / n), ri * math.sin(a1 - (a1 - a0) * k / n)) for k in range(n + 1)]
+        caps = [Pos(r * math.cos(a), r * math.sin(a)) * Circle(MARK_W / 2) for a in (a0, a1)]
+        return Polygon(*pts, align=None) + caps[0] + caps[1]
+
+    touch_mark = union([extrude(_mk_pl * _arc_stroke(r), amount=MARK_DEPTH + 0.5) for r in MARK_R])
+    back = back - touch_mark
+back = back - union([rr_prism(4.0, 14.0, 1.9, PLATE_Y - 0.1, BACK_T + 0.2, cx=25 + i * 9, cz=HEIGHT - 26)
                      for i in range(6)])
 
 # --- Supporto "arco": piastra inclinata con un sole nascente ritagliato ---
@@ -283,7 +355,7 @@ stand_x0 = CX - STAND_W / 2
 
 def _pt(s_, w):
     """Punto a distanza s_ lungo la piastra e w dal piano medio (sistema YZ del case)."""
-    return (DEPTH + s_ * _ax[0] + w * _nu[0], STAND_Z + s_ * _ax[1] + w * _nu[1])
+    return (REAR_Y + s_ * _ax[0] + w * _nu[0], STAND_Z + s_ * _ax[1] + w * _nu[1])
 
 
 def _plate_profile(clr=0.0, far=90.0):
@@ -314,7 +386,7 @@ _flare = [_pt(-15, -STAND_T / 2 + 0.2), _pt(-15, -STAND_T / 2 - (DT_L + 15) * _f
 _plate_face = make_face(offset(_path, amount=STAND_T / 2, side=Side.BOTH))
 plate = extrude(Plane(origin=(stand_x0, 0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0)) * _plate_face,
                 amount=STAND_W, dir=(1, 0, 0)) + yz_prism(_flare, stand_x0, STAND_W)
-plate = plate - Pos(-10, DEPTH - 50 + DT_CLR, 0) * Box(WIDTH + 20, 50, HEIGHT, align=MIN3)
+plate = plate - Pos(-10, REAR_Y - 50 + DT_CLR, 0) * Box(WIDTH + 20, 50, HEIGHT, align=MIN3)
 # Sole: ritagliato in direzione orizzontale (visto da dietro è un semicerchio
 # esatto) con il centro sul punto d'appoggio + raggio concentrico interrotto
 _sun_pl = Plane(origin=(CX, stand_contact[0], stand_contact[1]), x_dir=(-1, 0, 0), z_dir=(0, _bt[0], _bt[1]))
@@ -337,18 +409,43 @@ _h = STAND_T / 2 + DT_CLR
 _fl_deg = STAND_ANGLE - DT_FLARE                                 # pendenza del pavimento svasato
 _y_end = _pt(DT_L, _h)[0]                                        # imbocco (labbro del cielo)
 _z_ceil = _z_on(_pt(90, _h), _pt(-15, _h), _y_end)
-_z_floor = _z_on(_pt(DT_L, -_h), _pt(-15, -_h - (DT_L + 15) * math.tan(math.radians(DT_FLARE))), DEPTH)
+_z_floor = _z_on(_pt(DT_L, -_h), _pt(-15, -_h - (DT_L + 15) * math.tan(math.radians(DT_FLARE))), REAR_Y)
 _top = (_y_end, _z_ceil + DT_WALL / math.cos(_b))
-_low_c = (DEPTH - 0.5, _z_floor - DT_WALL / math.cos(math.radians(_fl_deg)))
-guide_pts = [(DEPTH - 0.5, _top[1] + (_y_end - DEPTH + 0.5) * math.tan(math.radians(55))), _top,
-             (_y_end, _low_c[1] - (_y_end - DEPTH + 0.5) * math.tan(_b)), _low_c]
+_low_c = (REAR_Y - 0.5, _z_floor - DT_WALL / math.cos(math.radians(_fl_deg)))
+guide_pts = [(REAR_Y - 0.5, _top[1] + (_y_end - REAR_Y + 0.5) * math.tan(math.radians(55))), _top,
+             (_y_end, _low_c[1] - (_y_end - REAR_Y + 0.5) * math.tan(_b)), _low_c]
 dt_guide = yz_prism(guide_pts, stand_x0 - DT_CLR - DT_STOP, STAND_W + DT_CLR + DT_STOP) - \
     yz_prism(_plate_profile(DT_CLR), stand_x0 - DT_CLR, STAND_W + 10)
 back = back + dt_guide
 
+# --- Posa reale sul tavolo ---
+# Il case poggia sullo spigolo anteriore dei piedini (F) e sul pattino dell'arco.
+# Con il coperchio originale la retta F-pattino è inclinata di TILT_DEG; con il
+# coperchio v2 il pattino arretra con la piastra e l'inclinazione cala un poco.
+FOOT_F = (0.0, table_z(0.0))                      # spigolo anteriore dei piedini
+_rho = STAND_ARC_R + STAND_T / 2                  # raggio della faccia inferiore del pattino
+_cf = (_arc_c[0] - FOOT_F[0], _arc_c[1] - FOOT_F[1])
+REST_TILT_DEG = math.degrees(math.atan2(_cf[1], _cf[0]) - math.asin(_rho / math.hypot(*_cf)))
+_rd = (math.cos(math.radians(REST_TILT_DEG)), math.sin(math.radians(REST_TILT_DEG)))
+rest_contact = (FOOT_F[0] + _dot(_cf, _rd) * _rd[0], FOOT_F[1] + _dot(_cf, _rd) * _rd[1])   # appoggio del pattino
+
+
+def rest_z(y):
+    """Quota del piano del tavolo nella posa reale (sistema del case)."""
+    return FOOT_F[1] + (y - FOOT_F[0]) * math.tan(math.radians(REST_TILT_DEG))
+
+
+# Il coperchio v2 sporge 4 mm dietro lo spigolo inferiore originale: sotto, una
+# smussatura parallela al tavolo (gioco REST_CLR) evita che tocchi il piano.
+REST_CLR = 0.8
+if COVER_EXTRA_D > 0:
+    _ya, _yb = FRONT_D, REAR_Y + 2
+    back = back - yz_prism([(_ya, rest_z(_ya) + REST_CLR), (_yb, rest_z(_yb) + REST_CLR),
+                            (_yb, rest_z(_yb) - 20), (_ya, rest_z(_ya) - 20)], -10, WIDTH + 20)
+
 # --- Riferimenti dei componenti ---
 panel_ref = Pos(pocket_x0 + CLR, PANEL_Y, pocket_z0 + CLR) * Box(PANEL_W, PANEL_T, PANEL_H, align=MIN3)
-battery = Pos(BATT_X0, FRONT_D - BATT_T, BATT_Z0) * Box(BATT_W, BATT_T, BATT_H, align=MIN3)
+battery = Pos(BATT_X0, PLATE_Y - BATT_T, BATT_Z0) * Box(BATT_W, BATT_T, BATT_H, align=MIN3)
 mcu = Pos(mcu_x0, FRONT_D - MCU_STANDOFF - MCU_T, MCU_Z0) * Box(MCU_L, MCU_T, MCU_W, align=MIN3)
 sd = Pos(right_x0, FRONT_D - 4.0, SD_Z0) * Box(SD_W, 4.0, SD_H, align=MIN3)
 ina = Pos(INA_X0, FRONT_D - 4.0, INA_Z0) * Box(INA_W, 4.0, INA_H, align=MIN3)
@@ -361,8 +458,10 @@ refs = {"panel": panel_ref, "battery": battery, "lolin32": mcu, "usb-c-adapter":
 
 
 def on_desk(shape):
-    """Posa sul tavolo: rotazione attorno allo spigolo inferiore posteriore."""
-    return Pos(0, DEPTH, 0) * Rot(-TILT_DEG, 0, 0) * Pos(0, -DEPTH, 0) * shape
+    """Posa reale sul tavolo: rotazione di REST_TILT_DEG attorno allo spigolo anteriore
+    dei piedini (con il coperchio originale coincide con la posa a TILT_DEG)."""
+    f_y = DEPTH - DEPTH / math.cos(math.radians(TILT_DEG))   # stessa y sul tavolo di prima
+    return Pos(0, f_y, 0) * Rot(-REST_TILT_DEG, 0, 0) * Pos(0, -FOOT_F[0], -FOOT_F[1]) * shape
 
 
 if os.environ.get("ATMO_EXPORT"):
@@ -370,14 +469,18 @@ if os.environ.get("ATMO_EXPORT"):
     # - cornice a faccia in giù (il fronte appoggia sul piatto);
     # - coperchio in piedi sul bordo inferiore: supporti solo sotto le sponde interne;
     # - piastra "arco" sul fianco (profilo sul piatto): nessun supporto.
+    # Cornice e supporto si riesportano solo con ATMO_EXPORT_ALL (sono già stampati);
+    # il coperchio con COVER_EXTRA_D > 0 si chiama atmoverse-coperchio-v2.
     from build123d import export_step, export_stl
     out = os.environ["ATMO_EXPORT"]
     os.makedirs(out, exist_ok=True)
     front_print = Rot(90, 0, 0) * front
     back_print = back
     stand_print = Rot(0, -90, 0) * stand   # fianco sul piatto, larghezza in verticale
-    for name, shape in (("atmoverse-cornice", front_print), ("atmoverse-coperchio", back_print),
-                        ("atmoverse-supporto", stand_print)):
+    jobs = [("atmoverse-coperchio" + ("-v2" if COVER_EXTRA_D > 0 else ""), back_print)]
+    if os.environ.get("ATMO_EXPORT_ALL"):
+        jobs += [("atmoverse-cornice", front_print), ("atmoverse-supporto", stand_print)]
+    for name, shape in jobs:
         bb = shape.bounding_box()
         shape = Pos(-bb.min.X, -bb.min.Y, -bb.min.Z) * shape
         export_stl(shape, os.path.join(out, name + ".stl"), tolerance=0.02, angular_tolerance=0.1)
@@ -414,6 +517,9 @@ export_draft(
         "mcu-supports": {"owner": "back", "role": "solid"},
         "module-frames": {"owner": "back", "role": "solid"},
         "screw-holes": {"owner": "back", "role": "cutter"},
+        "screw-counterbores": {"owner": "back", "role": "cutter"},
+        "cover-band": {"owner": "back", "role": "solid"},
+        "rest-bevel": {"owner": "back", "role": "cutter"},
         "back-vents": {"owner": "back", "role": "cutter"},
         "front-feet": {"owner": "front", "role": "solid"},
         "dovetail-guide": {"owner": "back", "role": "solid"},
