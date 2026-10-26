@@ -40,34 +40,26 @@ const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP mode: 
 // Battery empty: deep sleep
 // ---------------------------------------------------------------------------
 // At the critical level the display shows the tired face and the board
-// sleeps, waking every 30 minutes only to measure the battery, or at once
-// when the USB cable is plugged in (USB_SENSE_PIN). The variable in RTC
+// sleeps, waking every 5 seconds only to measure the battery current: as
+// soon as the charger is plugged in the board starts again (no pin can see
+// the USB 5 V). Each check is a few hundred ms awake. The variable in RTC
 // memory survives deep sleep.
-const uint64_t BATTERY_SLEEP_US = 30ULL * 60 * 1000000;
+const uint64_t BATTERY_SLEEP_US = 5ULL * 1000000;
 RTC_DATA_ATTR bool sleepingForBattery = false;
 
 void enterBatterySleep() {
-  Serial.printf("[BATTERY] Battery at %d%%: deep sleep, next check in 30 minutes\n",
+  Serial.printf("[BATTERY] Battery at %d%%: deep sleep, next check in 5 seconds\n",
                 battery.getPercentage());
   sleepingForBattery = true;
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   esp_sleep_enable_timer_wakeup(BATTERY_SLEEP_US);
-#if USB_SENSE_PIN >= 0
-  // Wake-up on USB plugged in. If the USB is already present the pin is high
-  // and would wake the board at once: then only the timer is used.
-  pinMode(USB_SENSE_PIN, INPUT);
-  if (digitalRead(USB_SENSE_PIN) == LOW) {
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)USB_SENSE_PIN, 1);
-  }
-#endif
   Serial.flush();
   esp_deep_sleep_start();
 }
 
 // Wake-up from the battery sleep: measure and, if it is still empty and not
-// charging, sleep again without touching display and WiFi (the face stays).
-// A wake-up from the USB pin is a normal start: the charger is plugged in
+// charging, sleep again without touching display and WiFi (the face stays)
 void checkBatteryAfterSleep() {
   if (!sleepingForBattery || esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
     sleepingForBattery = false;
@@ -107,10 +99,11 @@ void setup() {
 
   // Serial for debugging
   Serial.begin(115200);
-  delay(1000);
 
-  // After a sleep for an empty battery: if it is still empty, back to sleep here
+  // After a sleep for an empty battery: if it is still empty, back to sleep here.
+  // Before the 1 s delay below, so each 5-second check stays short
   checkBatteryAfterSleep();
+  delay(1000);
   
   // Let the system settle before the SD card
   delay(500);
