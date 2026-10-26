@@ -159,7 +159,7 @@ python tools/make_clock_quotes.py quotes.csv E:/
 
 Plugging or unplugging the charger is detected within 2 seconds. The touch threshold is recalibrated at every change of power source, and false touches are ignored.
 
-Battery levels: a warning in the footer at 15%, and at 5% the display shows an empty-battery screen and the board sleeps, checking every 30 minutes until it is charged. A new firmware is not installed below 25% unless the charger is connected.
+Battery levels: a warning in the footer at 15%, and at 5% the display shows an empty-battery screen and the board sleeps, checking the battery current every 5 seconds: plugging in the charger restarts it within a few seconds. A new firmware is not installed below 25% unless the charger is connected.
 
 ---
 
