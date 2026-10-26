@@ -20,6 +20,14 @@
 // Set to 0 if the INA219 is ever mounted the standard way.
 #define INA219_REVERSED 1
 
+// USB detection: the 5 V of the USB connector, through a divider (100 kOhm
+// from 5 V to the pin, 150 kOhm from the pin to GND, ~3.0 V), reaches this
+// pin. It wakes the board from the "battery empty" deep sleep as soon as the
+// USB cable is plugged in. GPIO34 is an RTC input with no internal pull: it
+// must be wired, otherwise a floating pin causes random wake-ups.
+// Set to -1 if it is not wired (wake-up only by the 30-minute timer).
+#define USB_SENSE_PIN 34
+
 // Battery pack: 2 LiPo cells of 3500 mAh in parallel.
 // Estimated internal resistance (ohm): ~0.1 ohm per cell, halved by the
 // parallel connection, plus wiring and protection. Used to estimate the

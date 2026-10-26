@@ -40,8 +40,9 @@ const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP mode: 
 // Battery empty: deep sleep
 // ---------------------------------------------------------------------------
 // At the critical level the display shows the tired face and the board
-// sleeps, waking every 30 minutes only to measure the battery. The variable
-// in RTC memory survives deep sleep.
+// sleeps, waking every 30 minutes only to measure the battery, or at once
+// when the USB cable is plugged in (USB_SENSE_PIN). The variable in RTC
+// memory survives deep sleep.
 const uint64_t BATTERY_SLEEP_US = 30ULL * 60 * 1000000;
 RTC_DATA_ATTR bool sleepingForBattery = false;
 
@@ -52,12 +53,21 @@ void enterBatterySleep() {
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   esp_sleep_enable_timer_wakeup(BATTERY_SLEEP_US);
+#if USB_SENSE_PIN >= 0
+  // Wake-up on USB plugged in. If the USB is already present the pin is high
+  // and would wake the board at once: then only the timer is used.
+  pinMode(USB_SENSE_PIN, INPUT);
+  if (digitalRead(USB_SENSE_PIN) == LOW) {
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)USB_SENSE_PIN, 1);
+  }
+#endif
   Serial.flush();
   esp_deep_sleep_start();
 }
 
 // Wake-up from the battery sleep: measure and, if it is still empty and not
-// charging, sleep again without touching display and WiFi (the face stays)
+// charging, sleep again without touching display and WiFi (the face stays).
+// A wake-up from the USB pin is a normal start: the charger is plugged in
 void checkBatteryAfterSleep() {
   if (!sleepingForBattery || esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) {
     sleepingForBattery = false;

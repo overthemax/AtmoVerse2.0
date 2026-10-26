@@ -59,6 +59,7 @@ ESP32 · 5.83″ e-ink display · battery powered · self-updating from GitHub �
 | Clock | DS3231 | I²C (Wire1): SDA 13 · SCL 15 |
 | Battery | LiPo pack, 2 × 3500 mAh in parallel (66 × 43 × 13 mm) | measured by INA219 on I²C (Wire): SDA 32 · SCL 33, address 0x41 |
 | Touch button | a case screw wired to GPIO2 (touch T2) | ring terminal under the screw |
+| USB detection | divider 100 kΩ (USB 5 V → pin) + 150 kΩ (pin → GND) | GPIO34: wakes the board from the empty-battery sleep when USB is plugged in |
 
 ### Case
 
@@ -159,7 +160,7 @@ python tools/make_clock_quotes.py quotes.csv E:/
 
 Plugging or unplugging the charger is detected within 2 seconds. The touch threshold is recalibrated at every change of power source, and false touches are ignored.
 
-Battery levels: a warning in the footer at 15%, and at 5% the display shows an empty-battery screen and the board sleeps, checking every 30 minutes until it is charged. A new firmware is not installed below 25% unless the charger is connected.
+Battery levels: a warning in the footer at 15%, and at 5% the display shows an empty-battery screen and the board sleeps, checking every 30 minutes until it is charged; plugging in the USB cable wakes it at once (USB detection on GPIO34). A new firmware is not installed below 25% unless the charger is connected.
 
 ---
 
