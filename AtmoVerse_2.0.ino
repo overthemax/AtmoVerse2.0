@@ -40,13 +40,15 @@ const unsigned long AP_RETRY_MS         = 5UL * 60 * 1000;       // In AP mode: 
 // Battery empty: deep sleep
 // ---------------------------------------------------------------------------
 // At the critical level the display shows the tired face and the board
-// sleeps, waking every 30 minutes only to measure the battery. The variable
-// in RTC memory survives deep sleep.
-const uint64_t BATTERY_SLEEP_US = 30ULL * 60 * 1000000;
+// sleeps, waking every 5 seconds only to measure the battery current: as
+// soon as the charger is plugged in the board starts again (no pin can see
+// the USB 5 V). Each check is a few hundred ms awake. The variable in RTC
+// memory survives deep sleep.
+const uint64_t BATTERY_SLEEP_US = 5ULL * 1000000;
 RTC_DATA_ATTR bool sleepingForBattery = false;
 
 void enterBatterySleep() {
-  Serial.printf("[BATTERY] Battery at %d%%: deep sleep, next check in 30 minutes\n",
+  Serial.printf("[BATTERY] Battery at %d%%: deep sleep, next check in 5 seconds\n",
                 battery.getPercentage());
   sleepingForBattery = true;
   WiFi.disconnect(true);
@@ -97,10 +99,11 @@ void setup() {
 
   // Serial for debugging
   Serial.begin(115200);
-  delay(1000);
 
-  // After a sleep for an empty battery: if it is still empty, back to sleep here
+  // After a sleep for an empty battery: if it is still empty, back to sleep here.
+  // Before the 1 s delay below, so each 5-second check stays short
   checkBatteryAfterSleep();
+  delay(1000);
   
   // Let the system settle before the SD card
   delay(500);
